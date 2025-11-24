@@ -1,0 +1,212 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { useEffect, useState, useRef } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useUserStore } from '../store/useUserStore';
+import { userService, chirpService } from '../lib/firestore';
+import { uploadProfilePicture, uploadCoverPhoto, deleteImage } from '../lib/storage';
+import ChirpCard from '../components/ChirpCard';
+import AppLayout from '../components/AppLayout';
+import EditProfileModal from '../components/EditProfileModal';
+const ProfilePage = () => {
+    const { userId } = useParams();
+    const { currentUser, getUser, loadUser, followUser, unfollowUser, isFollowing, setCurrentUser, addUser, users } = useUserStore();
+    const [profileUser, setProfileUser] = useState(null);
+    const [userChirps, setUserChirps] = useState([]);
+    const [followersCount, setFollowersCount] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingContent, setIsLoadingContent] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [uploadingProfilePicture, setUploadingProfilePicture] = useState(false);
+    const [uploadingCoverPhoto, setUploadingCoverPhoto] = useState(false);
+    const [hoveringProfilePicture, setHoveringProfilePicture] = useState(false);
+    const [hoveringCoverPhoto, setHoveringCoverPhoto] = useState(false);
+    const profilePictureInputRef = useRef(null);
+    const coverPhotoInputRef = useRef(null);
+    useEffect(() => {
+        const loadProfile = async () => {
+            if (!userId) {
+                setIsLoading(false);
+                return;
+            }
+            try {
+                setIsLoading(true);
+                // Try to get from cache first
+                let user = getUser(userId);
+                if (!user) {
+                    // Load from Firestore
+                    const firestoreUser = await userService.getUser(userId);
+                    if (firestoreUser) {
+                        user = firestoreUser;
+                    }
+                }
+                if (user) {
+                    setProfileUser(user);
+                }
+            }
+            catch (error) {
+                console.error('Error loading profile:', error);
+            }
+            finally {
+                setIsLoading(false);
+            }
+        };
+        loadProfile();
+    }, [userId, getUser]);
+    useEffect(() => {
+        const loadContent = async () => {
+            if (!profileUser)
+                return;
+            try {
+                setIsLoadingContent(true);
+                const chirps = await chirpService.getChirpsByAuthor(profileUser.id);
+                setUserChirps(chirps);
+                // Load authors for chirps
+                const authorIds = new Set(chirps.map(c => c.authorId));
+                for (const authorId of authorIds) {
+                    await loadUser(authorId);
+                }
+                // Calculate followers count (users who follow this profile user)
+                const followers = Object.values(users).filter(user => user.following && user.following.includes(profileUser.id));
+                setFollowersCount(followers.length);
+            }
+            catch (error) {
+                console.error('Error loading content:', error);
+            }
+            finally {
+                setIsLoadingContent(false);
+            }
+        };
+        loadContent();
+    }, [profileUser, users, loadUser]);
+    const handleFollow = async () => {
+        if (!profileUser || !currentUser)
+            return;
+        if (isFollowing(profileUser.id)) {
+            await unfollowUser(profileUser.id);
+        }
+        else {
+            await followUser(profileUser.id);
+        }
+    };
+    const handleProfileUpdate = async (updatedUser) => {
+        setProfileUser(updatedUser);
+        // Update in store cache
+        addUser(updatedUser);
+        // If it's the current user, update the current user in store
+        if (currentUser && updatedUser.id === currentUser.id) {
+            setCurrentUser(updatedUser);
+        }
+    };
+    const handleProfilePictureChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !profileUser || !isOwnProfile)
+            return;
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            alert('Profile picture must be less than 2MB');
+            return;
+        }
+        setUploadingProfilePicture(true);
+        try {
+            // Delete old profile picture if it exists
+            if (profileUser.profilePictureUrl) {
+                try {
+                    await deleteImage(profileUser.profilePictureUrl);
+                }
+                catch (deleteError) {
+                    console.warn('Failed to delete old profile picture:', deleteError);
+                }
+            }
+            const downloadURL = await uploadProfilePicture(file, profileUser.id);
+            // Update user in Firestore
+            await userService.updateUser(profileUser.id, {
+                profilePictureUrl: downloadURL,
+            });
+            // Reload updated user
+            const updatedUser = await userService.getUser(profileUser.id);
+            if (updatedUser) {
+                handleProfileUpdate(updatedUser);
+            }
+        }
+        catch (uploadError) {
+            console.error('Error uploading profile picture:', uploadError);
+            alert(uploadError.message || 'Failed to upload profile picture');
+        }
+        finally {
+            setUploadingProfilePicture(false);
+            if (profilePictureInputRef.current) {
+                profilePictureInputRef.current.value = '';
+            }
+        }
+    };
+    const handleCoverPhotoChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !profileUser || !isOwnProfile)
+            return;
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+        if (file.size > 3 * 1024 * 1024) {
+            alert('Cover photo must be less than 3MB');
+            return;
+        }
+        setUploadingCoverPhoto(true);
+        try {
+            // Delete old cover photo if it exists
+            if (profileUser.coverPhotoUrl) {
+                try {
+                    await deleteImage(profileUser.coverPhotoUrl);
+                }
+                catch (deleteError) {
+                    console.warn('Failed to delete old cover photo:', deleteError);
+                }
+            }
+            const downloadURL = await uploadCoverPhoto(file, profileUser.id);
+            // Update user in Firestore
+            await userService.updateUser(profileUser.id, {
+                coverPhotoUrl: downloadURL,
+            });
+            // Reload updated user
+            const updatedUser = await userService.getUser(profileUser.id);
+            if (updatedUser) {
+                handleProfileUpdate(updatedUser);
+            }
+        }
+        catch (uploadError) {
+            console.error('Error uploading cover photo:', uploadError);
+            alert(uploadError.message || 'Failed to upload cover photo');
+        }
+        finally {
+            setUploadingCoverPhoto(false);
+            if (coverPhotoInputRef.current) {
+                coverPhotoInputRef.current.value = '';
+            }
+        }
+    };
+    if (isLoading) {
+        return (_jsx("div", { className: "min-h-screen flex items-center justify-center bg-background", children: _jsx("div", { className: "text-textMuted", children: "Loading..." }) }));
+    }
+    if (!profileUser) {
+        return (_jsx("div", { className: "min-h-screen flex items-center justify-center bg-background", children: _jsxs("div", { className: "text-center", children: [_jsx("h1", { className: "text-xl font-semibold text-textPrimary mb-2", children: "User not found" }), _jsx(Link, { to: "/app", className: "text-primary hover:underline", children: "Go back to app" })] }) }));
+    }
+    const isOwnProfile = currentUser?.id === profileUser.id;
+    const following = isFollowing(profileUser.id);
+    const displayName = profileUser.displayName || profileUser.name;
+    const userHandle = profileUser.userId || profileUser.handle;
+    const initials = displayName
+        .split(' ')
+        .map((part) => part[0]?.toUpperCase())
+        .join('')
+        .slice(0, 2);
+    return (_jsxs(AppLayout, { pageTitle: "Profile", wrapContent: true, children: [_jsxs("div", { className: "border-b border-border", children: [_jsxs("div", { className: "relative w-full h-48 bg-gradient-to-br from-primary/20 via-accent/20 to-primary/30 cursor-pointer group", onMouseEnter: () => isOwnProfile && setHoveringCoverPhoto(true), onMouseLeave: () => setHoveringCoverPhoto(false), onClick: () => isOwnProfile && coverPhotoInputRef.current?.click(), children: [profileUser.coverPhotoUrl ? (_jsx("img", { src: profileUser.coverPhotoUrl, alt: `${displayName}'s cover photo`, className: "w-full h-full object-cover" })) : null, isOwnProfile && (_jsxs(_Fragment, { children: [_jsx("div", { className: `absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-200 ${hoveringCoverPhoto ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-sm font-medium", children: uploadingCoverPhoto ? 'Uploading...' : 'Change cover photo' }) }), _jsx("input", { ref: coverPhotoInputRef, type: "file", accept: "image/*", onChange: handleCoverPhotoChange, className: "hidden", disabled: uploadingCoverPhoto })] }))] }), _jsx("div", { className: "px-6 py-4", children: _jsxs("div", { className: "flex items-start justify-between gap-4 mb-4", children: [_jsxs("div", { className: "flex flex-col items-start gap-3 flex-1 min-w-0", children: [_jsxs("div", { className: "relative cursor-pointer group -mt-16 flex-shrink-0", onMouseEnter: () => isOwnProfile && setHoveringProfilePicture(true), onMouseLeave: () => setHoveringProfilePicture(false), onClick: () => isOwnProfile && profilePictureInputRef.current?.click(), children: [_jsxs("div", { className: "flex h-24 w-24 items-center justify-center rounded-full bg-background border-4 border-background overflow-hidden z-10 relative", children: [profileUser.profilePictureUrl ? (_jsx("img", { src: profileUser.profilePictureUrl, alt: `${displayName}'s profile picture`, className: "w-full h-full object-cover" })) : (_jsx("div", { className: "flex h-full w-full items-center justify-center bg-primary/20 text-2xl font-semibold text-primary", children: initials })), isOwnProfile && (_jsx("div", { className: `absolute inset-0 bg-black/60 rounded-full flex items-center justify-center transition-opacity duration-200 ${hoveringProfilePicture ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-xs font-medium text-center px-2", children: uploadingProfilePicture ? 'Uploading...' : 'Change' }) }))] }), isOwnProfile && (_jsx("input", { ref: profilePictureInputRef, type: "file", accept: "image/*", onChange: handleProfilePictureChange, className: "hidden", disabled: uploadingProfilePicture }))] }), _jsxs("div", { className: "flex-1 min-w-0 w-full relative z-10 -mt-12 pt-16", children: [_jsx("h2", { className: "text-xl font-bold text-textPrimary mb-0.5", children: displayName }), _jsxs("p", { className: "text-sm text-textMuted mb-3", children: ["@", userHandle] }), _jsxs("div", { className: "flex items-center gap-4 text-sm mb-3 flex-wrap", children: [_jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: "font-semibold text-textPrimary", children: profileUser.following.length }), _jsx("span", { className: "text-textMuted", children: "Following" })] }), _jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: "font-semibold text-textPrimary", children: followersCount }), _jsx("span", { className: "text-textMuted", children: "Followers" })] }), _jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: "font-semibold text-textPrimary", children: userChirps.length }), _jsx("span", { className: "text-textMuted", children: "Posts" })] })] }), profileUser.reputation && Object.keys(profileUser.reputation).length > 0 && (_jsxs("div", { className: "mb-3", children: [_jsx("div", { className: "text-xs font-semibold text-textPrimary mb-2", children: "Reputation by Domain" }), _jsx("div", { className: "flex flex-wrap gap-1.5", children: Object.entries(profileUser.reputation)
+                                                                .sort(([, a], [, b]) => b - a)
+                                                                .slice(0, 5)
+                                                                .map(([domain, score]) => (_jsxs("div", { className: "px-2 py-1 bg-backgroundElevated/60 text-textPrimary rounded border border-border/50 text-xs", title: `${domain}: ${(score * 100).toFixed(0)}`, children: [_jsx("span", { className: "font-medium capitalize", children: domain }), _jsx("span", { className: "ml-1 text-accent", children: (score * 100).toFixed(0) })] }, domain))) })] })), profileUser.bio && (_jsx("p", { className: "text-sm text-textPrimary mb-2 whitespace-pre-wrap", children: profileUser.bio })), (profileUser.location || profileUser.url) && (_jsxs("div", { className: "flex flex-wrap gap-3 text-xs text-textMuted mb-2", children: [profileUser.location && (_jsxs("span", { className: "flex items-center gap-1", children: [_jsx("span", { children: "\u2022" }), _jsx("span", { children: profileUser.location })] })), profileUser.url && (_jsxs("a", { href: profileUser.url, target: "_blank", rel: "noopener noreferrer", className: "flex items-center gap-1 text-primary hover:underline", children: [_jsx("span", { children: "\uD83D\uDD17" }), _jsx("span", { className: "truncate max-w-[200px]", children: profileUser.url.replace(/^https?:\/\//, '') })] }))] })), profileUser.interests && profileUser.interests.length > 0 && (_jsxs("div", { className: "flex flex-wrap gap-1.5", children: [profileUser.interests.slice(0, 5).map((interest) => (_jsx("span", { className: "px-2 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded text-xs", title: interest, children: interest }, interest))), profileUser.interests.length > 5 && (_jsxs("span", { className: "px-2 py-0.5 text-xs text-textMuted", children: ["+", profileUser.interests.length - 5] }))] }))] })] }), _jsxs("div", { className: "flex-shrink-0 pt-2 flex flex-col gap-2", children: [isOwnProfile && (_jsx("button", { onClick: () => setIsEditModalOpen(true), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-background/50 border border-border text-textPrimary hover:bg-background/70", children: "Edit Profile" })), !isOwnProfile && currentUser && (_jsx("button", { onClick: handleFollow, className: `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${following
+                                                ? 'bg-background/50 border border-border text-textPrimary hover:bg-background/70'
+                                                : 'bg-primary text-white hover:bg-primary/90'}`, children: following ? 'Following' : 'Follow' })), profileUser.valueStats && (_jsxs("div", { className: "px-3 py-2 bg-accent/5 rounded-lg border border-accent/20 text-xs", children: [_jsxs("div", { className: "flex items-center gap-1.5 mb-1", children: [_jsx("span", { className: "text-textMuted", children: "\u2605" }), _jsx("span", { className: "font-semibold text-textPrimary", children: "Value (30d)" })] }), _jsxs("div", { className: "flex items-center gap-3 text-textMuted", children: [_jsxs("span", { children: ["Posts: ", _jsx("span", { className: "font-semibold text-textPrimary", children: (profileUser.valueStats.postValue30d * 100).toFixed(0) })] }), _jsx("span", { children: "\u2022" }), _jsxs("span", { children: ["Comments: ", _jsx("span", { className: "font-semibold text-textPrimary", children: (profileUser.valueStats.commentValue30d * 100).toFixed(0) })] }), _jsx("span", { children: "\u2022" }), _jsxs("span", { className: "font-semibold text-accent", children: ["Total: ", ((profileUser.valueStats.postValue30d + profileUser.valueStats.commentValue30d) * 100).toFixed(0)] })] })] }))] })] }) })] }), _jsx("div", { className: "max-h-[calc(100vh-350px)] overflow-y-auto", children: isLoadingContent ? (_jsx("div", { className: "p-8 text-center text-textMuted", children: "Loading..." })) : userChirps.length > 0 ? (userChirps.map((chirp) => (_jsx(ChirpCard, { chirp: chirp }, chirp.id)))) : (_jsx("div", { className: "p-8 text-center text-textMuted", children: _jsx("p", { children: "No posts yet" }) })) }), profileUser && (_jsx(EditProfileModal, { open: isEditModalOpen, onClose: () => setIsEditModalOpen(false), user: profileUser, onUpdate: handleProfileUpdate }))] }));
+};
+export default ProfilePage;

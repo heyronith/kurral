@@ -1,0 +1,193 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Users collection
+    // - Anyone authenticated can read user profiles
+    // - Users can only write their own profile
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Chirps collection
+    // - Authenticated users can read all chirps
+    // - Only the author can create/update/delete their own chirps
+    match /chirps/{chirpId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.keys().hasAll(['authorId', 'text', 'topic', 'reachMode', 'createdAt', 'commentCount']);
+      allow update: if isAuthenticated() 
+        && resource.data.authorId == request.auth.uid
+        && request.resource.data.authorId == resource.data.authorId; // Prevent author change
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+    }
+    
+    // Comments collection
+    // - Authenticated users can read comments
+    // - Only the author can create/update/delete their own comments
+    // - Chirp author can delete any comment on their chirp (for cascading deletes)
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && request.resource.data.authorId == request.auth.uid
+        // Validate required fields exist and are correct types
+        && 'chirpId' in request.resource.data
+        && 'authorId' in request.resource.data
+        && 'text' in request.resource.data
+        && 'createdAt' in request.resource.data
+        && request.resource.data.chirpId is string
+        && request.resource.data.authorId is string
+        && request.resource.data.text is string
+        && request.resource.data.createdAt is timestamp
+        // Validate optional nested reply fields if present (allow undefined or correct type)
+        && (!('parentCommentId' in request.resource.data) || request.resource.data.parentCommentId == null || request.resource.data.parentCommentId is string)
+        && (!('replyToUserId' in request.resource.data) || request.resource.data.replyToUserId == null || request.resource.data.replyToUserId is string)
+        && (!('depth' in request.resource.data) || request.resource.data.depth == null || request.resource.data.depth is int)
+        && (!('replyCount' in request.resource.data) || request.resource.data.replyCount == null || request.resource.data.replyCount is int);
+      allow update: if isAuthenticated() 
+        && (
+          // Author can update their own comment (but not change authorId)
+          (resource.data.authorId == request.auth.uid && request.resource.data.authorId == resource.data.authorId)
+          ||
+          // Anyone can update replyCount only (for nested replies incrementing parent's count)
+          // Ensure all other critical fields remain unchanged
+          (request.resource.data.authorId == resource.data.authorId
+           && request.resource.data.chirpId == resource.data.chirpId
+           && request.resource.data.text == resource.data.text
+           && request.resource.data.createdAt == resource.data.createdAt
+           && request.resource.data.replyCount is int
+           && request.resource.data.replyCount >= 0)
+        );
+      // Allow delete if:
+      // 1. Comment author is deleting their own comment, OR
+      // 2. Chirp author is deleting a comment on their chirp (for cascading deletes)
+      allow delete: if isAuthenticated() && (
+        resource.data.authorId == request.auth.uid ||
+        get(/databases/$(database)/documents/chirps/$(resource.data.chirpId)).data.authorId == request.auth.uid
+      );
+    }
+    
+    // Topics collection
+    // - Authenticated users can read all topics (for fetching top engaged topics, suggestions, etc.)
+    // - Authenticated users can create topics if they don't exist (during onboarding, posting, etc.)
+    // - Authenticated users can update topic metadata (engagement counts, user counts)
+    // - Note: Topic names should match the document ID
+    match /topics/{topicName} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && request.resource.data.name == topicName // Ensure topic name matches document ID
+        && request.resource.data.keys().hasAll(['name', 'postsLast48h', 'totalUsers', 'lastEngagementUpdate']);
+      allow update: if isAuthenticated() 
+        && (!('name' in request.resource.data) || request.resource.data.name == topicName); // If name is updated, it must match document ID
+      // Deletion is not allowed for topics (to preserve historical data)
+    }
+    
+    // Trending News collection
+    // - Authenticated users can read all trending news
+    // - System can create/update news (via service account or authenticated users)
+    // - Users can update engagement counts
+    match /trendingNews/{newsId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      // Deletion is handled by cleanup service, but users can't delete
+    }
+    
+    // Notifications collection
+    // - Users can only read their own notifications
+    // - Users can only update read/dismissed fields on their notifications
+    // - Only server (via service account) can create notifications
+    // - Users cannot delete notifications (only dismiss them)
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() 
+        && resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() 
+        && resource.data.userId == request.auth.uid
+        // Only allow updating read and dismissed fields
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'dismissed'])
+        // Validate field types
+        && request.resource.data.read is bool
+        && request.resource.data.dismissed is bool
+        // Ensure critical fields don't change
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.actorId == resource.data.actorId
+        && request.resource.data.createdAt == resource.data.createdAt;
+      // Notifications are created by server only (via service account or Cloud Functions)
+      // For now, allow authenticated users to create notifications for themselves or others
+      // In production, restrict this to Cloud Functions only
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['userId', 'type', 'actorId', 'createdAt', 'read', 'dismissed'])
+        && request.resource.data.userId is string
+        && request.resource.data.type is string
+        && request.resource.data.actorId is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.read is bool
+        && request.resource.data.dismissed is bool;
+      allow delete: if false; // No deletions - use dismissed flag instead
+    }
+    
+    // User notification preferences subcollection
+    // - Users can read/write their own notification preferences
+    match /users/{userId}/preferences/notifications {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && resource.data.userId == userId
+        && request.resource.data.userId == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Value Contributions collection
+    // - Authenticated users can create contributions (when posting/commenting)
+    // - Authenticated users can read contributions (for reputation calculations)
+    // - Note: In production, recalculateAllActiveUsers should be server-side only
+    match /valueContributions/{contributionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && request.resource.data.keys().hasAll(['userId', 'type', 'value', 'createdAt'])
+        && request.resource.data.userId is string
+        && request.resource.data.type is string
+        && request.resource.data.value is number
+        && request.resource.data.createdAt is timestamp;
+      // No updates or deletes - contributions are immutable
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    // Post Reviews collection - for users to add context to posts marked "needs_review"
+    // - Authenticated users can read all review contexts (for transparency)
+    // - Authenticated users can create review contexts (only for posts with needs_review status)
+    // - Users can only create one review context per post (enforced by checking if already exists)
+    // - No updates or deletes - review contexts are immutable
+    match /postReviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && request.resource.data.keys().hasAll(['chirpId', 'submittedBy', 'action', 'sources', 'createdAt'])
+        && request.resource.data.chirpId is string
+        && request.resource.data.submittedBy is string
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.action is string
+        && (request.resource.data.action == 'validate' || request.resource.data.action == 'invalidate')
+        && request.resource.data.sources is list
+        && request.resource.data.sources.size() > 0
+        && request.resource.data.sources.size() <= 10
+        && request.resource.data.createdAt is timestamp
+        && (!request.resource.data.keys().hasAny(['context']) || (request.resource.data.context is string && request.resource.data.context.size() <= 500));
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
+

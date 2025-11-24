@@ -1,0 +1,60 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the file
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Chirp images - users can upload to their own folder
+    // Path: chirp-images/{userId}/{filename}
+    match /chirp-images/{userId}/{fileName} {
+      // Allow read: authenticated users can view all chirp images (needed for displaying posts)
+      allow read: if isAuthenticated();
+      
+      // Allow create: users can only upload to their own folder
+      allow create: if isOwner(userId)
+        && request.resource.size < 5 * 1024 * 1024 // Max 5MB
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow update: users can only update their own images (if needed)
+      allow update: if isOwner(userId)
+        && request.resource.size < 5 * 1024 * 1024 // Max 5MB
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow delete: users can only delete their own images
+      allow delete: if isOwner(userId);
+    }
+    
+    // Profile images - users can upload profile pictures and cover photos to their own folder
+    // Path: profile-images/{userId}/{filename}
+    match /profile-images/{userId}/{fileName} {
+      // Allow read: authenticated users can view all profile images (needed for displaying profiles)
+      allow read: if isAuthenticated();
+      
+      // Allow create: users can only upload to their own folder
+      allow create: if isOwner(userId)
+        && request.resource.size < 3 * 1024 * 1024 // Max 3MB for profile images
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow update: users can only update their own images (if needed)
+      allow update: if isOwner(userId)
+        && request.resource.size < 3 * 1024 * 1024 // Max 3MB for profile images
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow delete: users can only delete their own images
+      allow delete: if isOwner(userId);
+    }
+    
+    // Default: deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

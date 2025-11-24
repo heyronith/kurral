@@ -1,0 +1,208 @@
+import { useState, useEffect } from 'react';
+import { useNotificationStore } from '../store/useNotificationStore';
+import { useUserStore } from '../store/useUserStore';
+import type { NotificationPreferences as NotificationPreferencesType } from '../types';
+
+const NotificationPreferences = () => {
+  const { currentUser } = useUserStore();
+  const { preferences, loadPreferences, updatePreferences } = useNotificationStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [localPreferences, setLocalPreferences] = useState<NotificationPreferencesType | null>(null);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadPreferences(currentUser.id).then(() => {
+        // Load preferences will update the store
+      });
+    }
+  }, [currentUser, loadPreferences]);
+
+  useEffect(() => {
+    if (preferences) {
+      setLocalPreferences(preferences);
+    }
+  }, [preferences]);
+
+  const handleToggle = async (field: keyof NotificationPreferencesType, value: boolean | string) => {
+    if (!currentUser || !localPreferences) return;
+    
+    setLocalPreferences({
+      ...localPreferences,
+      [field]: value,
+    });
+    
+    setIsSaving(true);
+    try {
+      await updatePreferences(currentUser.id, { [field]: value });
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      // Revert on error
+      if (preferences) {
+        setLocalPreferences(preferences);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleArrayToggle = async (
+    field: 'mutedUserIds' | 'mutedChirpIds' | 'mutedThreadIds',
+    value: string,
+    add: boolean
+  ) => {
+    if (!currentUser || !localPreferences) return;
+    
+    const currentArray = localPreferences[field] || [];
+    const newArray = add
+      ? [...currentArray, value]
+      : currentArray.filter((id) => id !== value);
+    
+    setLocalPreferences({
+      ...localPreferences,
+      [field]: newArray,
+    });
+    
+    setIsSaving(true);
+    try {
+      await updatePreferences(currentUser.id, { [field]: newArray });
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      // Revert on error
+      if (preferences) {
+        setLocalPreferences(preferences);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTimeChange = async (field: 'quietHoursStart' | 'quietHoursEnd', value: string) => {
+    await handleToggle(field, value);
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="p-4 text-textMuted text-sm">
+        Please sign in to manage notification preferences.
+      </div>
+    );
+  }
+
+  if (!localPreferences) {
+    return (
+      <div className="p-4 text-textMuted text-sm">
+        Loading notification preferences...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-textPrimary mb-4">Notification Types</h3>
+        <div className="space-y-4">
+          <NotificationToggle
+            label="Comments"
+            description="Get notified when someone comments on your posts"
+            enabled={localPreferences.commentNotifications}
+            onChange={(value) => handleToggle('commentNotifications', value)}
+          />
+          <NotificationToggle
+            label="Replies"
+            description="Get notified when someone replies to your comments"
+            enabled={localPreferences.replyNotifications}
+            onChange={(value) => handleToggle('replyNotifications', value)}
+          />
+          <NotificationToggle
+            label="Rechirps"
+            description="Get notified when someone rechirps your posts"
+            enabled={localPreferences.rechirpNotifications}
+            onChange={(value) => handleToggle('rechirpNotifications', value)}
+          />
+          <NotificationToggle
+            label="Follows"
+            description="Get notified when someone follows you"
+            enabled={localPreferences.followNotifications}
+            onChange={(value) => handleToggle('followNotifications', value)}
+          />
+          <NotificationToggle
+            label="Mentions"
+            description="Get notified when someone mentions you"
+            enabled={localPreferences.mentionNotifications}
+            onChange={(value) => handleToggle('mentionNotifications', value)}
+          />
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-lg font-semibold text-textPrimary mb-4">Quiet Hours</h3>
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <label className="text-sm text-textMuted">Start time:</label>
+            <input
+              type="time"
+              value={localPreferences.quietHoursStart || '22:00'}
+              onChange={(e) => handleTimeChange('quietHoursStart', e.target.value)}
+              className="px-3 py-2 bg-background/50 border border-border rounded-lg text-textPrimary focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="text-sm text-textMuted">End time:</label>
+            <input
+              type="time"
+              value={localPreferences.quietHoursEnd || '08:00'}
+              onChange={(e) => handleTimeChange('quietHoursEnd', e.target.value)}
+              className="px-3 py-2 bg-background/50 border border-border rounded-lg text-textPrimary focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </div>
+          <p className="text-xs text-textMuted">
+            During quiet hours, you won't receive push notifications, but notifications will still appear in your notification center.
+          </p>
+        </div>
+      </div>
+
+
+      {isSaving && (
+        <div className="text-xs text-textMuted">
+          Saving preferences...
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface NotificationToggleProps {
+  label: string;
+  description: string;
+  enabled: boolean;
+  onChange: (value: boolean) => void;
+}
+
+const NotificationToggle = ({ label, description, enabled, onChange }: NotificationToggleProps) => {
+  return (
+    <div className="flex items-start justify-between gap-4 p-3 rounded-lg border border-border/40 bg-background/30 hover:bg-background/50 transition-colors">
+      <div className="flex-1 min-w-0">
+        <label className="block text-sm font-medium text-textPrimary mb-1">{label}</label>
+        <p className="text-xs text-textMuted">{description}</p>
+      </div>
+      <button
+        onClick={() => onChange(!enabled)}
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent/30 focus:ring-offset-2 ${
+          enabled ? 'bg-accent' : 'bg-backgroundElevated'
+        }`}
+        role="switch"
+        aria-checked={enabled}
+      >
+        <span
+          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+            enabled ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    </div>
+  );
+};
+
+export default NotificationPreferences;
+
