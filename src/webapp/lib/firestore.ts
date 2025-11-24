@@ -278,6 +278,7 @@ const chirpFromFirestore = (doc: any): Chirp => {
     createdAt: toDate(data.createdAt),
     rechirpOfId: data.rechirpOfId,
     commentCount: data.commentCount || 0,
+    countryCode: data.countryCode,
     imageUrl: data.imageUrl,
     scheduledAt: data.scheduledAt ? toDate(data.scheduledAt) : undefined,
     formattedText: data.formattedText,
@@ -544,6 +545,9 @@ export const chirpService = {
       // Include new optional fields
       if (chirp.imageUrl) {
         chirpData.imageUrl = chirp.imageUrl;
+      }
+      if (chirp.countryCode) {
+        chirpData.countryCode = chirp.countryCode;
       }
       
       if (chirp.scheduledAt) {

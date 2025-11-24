@@ -23,7 +23,11 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() 
         && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.keys().hasAll(['authorId', 'text', 'topic', 'reachMode', 'createdAt', 'commentCount']);
+        && request.resource.data.keys().hasAll(['authorId', 'text', 'topic', 'reachMode', 'createdAt', 'commentCount'])
+        && (
+          !('countryCode' in request.resource.data) ||
+          (request.resource.data.countryCode is string && request.resource.data.countryCode.size() == 2)
+        );
       allow update: if isAuthenticated() 
         && resource.data.authorId == request.auth.uid
         && request.resource.data.authorId == resource.data.authorId; // Prevent author change

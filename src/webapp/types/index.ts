@@ -125,6 +125,7 @@ export type Chirp = {
   createdAt: Date;
   rechirpOfId?: string; // If this is a rechirp, reference original
   commentCount: number;
+  countryCode?: string; // ISO 3166-1 alpha-2 country code where post was made
   imageUrl?: string; // Optional image URL
   scheduledAt?: Date; // Optional scheduled post time
   formattedText?: string; // Optional formatted text (markdown-style)
