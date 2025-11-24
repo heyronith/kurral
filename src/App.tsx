@@ -17,7 +17,8 @@ const App = () => {
     <BrowserRouter>
       <ComposerProvider>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/lp" element={<LandingPage />} />
+        <Route path="/" element={<Navigate to="/app" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route
