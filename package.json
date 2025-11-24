@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "prebuild": "node -e \"try { require('@rollup/rollup-linux-x64-gnu'); } catch(e) { console.log('Installing rollup native dependency...'); require('child_process').execSync('npm install --no-save @rollup/rollup-linux-x64-gnu', {stdio: 'inherit'}); }\" || true",
+    "prebuild": "bash scripts/ensure-rollup.sh",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
