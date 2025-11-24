@@ -55,9 +55,17 @@ const fetchCountryCode = async (): Promise<string | null> => {
       },
     });
     window.clearTimeout(timeout);
+    
+    // Handle 204 No Content (no country code available)
+    if (response.status === 204) {
+      console.log('[LocationService] No country code available (204)');
+      return null;
+    }
+    
     if (!response.ok) {
       throw new Error(`Unexpected response (${response.status})`);
     }
+    
     const data = await response.json();
     const countryCode = typeof data?.countryCode === 'string' ? data.countryCode.trim() : '';
     if (!countryCode) {
@@ -65,6 +73,7 @@ const fetchCountryCode = async (): Promise<string | null> => {
     }
     const normalized = countryCode.toUpperCase();
     cacheCountryCode(normalized);
+    console.log('[LocationService] Successfully fetched country code:', normalized);
     return normalized;
   } catch (error) {
     console.warn('[LocationService] Failed to fetch country code', error);

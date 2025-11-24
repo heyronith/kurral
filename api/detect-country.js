@@ -30,9 +30,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const targetUrl = createIpapiUrl(extractClientIp(req));
+  const clientIp = extractClientIp(req);
+  const targetUrl = createIpapiUrl(clientIp);
 
   try {
+    console.log('[detect-country] Fetching country for IP:', clientIp || 'auto-detect');
     const response = await fetch(targetUrl, {
       headers: {
         Accept: 'application/json',
@@ -40,6 +42,7 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
+      console.error('[detect-country] ipapi.co error:', response.status, response.statusText);
       throw new Error(`ipapi.co responded with ${response.status}`);
     }
 
@@ -49,9 +52,11 @@ export default async function handler(req, res) {
       : '';
 
     if (!countryCode) {
-    return res.status(204).end();
+      console.log('[detect-country] No country code in response');
+      return res.status(204).end();
     }
 
+    console.log('[detect-country] Detected country code:', countryCode);
     res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
     return res.status(200).json({ countryCode });
   } catch (error) {
