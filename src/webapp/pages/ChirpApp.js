@@ -18,7 +18,6 @@ import NewsDetailView from '../components/NewsDetailView';
 import TopicDetailView from '../components/TopicDetailView';
 import { useNotificationSetup } from '../store/useNotificationStore';
 import { startPeriodicRecalculation } from '../lib/services/reputationRecalculationService';
-import { resolveCountryCode } from '../lib/services/locationService';
 const ChirpApp = () => {
     const { activeFeed, setActiveFeed, loadChirps, loadComments, upsertChirps } = useFeedStore();
     const { currentUser, loadUser } = useUserStore();
@@ -32,12 +31,6 @@ const ChirpApp = () => {
     const shouldShowSearch = query.trim().length >= 2;
     // Setup notifications for current user
     useNotificationSetup(currentUser?.id || null);
-    // Pre-load location in background when app starts
-    useEffect(() => {
-        resolveCountryCode().catch((error) => {
-            console.warn('[ChirpApp] Failed to pre-load location:', error);
-        });
-    }, []);
     // Initialize background reputation recalculation job (runs daily)
     useEffect(() => {
         const stopRecalculation = startPeriodicRecalculation(24 * 60 * 60 * 1000);

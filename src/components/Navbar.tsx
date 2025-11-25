@@ -15,22 +15,22 @@ const Navbar = () => {
         </Link>
         <div className="hidden md:flex items-center gap-4">
           <nav className="flex items-center gap-6 text-sm font-medium text-textMuted">
-            {links.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="transition-all duration-200 hover:text-textPrimary hover:translate-y-[-1px]"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
-          <Link
-            to="/app"
-            className="rounded-lg bg-gradient-to-r from-accent to-accentLight px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:from-accentHover hover:to-accent shadow-button hover:shadow-buttonHover active:scale-95"
-          >
-            Try Kurral
-          </Link>
+          {links.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="transition-all duration-200 hover:text-textPrimary hover:translate-y-[-1px]"
+            >
+              {link.label}
+            </a>
+          ))}
+        </nav>
+        <Link
+          to="/app"
+          className="rounded-lg bg-gradient-to-r from-accent to-accentLight px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:from-accentHover hover:to-accent shadow-button hover:shadow-buttonHover active:scale-95"
+        >
+          Try Kurral
+        </Link>
         </div>
       </div>
     </header>

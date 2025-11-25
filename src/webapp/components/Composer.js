@@ -14,7 +14,6 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { uploadImage } from '../lib/storage';
 import { useComposer } from '../context/ComposerContext';
-import { getCachedCountryCode, resolveCountryCode } from '../lib/services/locationService';
 const extractSemanticKeywords = (text, limit = 6) => {
     const tokens = text.toLowerCase().match(/[a-z0-9#]{3,}/g) || [];
     const unique = Array.from(new Set(tokens));
@@ -493,11 +492,6 @@ const Composer = () => {
         if (!canPost || !currentUser)
             return;
         setIsPosting(true);
-        // Get country code - use cached value if available, otherwise fetch (should be ready from app startup)
-        let countryCode = getCachedCountryCode();
-        if (!countryCode) {
-            countryCode = await resolveCountryCode();
-        }
         try {
             // Get formatted HTML and plain text
             const formattedHTML = getFormattedText();
@@ -594,9 +588,6 @@ const Composer = () => {
             // Store formatted HTML
             if (formattedHTML.trim()) {
                 chirpData.formattedText = formattedHTML.trim();
-            }
-            if (countryCode) {
-                chirpData.countryCode = countryCode;
             }
             await addChirp(chirpData);
             // Reset form

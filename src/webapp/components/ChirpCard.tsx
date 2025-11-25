@@ -237,9 +237,6 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
             </Link>
             <span className="text-textLabel text-xs">·</span>
             <span className="text-textMuted text-xs">{formatTime(chirp.createdAt)}</span>
-            {chirp.countryCode && (
-              <span className="text-textMuted text-xs">· {chirp.countryCode}</span>
-            )}
             <div className="flex items-center gap-1.5 flex-wrap">
               <div className="px-2 py-0.5 bg-backgroundElevated/60 rounded border border-border/50 flex items-center gap-1.5">
                 <span className="text-xs text-textPrimary font-semibold">
