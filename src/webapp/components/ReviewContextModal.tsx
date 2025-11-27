@@ -1,6 +1,7 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { reviewContextService } from '../lib/firestore';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 import type { Chirp, PostReviewAction } from '../types';
 
 interface ReviewContextModalProps {
@@ -17,6 +18,7 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { currentUser } = useUserStore();
+  const { theme } = useThemeStore();
 
   useEffect(() => {
     if (open) {
@@ -95,7 +97,7 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
             <h2 className="text-xl font-bold text-textPrimary">Review Post</h2>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-backgroundElevated/60 transition-colors text-textMuted hover:text-textPrimary"
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}
               aria-label="Close"
             >
               <svg
@@ -204,7 +206,7 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-backgroundElevated/60 border border-border text-textPrimary hover:bg-backgroundElevated/80"
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-border text-textPrimary ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20' : 'bg-backgroundElevated/60 hover:bg-backgroundElevated/80'}`}
                 disabled={loading}
               >
                 Cancel

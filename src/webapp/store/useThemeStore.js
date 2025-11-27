@@ -1,27 +1,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+const applyThemeClass = (theme) => {
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+    }
+    else {
+        document.documentElement.classList.remove('dark');
+    }
+};
 export const useThemeStore = create()(persist((set) => ({
     theme: 'light',
     setTheme: (theme) => {
         set({ theme });
-        // Apply theme class to document root
-        if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        }
-        else {
-            document.documentElement.classList.remove('dark');
-        }
+        applyThemeClass(theme);
     },
     toggleTheme: () => {
         set((state) => {
             const newTheme = state.theme === 'light' ? 'dark' : 'light';
-            // Apply theme class to document root
-            if (newTheme === 'dark') {
-                document.documentElement.classList.add('dark');
-            }
-            else {
-                document.documentElement.classList.remove('dark');
-            }
+            applyThemeClass(newTheme);
             return { theme: newTheme };
         });
     },
@@ -29,11 +25,8 @@ export const useThemeStore = create()(persist((set) => ({
     name: 'chirp-theme-storage',
     onRehydrateStorage: () => (state) => {
         // Apply theme on hydration
-        if (state?.theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        }
-        else {
-            document.documentElement.classList.remove('dark');
+        if (state?.theme) {
+            applyThemeClass(state.theme);
         }
     },
 }));

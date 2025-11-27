@@ -2,6 +2,8 @@ import { useState, useEffect, FormEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserStore } from '../store/useUserStore';
 import { userService } from '../lib/firestore';
+import { generateAndSaveProfileSummary } from '../lib/services/profileSummaryAgent';
+import { extractInterestsFromStatement } from '../lib/services/profileInterestAgent';
 
 const Onboarding = () => {
   const { currentUser, setCurrentUser } = useUserStore();
@@ -10,8 +12,9 @@ const Onboarding = () => {
   const [displayName, setDisplayName] = useState(currentUser?.name || '');
   const [userId, setUserId] = useState(currentUser?.handle || '');
   const [semanticInterests, setSemanticInterests] = useState<string[]>(currentUser?.interests || []);
-  const [interestInput, setInterestInput] = useState('');
+  const [unifiedInterestInput, setUnifiedInterestInput] = useState('');
   const [interestError, setInterestError] = useState('');
+  const [interestLoading, setInterestLoading] = useState(false);
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [url, setUrl] = useState(currentUser?.url || '');
   const [location, setLocation] = useState(currentUser?.location || '');
@@ -23,23 +26,67 @@ const Onboarding = () => {
     setSemanticInterests(currentUser?.interests || []);
   }, [currentUser?.interests]);
 
-  const handleAddInterest = () => {
-    const normalized = interestInput.trim().toLowerCase();
-    if (!normalized) {
-      setInterestError('Enter an interest first.');
+  // Detect if input looks like a statement (natural language) vs direct interest
+  const looksLikeStatement = (text: string): boolean => {
+    const trimmed = text.trim();
+    if (trimmed.length < 10) return false; // Too short to be a statement
+    
+    // Check for sentence indicators
+    const statementIndicators = [
+      /\b(i|i'd|i'll|i've|i'm|i want|i like|i prefer|i need|i'm interested|show me|give me|more|less|fewer)\b/i,
+      /[.!?]\s*$/, // Ends with punctuation
+      /\b(and|or|but|because|since|when|where|how|what|why)\b/i, // Conjunctions
+      /\b(should|would|could|might|may|can)\b/i, // Modal verbs
+    ];
+    
+    return statementIndicators.some(pattern => pattern.test(trimmed));
+  };
+
+  const handleUnifiedInterestSubmit = async () => {
+    const input = unifiedInterestInput.trim();
+    if (!input) {
+      setInterestError('Enter an interest or describe what you want to see.');
       return;
     }
-    if (semanticInterests.includes(normalized)) {
-      setInterestError('Interest already added.');
-      return;
-    }
-    if (normalized.length < 2) {
-      setInterestError('Interest must be at least 2 characters.');
-      return;
-    }
-    setSemanticInterests([...semanticInterests, normalized]);
-    setInterestInput('');
+
     setInterestError('');
+    setInterestLoading(true);
+
+    try {
+      // Check if it looks like a statement - if so, extract interests
+      if (looksLikeStatement(input)) {
+        const extracted = await extractInterestsFromStatement(input);
+        if (extracted.length === 0) {
+          setInterestError('Could not extract interests. Try adding keywords directly or rephrase your statement.');
+          return;
+        }
+
+        setSemanticInterests((prev) => {
+          const combined = [...prev, ...extracted];
+          const unique = Array.from(new Set(combined.map(i => i.toLowerCase())));
+          return unique;
+        });
+        setUnifiedInterestInput('');
+      } else {
+        // Treat as direct interest
+        const normalized = input.toLowerCase();
+        if (semanticInterests.includes(normalized)) {
+          setInterestError('Interest already added.');
+          return;
+        }
+        if (normalized.length < 2) {
+          setInterestError('Interest must be at least 2 characters.');
+          return;
+        }
+        setSemanticInterests([...semanticInterests, normalized]);
+        setUnifiedInterestInput('');
+      }
+    } catch (error: any) {
+      console.error('[Onboarding] Error processing interest:', error);
+      setInterestError('Failed to process. Try again or add keywords directly.');
+    } finally {
+      setInterestLoading(false);
+    }
   };
 
   const handleRemoveInterest = (interest: string) => {
@@ -47,11 +94,12 @@ const Onboarding = () => {
   };
 
   const handleInterestKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleAddInterest();
+      handleUnifiedInterestSubmit();
     }
   };
+
 
   const checkUserIdAvailability = async (userIdToCheck: string): Promise<boolean> => {
     if (!userIdToCheck || userIdToCheck.length < 3) return false;
@@ -152,6 +200,12 @@ const Onboarding = () => {
         setCurrentUser(updatedUser);
       }
 
+      // Generate profile summary asynchronously (don't block navigation)
+      generateAndSaveProfileSummary(currentUser.id).catch((error) => {
+        console.error('[Onboarding] Error generating profile summary:', error);
+        // Non-critical, continue even if summary generation fails
+      });
+
       // Navigate to app
       navigate('/app');
     } catch (err: any) {
@@ -162,170 +216,172 @@ const Onboarding = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-2xl">
-        <div className="bg-background/50 border border-border rounded-3xl p-8 shadow-lg">
-          <h1 className="text-2xl font-bold text-textPrimary mb-2">Complete Your Profile</h1>
-          <p className="text-textMuted mb-6">Let's set up your profile to get started</p>
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-4">
+      <div className="w-full max-w-xl">
+        <div className="bg-background/50 border border-border rounded-2xl p-5 shadow-lg">
+          <h1 className="text-xl font-bold text-textPrimary mb-1">Complete Your Profile</h1>
+          <p className="text-sm text-textMuted mb-4">Let's set up your profile to get started</p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-red-500 text-sm">
+            <div className="mb-3 p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Display Name */}
-            <div>
-              <label htmlFor="displayName" className="block text-sm font-medium text-textLabel mb-2">
-                Display Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-                maxLength={50}
-                className="w-full px-4 py-2 bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                placeholder="Your display name"
-              />
-            </div>
-
-            {/* User ID */}
-            <div>
-              <label htmlFor="userId" className="block text-sm font-medium text-textLabel mb-2">
-                User ID <span className="text-red-500">*</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <span className="text-textMuted">@</span>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Display Name and User ID - Side by side */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="displayName" className="block text-xs font-medium text-textLabel mb-1.5">
+                  Display Name <span className="text-red-500">*</span>
+                </label>
                 <input
-                  id="userId"
+                  id="displayName"
                   type="text"
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
                   required
-                  pattern="[a-zA-Z0-9_]+"
-                  minLength={3}
-                  maxLength={30}
-                  className="flex-1 px-4 py-2 bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                  placeholder="username"
+                  maxLength={50}
+                  className="w-full px-3 py-2 text-sm bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                  placeholder="Your name"
                 />
-                {checkingUserId && (
-                  <span className="text-xs text-textMuted">Checking...</span>
-                )}
               </div>
-              <p className="mt-1 text-xs text-textMuted">3-30 characters, letters, numbers, and underscores only</p>
+
+              <div>
+                <label htmlFor="userId" className="block text-xs font-medium text-textLabel mb-1.5">
+                  User ID <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm text-textMuted">@</span>
+                  <input
+                    id="userId"
+                    type="text"
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    required
+                    pattern="[a-zA-Z0-9_]+"
+                    minLength={3}
+                    maxLength={30}
+                    className="flex-1 px-3 py-2 text-sm bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    placeholder="username"
+                  />
+                  {checkingUserId && (
+                    <span className="text-xs text-textMuted">Checking...</span>
+                  )}
+                </div>
+              </div>
             </div>
 
           {/* Interests */}
           <div>
-            <label className="block text-sm font-medium text-textLabel mb-2">
+            <label className="block text-xs font-medium text-textLabel mb-1.5">
               Interests <span className="text-red-500">*</span>
-              <span className="text-xs text-textMuted ml-2">(Natural language topics you care about)</span>
             </label>
-            <div className="mb-3 p-4 bg-background/30 border border-border rounded-lg max-h-48 overflow-y-auto">
-              <div className="flex flex-wrap gap-2">
+            <div className={`mb-2 p-2.5 bg-background/30 border border-border rounded-lg max-h-32 overflow-y-auto`}>
+              <div className="flex flex-wrap gap-1.5">
                 {semanticInterests.length === 0 && (
-                  <p className="text-sm text-textMuted italic">No interests yet. Add the topics you want to see in your feed.</p>
+                  <p className="text-xs text-textMuted italic">No interests yet</p>
                 )}
                 {semanticInterests.map((interest) => (
                   <button
                     key={interest}
                     type="button"
                     onClick={() => handleRemoveInterest(interest)}
-                    className="px-3 py-1 bg-accent/15 text-accent border border-accent/30 rounded-full text-sm font-medium hover:bg-accent/25 transition-colors flex items-center gap-1"
+                    className="px-2 py-0.5 bg-accent/15 text-accent border border-accent/30 rounded-full text-xs font-medium hover:bg-accent/25 transition-colors flex items-center gap-1"
                   >
                     {interest}
-                    <span className="text-xs">×</span>
+                    <span className="text-[10px]">×</span>
                   </button>
                 ))}
               </div>
             </div>
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-2">
               <input
                 type="text"
-                value={interestInput}
+                value={unifiedInterestInput}
                 onChange={(e) => {
-                  setInterestInput(e.target.value);
+                  setUnifiedInterestInput(e.target.value);
                   if (interestError) setInterestError('');
                 }}
                 onKeyDown={handleInterestKeyDown}
-                placeholder="e.g. react development, ai research, design leadership"
-                className="flex-1 px-4 py-2 bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
+                placeholder={looksLikeStatement(unifiedInterestInput) 
+                  ? "e.g. I want more AI research and less politics" 
+                  : "e.g. ai research, react development, or describe what you want"}
+                className="flex-1 px-3 py-2 text-sm bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
               />
               <button
                 type="button"
-                onClick={handleAddInterest}
-                disabled={loading}
-                className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleUnifiedInterestSubmit}
+                disabled={loading || interestLoading || !unifiedInterestInput.trim()}
+                className="px-3 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
-                Add
+                {interestLoading ? '...' : looksLikeStatement(unifiedInterestInput) ? 'Extract' : 'Add'}
               </button>
             </div>
             {interestError && (
-              <p className="text-xs text-red-500 mb-2">{interestError}</p>
+              <p className="text-xs text-red-500 mt-1">{interestError}</p>
             )}
-            <p className="text-xs text-textMuted">
-              These interests personalize your feed, news, and help you discover like-minded people. Add natural language topics such as "react", "startup funding", or "ai ethics".
-            </p>
           </div>
 
-            {/* Bio */}
-            <div>
-              <label htmlFor="bio" className="block text-sm font-medium text-textLabel mb-2">
-                Bio
-              </label>
-              <textarea
-                id="bio"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                maxLength={160}
-                rows={3}
-                className="w-full px-4 py-2 bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all resize-none"
-                placeholder="Tell us about yourself..."
-              />
-              <p className="mt-1 text-xs text-textMuted">{bio.length}/160 characters</p>
+            {/* Bio, URL, Location - Compact grid */}
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label htmlFor="bio" className="block text-xs font-medium text-textLabel mb-1.5">
+                  Bio
+                </label>
+                <textarea
+                  id="bio"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  maxLength={160}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all resize-none"
+                  placeholder="Tell us about yourself..."
+                />
+                <p className="mt-1 text-xs text-textMuted">{bio.length}/160</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="url" className="block text-xs font-medium text-textLabel mb-1.5">
+                    Website
+                  </label>
+                  <input
+                    id="url"
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    placeholder="https://..."
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="location" className="block text-xs font-medium text-textLabel mb-1.5">
+                    Location
+                  </label>
+                  <input
+                    id="location"
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    maxLength={50}
+                    className="w-full px-3 py-2 text-sm bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    placeholder="City, State"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* URL */}
-            <div>
-              <label htmlFor="url" className="block text-sm font-medium text-textLabel mb-2">
-                Website URL
-              </label>
-              <input
-                id="url"
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="w-full px-4 py-2 bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                placeholder="https://yourwebsite.com"
-              />
+            <div className="pt-2 border-t border-border/50">
+              <button
+                type="submit"
+                disabled={loading || checkingUserId || semanticInterests.length === 0}
+                className="w-full py-2 px-4 text-sm bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Saving...' : 'Complete Setup'}
+              </button>
             </div>
-
-            {/* Location */}
-            <div>
-              <label htmlFor="location" className="block text-sm font-medium text-textLabel mb-2">
-                Location (City)
-              </label>
-              <input
-                id="location"
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                maxLength={50}
-                className="w-full px-4 py-2 bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                placeholder="New York, NY"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || checkingUserId || semanticInterests.length === 0}
-              className="w-full py-3 px-4 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Saving...' : 'Complete Setup'}
-            </button>
           </form>
         </div>
       </div>

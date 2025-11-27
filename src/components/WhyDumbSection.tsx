@@ -29,7 +29,7 @@ const WhyDumbSection = () => (
 
         <div className="space-y-3">
           <h3 className="text-lg font-semibold text-textPrimary">Built for readers, not influencers</h3>
-          <p>Chirp is designed for people who want to stay informed, discover quality discussions, and share concise updates—not build a personal brand. If you're tired of everyone treating social media like a content treadmill, you'll appreciate the difference.</p>
+          <p>Kurral is designed for people who want to stay informed, discover quality discussions, and share concise updates—not build a personal brand. If you're tired of everyone treating social media like a content treadmill, you'll appreciate the difference.</p>
         </div>
       </div>
     </div>

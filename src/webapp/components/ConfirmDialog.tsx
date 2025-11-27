@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useThemeStore } from '../store/useThemeStore';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const ConfirmDialog = ({
   onCancel,
   confirmVariant = 'danger',
 }: ConfirmDialogProps) => {
+  const { theme } = useThemeStore();
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
@@ -64,7 +66,7 @@ const ConfirmDialog = ({
         <div className="flex items-center gap-3 pt-2">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2 text-sm font-medium text-textPrimary bg-backgroundElevated/60 hover:bg-backgroundElevated/80 rounded-lg transition-all duration-200 active:scale-95"
+            className={`flex-1 px-4 py-2 text-sm font-medium text-textPrimary rounded-lg transition-all duration-200 active:scale-95 ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20' : 'bg-backgroundElevated/60 hover:bg-backgroundElevated/80'}`}
           >
             {cancelText}
           </button>

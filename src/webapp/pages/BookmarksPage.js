@@ -2,12 +2,14 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useEffect, useState } from 'react';
 import { useUserStore } from '../store/useUserStore';
 import { useFeedStore } from '../store/useFeedStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { chirpService } from '../lib/firestore';
 import ChirpCard from '../components/ChirpCard';
 import AppLayout from '../components/AppLayout';
 const BookmarksPage = () => {
     const { currentUser } = useUserStore();
     const { loadChirps } = useFeedStore();
+    const { theme } = useThemeStore();
     const [bookmarkedChirps, setBookmarkedChirps] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     useEffect(() => {
@@ -49,10 +51,10 @@ const BookmarksPage = () => {
         loadBookmarks();
     }, [currentUser, loadChirps]);
     if (isLoading) {
-        return (_jsx(AppLayout, { wrapContent: true, children: _jsx("div", { className: "p-8 text-center text-textMuted", children: _jsx("p", { children: "Loading bookmarks..." }) }) }));
+        return (_jsx(AppLayout, { wrapContent: true, children: _jsx("div", { className: `p-8 text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: _jsx("p", { children: "Loading bookmarks..." }) }) }));
     }
-    return (_jsxs(AppLayout, { wrapContent: true, children: [_jsxs("div", { className: "border-b border-border/60 px-4 py-4", children: [_jsx("h1", { className: "text-xl font-bold text-textPrimary", children: "Bookmarks" }), _jsx("p", { className: "text-sm text-textMuted mt-1", children: bookmarkedChirps.length === 0
+    return (_jsxs(AppLayout, { wrapContent: true, children: [_jsxs("div", { className: `border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'} px-4 py-4`, children: [_jsx("h1", { className: `text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: "Bookmarks" }), _jsx("p", { className: `text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mt-1`, children: bookmarkedChirps.length === 0
                             ? 'No bookmarks yet'
-                            : `${bookmarkedChirps.length} ${bookmarkedChirps.length === 1 ? 'bookmark' : 'bookmarks'}` })] }), _jsx("div", { children: bookmarkedChirps.length === 0 ? (_jsxs("div", { className: "p-8 text-center text-textMuted", children: [_jsx("p", { children: "You haven't bookmarked any posts yet." }), _jsx("p", { className: "text-sm mt-2", children: "Bookmark posts to save them for later." })] })) : (bookmarkedChirps.map((chirp) => _jsx(ChirpCard, { chirp: chirp }, chirp.id))) })] }));
+                            : `${bookmarkedChirps.length} ${bookmarkedChirps.length === 1 ? 'bookmark' : 'bookmarks'}` })] }), _jsx("div", { children: bookmarkedChirps.length === 0 ? (_jsxs("div", { className: `p-8 text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: [_jsx("p", { children: "You haven't bookmarked any posts yet." }), _jsx("p", { className: "text-sm mt-2", children: "Bookmark posts to save them for later." })] })) : (bookmarkedChirps.map((chirp) => _jsx(ChirpCard, { chirp: chirp }, chirp.id))) })] }));
 };
 export default BookmarksPage;

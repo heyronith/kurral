@@ -1,6 +1,7 @@
 // Reach Suggestion Agent - Suggests optimal reach settings and topics for chirps
 import BaseAgent, { type AgentResponse } from './baseAgent';
 import type { TunedAudience, Topic, TopicMetadata } from '../../types';
+import { tryGenerateEmbedding } from '../services/embeddingService';
 
 const LEGACY_TOPIC_KEYWORDS: Record<Topic, string[]> = {
   dev: ['dev', 'code', 'coding', 'software', 'engineer', 'react', 'javascript', 'typescript', 'programming', 'frontend', 'backend'],
@@ -61,6 +62,8 @@ export interface ReachSuggestion {
   tunedAudience: TunedAudience;
   explanation: string;
   overallExplanation: string; // Overall explanation for all suggestions
+  targetAudienceDescription: string;
+  targetAudienceEmbedding?: number[];
 }
 
 export interface ContentAnalysis {
@@ -272,6 +275,18 @@ Consider:
         result.overallExplanation = result.explanation || 'AI suggested these settings for optimal engagement.';
       }
 
+      const suggestedTopicNames = result.suggestedTopics
+        .map((suggestion) => suggestion.topic)
+        .filter(Boolean);
+      const defaultAudienceDescription =
+        suggestedTopicNames.length > 0
+          ? `People interested in ${suggestedTopicNames.map((topic) => `#${topic}`).join(', ')}`
+          : result.explanation || 'Relevant audience';
+
+      result.targetAudienceDescription = result.targetAudienceDescription || defaultAudienceDescription;
+      result.targetAudienceEmbedding =
+        result.targetAudienceEmbedding || (await tryGenerateEmbedding(result.targetAudienceDescription));
+
       return {
         success: true,
         data: result,
@@ -299,6 +314,8 @@ Consider:
         },
         explanation: 'Using default settings.',
         overallExplanation: 'Using default settings as fallback.',
+        targetAudienceDescription: 'Default reach settings.',
+        targetAudienceEmbedding: undefined,
       };
 
       return {
@@ -448,6 +465,7 @@ Consider:
           tunedAudience,
           explanation,
           overallExplanation: explanation, // Add overallExplanation for compatibility
+        targetAudienceDescription: explanation,
         },
       };
     } catch (error: any) {

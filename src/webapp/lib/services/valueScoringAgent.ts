@@ -40,37 +40,47 @@ type ValueResponse = {
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
-const fallbackScore = (chirp: Chirp, claims: Claim[], factChecks: FactCheck[], discussion?: DiscussionQuality): ValueScore => {
-  const claimStrength = claims.length > 0 ? Math.min(1, claims.length / 4) : 0.2;
-  const factConfidence =
-    factChecks.length > 0
-      ? factChecks.reduce((sum, fc) => sum + (fc.verdict === 'true' ? 1 : fc.verdict === 'mixed' ? 0.5 : 0.2) * fc.confidence, 0) /
-        factChecks.length
-      : 0.4;
-  const discussionScore = discussion
-    ? (discussion.informativeness + discussion.reasoningDepth + discussion.crossPerspective + discussion.civility) / 4
-    : 0.3;
-  const textLengthScore = clamp01(chirp.text.length / 800);
+const getDimensionWeights = (chirp: Chirp, claims: Claim[]): Record<keyof ValueVector, number> => {
+  const normalizedTopic = chirp.topic.toLowerCase();
+  const dominantDomain =
+    claims.find((claim) => claim.domain && claim.domain !== 'general')?.domain?.toLowerCase() || normalizedTopic;
 
-  const vector: ValueVector = {
-    epistemic: clamp01(factConfidence),
-    insight: clamp01(claimStrength * 0.7 + textLengthScore * 0.5),
-    practical: clamp01(textLengthScore * 0.6 + discussionScore * 0.4),
-    relational: clamp01((discussion?.civility || 0.4) * 0.6 + (discussion?.crossPerspective || 0.3) * 0.4),
-    effort: clamp01(textLengthScore * 0.7 + claims.length * 0.05),
-  };
+  if (dominantDomain === 'health' || dominantDomain === 'politics') {
+    return {
+      epistemic: 0.35,
+      insight: 0.25,
+      practical: 0.2,
+      relational: 0.1,
+      effort: 0.1,
+    };
+  }
 
-  const total = Object.values(vector).reduce((sum, value) => sum + value, 0) / 5;
+  if (dominantDomain === 'technology' || normalizedTopic === 'startups') {
+    return {
+      epistemic: 0.25,
+      insight: 0.35,
+      practical: 0.2,
+      relational: 0.1,
+      effort: 0.1,
+    };
+  }
+
+  if (normalizedTopic === 'productivity' || normalizedTopic === 'design') {
+    return {
+      epistemic: 0.2,
+      insight: 0.25,
+      practical: 0.35,
+      relational: 0.1,
+      effort: 0.1,
+    };
+  }
 
   return {
-    ...vector,
-    total,
-    confidence: clamp01((factConfidence + discussionScore) / 2),
-    updatedAt: new Date(),
-    drivers: [
-      `Baseline heuristic scoring applied (${claims.length} claims, ${factChecks.length} fact checks).`,
-      discussion ? `Discussion quality heuristic: ${discussion.summary}` : 'No discussion yet.',
-    ],
+    epistemic: 0.3,
+    insight: 0.25,
+    practical: 0.2,
+    relational: 0.15,
+    effort: 0.1,
   };
 };
 
@@ -115,9 +125,10 @@ export async function scoreChirpValue(
   claims: Claim[],
   factChecks: FactCheck[],
   discussion: DiscussionAnalysis | undefined
-): Promise<ValueScore> {
+): Promise<ValueScore | null> {
   if (!BaseAgent.isAvailable()) {
-    return fallbackScore(chirp, claims, factChecks, discussion?.threadQuality);
+    console.warn('[ValueScoringAgent] BaseAgent not available, skipping value scoring');
+    return null;
   }
 
   const agent = new BaseAgent();
@@ -152,7 +163,13 @@ Instructions:
       effort: clamp01(response.scores.effort),
     };
 
-    const total = Object.values(vector).reduce((sum, value) => sum + value, 0) / 5;
+    const weights = getDimensionWeights(chirp, claims);
+    const total =
+      vector.epistemic * weights.epistemic +
+      vector.insight * weights.insight +
+      vector.practical * weights.practical +
+      vector.relational * weights.relational +
+      vector.effort * weights.effort;
 
     return {
       ...vector,
@@ -163,7 +180,7 @@ Instructions:
     };
   } catch (error) {
     console.error('[ValueScoringAgent] Error scoring post:', error);
-    return fallbackScore(chirp, claims, factChecks, discussion?.threadQuality);
+    throw error; // Re-throw to let pipeline handle retry logic
   }
 }
 

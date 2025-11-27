@@ -1,12 +1,12 @@
 // Algorithm Tuning Agent - Learns optimal algorithm weights for users
 import BaseAgent, { type AgentResponse } from './baseAgent';
-import type { ForYouConfig, FollowingWeight, Chirp, User, Topic } from '../../types';
+import type { ForYouConfig, FollowingWeight, Chirp, User } from '../../types';
 
 export interface TuningSuggestion {
   followingWeight: FollowingWeight;
   boostActiveConversations: boolean;
-  likedTopics: Topic[];
-  mutedTopics: Topic[];
+  likedTopics: string[];
+  mutedTopics: string[];
   explanation: string;
   confidence: number; // 0-1, how confident the agent is in these suggestions
 }
@@ -16,8 +16,30 @@ interface UserBehaviorData {
   chirpsEngaged: Chirp[]; // chirps with comments/likes
   followingList: string[];
   currentConfig: ForYouConfig;
-  topicEngagement: Record<Topic, number>; // Engagement score per topic
+  topicEngagement: Record<string, number>; // Engagement score per topic
 }
+
+const normalizeBehaviorTopic = (topic?: string): string | null => {
+  if (!topic) return null;
+  const normalized = topic.trim().toLowerCase();
+  return normalized || null;
+};
+
+const buildTopicEngagementMap = (chirps: Chirp[]): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  const addTopic = (topic?: string) => {
+    const normalized = normalizeBehaviorTopic(topic);
+    if (!normalized) return;
+    counts[normalized] = (counts[normalized] || 0) + 1;
+  };
+
+  chirps.forEach((chirp) => {
+    addTopic(chirp.topic);
+    chirp.semanticTopics?.forEach(addTopic);
+  });
+
+  return counts;
+};
 
 const SYSTEM_INSTRUCTION = `You are an expert recommendation algorithm analyst. Your job is to analyze user behavior and suggest optimal feed algorithm settings.
 
@@ -64,12 +86,8 @@ export class TuningAgent {
   ): Promise<AgentResponse<TuningSuggestion>> {
     try {
       // Calculate engagement metrics
-      const topicEngagement: Record<string, number> = {};
+      const topicEngagement = buildTopicEngagementMap(behaviorData.chirpsEngaged);
       const totalEngagement = behaviorData.chirpsEngaged.length;
-      
-      behaviorData.chirpsEngaged.forEach(chirp => {
-        topicEngagement[chirp.topic] = (topicEngagement[chirp.topic] || 0) + 1;
-      });
 
       // Calculate following engagement rate
       const followingChirps = behaviorData.chirpsEngaged.filter(c => 
@@ -171,20 +189,7 @@ Suggest improvements based on clear behavioral patterns. Only suggest changes if
     const chirpsViewed = allChirps.filter(c => viewedChirpIds.includes(c.id));
     const chirpsEngaged = allChirps.filter(c => engagedChirpIds.includes(c.id));
     
-    const topicEngagement: Record<Topic, number> = {
-      dev: 0,
-      startups: 0,
-      music: 0,
-      sports: 0,
-      productivity: 0,
-      design: 0,
-      politics: 0,
-      crypto: 0,
-    };
-
-    chirpsEngaged.forEach(chirp => {
-      topicEngagement[chirp.topic] = (topicEngagement[chirp.topic] || 0) + 1;
-    });
+    const topicEngagement = buildTopicEngagementMap(chirpsEngaged);
 
     return {
       chirpsViewed,

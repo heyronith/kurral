@@ -2,6 +2,7 @@
 // For MVP, we'll use mock data, but structure allows easy swap to Firestore
 import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, increment, Timestamp, onSnapshot, deleteField, writeBatch, startAfter, } from 'firebase/firestore';
 import { db } from './firebase';
+import { DEFAULT_FOR_YOU_CONFIG } from '../types';
 import { notificationService } from './services/notificationService';
 // Helper to convert Firestore Timestamp to Date
 const toDate = (timestamp) => {
@@ -199,6 +200,67 @@ const serializeValueContribution = (value) => {
         return undefined;
     return { ...value };
 };
+const normalizeKurralScoreHistory = (history) => {
+    if (!Array.isArray(history)) {
+        return [];
+    }
+    return history.map((entry) => {
+        let score = normalizeNumber(entry?.score);
+        // Clamp score to 0-100 range (migration from old 300-850 scale)
+        if (score > 100) {
+            if (score >= 300 && score <= 850) {
+                score = ((score - 300) / (850 - 300)) * 100;
+            }
+            score = Math.max(0, Math.min(100, score));
+        }
+        else {
+            score = Math.max(0, Math.min(100, score));
+        }
+        return {
+            score: Math.round(score),
+            delta: normalizeNumber(entry?.delta),
+            reason: entry?.reason || 'score_update',
+            date: entry?.date ? toDate(entry.date) : new Date(),
+        };
+    });
+};
+const normalizeKurralScore = (raw) => {
+    if (!raw) {
+        return undefined;
+    }
+    const components = raw.components || {};
+    let score = normalizeNumber(raw.score);
+    // Clamp score to 0-100 range (migration from old 300-850 scale)
+    // If score is > 100, it's likely from old scale, so convert it
+    if (score > 100) {
+        // Old scale was 300-850, new scale is 0-100
+        // Convert: (oldScore - 300) / (850 - 300) * 100
+        // But also handle any score > 100 by clamping
+        if (score >= 300 && score <= 850) {
+            score = ((score - 300) / (850 - 300)) * 100;
+        }
+        // Clamp to 0-100 regardless
+        score = Math.max(0, Math.min(100, score));
+    }
+    else {
+        // Ensure it's in 0-100 range
+        score = Math.max(0, Math.min(100, score));
+    }
+    // Clamp components to 0-100 range as well
+    const clampComponent = (val) => Math.max(0, Math.min(100, val));
+    return {
+        score: Math.round(score),
+        lastUpdated: raw.lastUpdated ? toDate(raw.lastUpdated) : new Date(),
+        components: {
+            qualityHistory: clampComponent(normalizeNumber(components.qualityHistory)),
+            violationHistory: clampComponent(normalizeNumber(components.violationHistory)),
+            engagementQuality: clampComponent(normalizeNumber(components.engagementQuality)),
+            consistency: clampComponent(normalizeNumber(components.consistency)),
+            communityTrust: clampComponent(normalizeNumber(components.communityTrust)),
+        },
+        history: normalizeKurralScoreHistory(raw.history),
+    };
+};
 // Convert Firestore document to app type
 const chirpFromFirestore = (doc) => {
     const data = doc.data();
@@ -223,6 +285,7 @@ const chirpFromFirestore = (doc) => {
         imageUrl: data.imageUrl,
         scheduledAt: data.scheduledAt ? toDate(data.scheduledAt) : undefined,
         formattedText: data.formattedText,
+        contentEmbedding: data.contentEmbedding,
         claims,
         factChecks,
         factCheckStatus: data.factCheckStatus,
@@ -277,6 +340,18 @@ const userFromFirestore = (doc) => {
                 lastUpdated: data.valueStats.lastUpdated ? toDate(data.valueStats.lastUpdated) : toDate(data.createdAt),
             }
             : undefined,
+        kurralScore: normalizeKurralScore(data.kurralScore),
+        forYouConfig: data.forYouConfig
+            ? {
+                ...DEFAULT_FOR_YOU_CONFIG,
+                ...data.forYouConfig,
+            }
+            : undefined,
+        profileSummary: data.profileSummary,
+        profileSummaryVersion: data.profileSummaryVersion,
+        profileSummaryUpdatedAt: data.profileSummaryUpdatedAt ? toDate(data.profileSummaryUpdatedAt) : undefined,
+        profileEmbedding: data.profileEmbedding,
+        profileEmbeddingVersion: data.profileEmbeddingVersion,
     };
 };
 // Chirp operations
@@ -482,6 +557,10 @@ export const chirpService = {
             if (chirp.discussionQuality) {
                 chirpData.discussionQuality = serializeDiscussionQuality(chirp.discussionQuality);
             }
+            // Include content embedding if available
+            if (chirp.contentEmbedding && chirp.contentEmbedding.length > 0) {
+                chirpData.contentEmbedding = chirp.contentEmbedding;
+            }
             const docRef = await addDoc(collection(db, 'chirps'), chirpData);
             const docSnap = await getDoc(docRef);
             if (!docSnap.exists()) {
@@ -597,49 +676,28 @@ export const chirpService = {
             throw error;
         }
     },
-    // Process scheduled posts - checks for posts that should be published now
-    // OPTIMIZED: Checks recent posts and processes any that have scheduledAt <= now
-    // Note: We check posts created in the last 30 days to catch scheduled posts
-    // that might have been created earlier but scheduled for later
-    async processScheduledPosts() {
+    // Process scheduled posts for a specific author
+    async processScheduledPosts(authorId) {
+        if (!authorId) {
+            return;
+        }
         try {
-            const now = new Date();
-            // Check posts created in the last 30 days
-            // This covers most scheduled posts while still limiting the query scope
-            // If a post was scheduled 30+ days ago, it will be checked when we process
-            // older posts (or we can expand this window if needed)
-            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo);
-            const q = query(collection(db, 'chirps'), where('createdAt', '>=', thirtyDaysAgoTimestamp), orderBy('createdAt', 'desc'), limit(200) // Check up to 200 recent posts for scheduled ones
-            );
+            const now = Timestamp.now();
+            const q = query(collection(db, 'chirps'), where('authorId', '==', authorId), where('scheduledAt', '<=', now), orderBy('scheduledAt', 'asc'), limit(50));
             const snapshot = await getDocs(q);
-            // Early exit if no documents
             if (snapshot.empty) {
                 return;
             }
             const batch = writeBatch(db);
-            let hasUpdates = false;
             snapshot.docs.forEach((docSnap) => {
-                const data = docSnap.data();
-                if (data.scheduledAt) {
-                    const scheduledAt = toDate(data.scheduledAt);
-                    // If scheduled time has passed, remove the scheduledAt field to "publish" it
-                    if (scheduledAt <= now) {
-                        const docRef = doc(db, 'chirps', docSnap.id);
-                        batch.update(docRef, {
-                            scheduledAt: deleteField(),
-                        });
-                        hasUpdates = true;
-                    }
-                }
+                batch.update(docSnap.ref, {
+                    scheduledAt: deleteField(),
+                });
             });
-            if (hasUpdates) {
-                await batch.commit();
-                console.log('[ScheduledPosts] Processed scheduled posts');
-            }
+            await batch.commit();
+            console.log(`[ScheduledPosts] Published scheduled chirps for user ${authorId}`);
         }
         catch (error) {
-            // If query fails (e.g., no index), fall back to checking only when user has scheduled posts
             console.error('Error processing scheduled posts:', error);
         }
     },
@@ -673,12 +731,31 @@ export const userService = {
     },
     async createUser(user, userId) {
         try {
+            const now = Timestamp.now();
             const userData = {
                 ...user,
-                createdAt: Timestamp.now(),
+                createdAt: now,
                 following: user.following || [],
                 bookmarks: user.bookmarks || [],
                 interests: user.interests || [],
+                kurralScore: user.kurralScore || {
+                    score: 65,
+                    lastUpdated: now,
+                    components: {
+                        qualityHistory: 0,
+                        violationHistory: 0,
+                        engagementQuality: 0,
+                        consistency: 0,
+                        communityTrust: 0,
+                    },
+                    history: [],
+                },
+                forYouConfig: user.forYouConfig
+                    ? {
+                        ...DEFAULT_FOR_YOU_CONFIG,
+                        ...user.forYouConfig,
+                    }
+                    : DEFAULT_FOR_YOU_CONFIG,
             };
             if (userId) {
                 // Create user with specific ID (for Firebase Auth UID)
@@ -1189,6 +1266,55 @@ export const realtimeService = {
     },
 };
 // Helper to convert Firestore topic metadata
+const normalizeTopicName = (name) => {
+    if (!name)
+        return '';
+    return name.trim().toLowerCase();
+};
+const ensureValidTopicName = (name) => {
+    const normalized = normalizeTopicName(name);
+    return normalized || null;
+};
+const normalizeTopicInput = (input) => {
+    const rawList = Array.isArray(input) ? input : [input];
+    const normalized = rawList
+        .map((topic) => ensureValidTopicName(topic))
+        .filter(Boolean);
+    return Array.from(new Set(normalized));
+};
+const fetchChirpsWithConstraints = async (constraints) => {
+    const collectionRef = collection(db, 'chirps');
+    try {
+        const q = query(collectionRef, ...constraints, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(chirpFromFirestore);
+    }
+    catch (error) {
+        console.warn('[topicService] Ordered topic query failed:', error);
+        try {
+            const fallback = query(collectionRef, ...constraints);
+            const snapshot = await getDocs(fallback);
+            const posts = snapshot.docs.map(chirpFromFirestore);
+            return posts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        }
+        catch (fallbackError) {
+            console.error('[topicService] Fallback topic query failed:', fallbackError);
+            return [];
+        }
+    }
+};
+const fetchChirpsForTopicWindow = async (topicName, since) => {
+    const constraintSets = [
+        [where('topic', '==', topicName), where('createdAt', '>=', since)],
+        [where('semanticTopics', 'array-contains', topicName), where('createdAt', '>=', since)],
+    ];
+    const collected = [];
+    for (const constraints of constraintSets) {
+        const results = await fetchChirpsWithConstraints(constraints);
+        collected.push(...results);
+    }
+    return dedupeChirps(collected);
+};
 const topicMetadataFromFirestore = (doc) => {
     const data = doc.data();
     return {
@@ -1208,11 +1334,15 @@ export const topicService = {
     // Get topic metadata by name
     async getTopic(topicName) {
         try {
-            const docSnap = await getDoc(doc(db, 'topics', topicName));
+            const normalizedName = ensureValidTopicName(topicName);
+            if (!normalizedName) {
+                return null;
+            }
+            const topicRef = doc(db, 'topics', normalizedName);
+            const docSnap = await getDoc(topicRef);
             if (!docSnap.exists()) {
-                // Topic doesn't exist, create it with defaults
-                await this.createTopic(topicName);
-                const newDocSnap = await getDoc(doc(db, 'topics', topicName));
+                await this.createTopic(normalizedName);
+                const newDocSnap = await getDoc(topicRef);
                 if (!newDocSnap.exists())
                     return null;
                 return topicMetadataFromFirestore(newDocSnap);
@@ -1227,12 +1357,14 @@ export const topicService = {
     // Create topic with default values (only if it doesn't exist - prevents duplication/overwrite)
     async createTopic(topicName) {
         try {
-            const topicRef = doc(db, 'topics', topicName);
+            const normalizedName = ensureValidTopicName(topicName);
+            if (!normalizedName)
+                return;
+            const topicRef = doc(db, 'topics', normalizedName);
             const topicSnap = await getDoc(topicRef);
-            // Only create if it doesn't exist (prevents overwriting existing topic data)
             if (!topicSnap.exists()) {
                 await setDoc(topicRef, {
-                    name: topicName,
+                    name: normalizedName,
                     postsLast48h: 0,
                     postsLast1h: 0,
                     postsLast4h: 0,
@@ -1242,11 +1374,9 @@ export const topicService = {
                     isTrending: false,
                 });
             }
-            // If it already exists, silently return (no error, no overwrite)
         }
         catch (error) {
             console.error('Error creating topic:', error);
-            // Don't throw - topic creation failure shouldn't break user flows
         }
     },
     // Get top engaged topics
@@ -1273,18 +1403,26 @@ export const topicService = {
     // Get trending topics (with velocity spikes)
     async getTrendingTopics(limitCount = 10) {
         try {
-            const q = query(collection(db, 'topics'), where('isTrending', '==', true), orderBy('postsLast1h', 'desc'), limit(limitCount));
-            const snapshot = await getDocs(q);
-            return snapshot.docs.map(topicMetadataFromFirestore);
+            const trendingQuery = query(collection(db, 'topics'), where('isTrending', '==', true), orderBy('postsLast1h', 'desc'), limit(limitCount));
+            const topQuery = query(collection(db, 'topics'), orderBy('postsLast1h', 'desc'), limit(limitCount));
+            const [trendingSnapshot, topSnapshot] = await Promise.all([
+                getDocs(trendingQuery),
+                getDocs(topQuery),
+            ]);
+            const combined = [
+                ...trendingSnapshot.docs.map(topicMetadataFromFirestore),
+                ...topSnapshot.docs.map(topicMetadataFromFirestore),
+            ];
+            const deduped = Array.from(new Map(combined.map((topic) => [topic.name, topic])).values());
+            deduped.sort((a, b) => b.postsLast1h - a.postsLast1h);
+            return deduped.slice(0, limitCount);
         }
         catch (error) {
             console.error('Error fetching trending topics:', error);
-            // Fallback: get all topics and filter/sort manually
             try {
                 const snapshot = await getDocs(collection(db, 'topics'));
                 const topics = snapshot.docs
                     .map(topicMetadataFromFirestore)
-                    .filter(t => t.isTrending)
                     .sort((a, b) => b.postsLast1h - a.postsLast1h)
                     .slice(0, limitCount);
                 return topics;
@@ -1335,7 +1473,6 @@ export const topicService = {
         }
     },
     // Refresh topic engagement (count posts in last 48 hours, 4 hours, and 1 hour)
-    // OPTIMIZED: Uses batching and pagination for better performance
     async refreshTopicEngagement() {
         try {
             const now = Date.now();
@@ -1343,11 +1480,21 @@ export const topicService = {
             const fourHoursAgo = now - 4 * 60 * 60 * 1000;
             const oneHourAgo = now - 60 * 60 * 1000;
             const timestamp48h = Timestamp.fromMillis(fortyEightHoursAgo);
-            // Count posts per topic for different time windows
             const topicCounts48h = {};
             const topicCounts4h = {};
             const topicCounts1h = {};
-            // Process posts in batches to avoid memory issues
+            const incrementCounts = (rawTopic, postTime) => {
+                const normalizedTopic = ensureValidTopicName(rawTopic);
+                if (!normalizedTopic)
+                    return;
+                topicCounts48h[normalizedTopic] = (topicCounts48h[normalizedTopic] || 0) + 1;
+                if (postTime >= fourHoursAgo) {
+                    topicCounts4h[normalizedTopic] = (topicCounts4h[normalizedTopic] || 0) + 1;
+                }
+                if (postTime >= oneHourAgo) {
+                    topicCounts1h[normalizedTopic] = (topicCounts1h[normalizedTopic] || 0) + 1;
+                }
+            };
             const BATCH_SIZE = 500;
             let lastDoc = null;
             let hasMore = true;
@@ -1355,40 +1502,27 @@ export const topicService = {
             while (hasMore) {
                 let q;
                 try {
-                    if (lastDoc) {
-                        q = query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(BATCH_SIZE));
-                    }
-                    else {
-                        q = query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), orderBy('createdAt', 'desc'), limit(BATCH_SIZE));
-                    }
+                    q = lastDoc
+                        ? query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(BATCH_SIZE))
+                        : query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), orderBy('createdAt', 'desc'), limit(BATCH_SIZE));
                 }
                 catch (error) {
-                    // Fallback if index doesn't exist
                     console.warn('Index for createdAt not found, fetching without orderBy:', error);
-                    if (lastDoc) {
-                        q = query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), limit(BATCH_SIZE));
-                    }
-                    else {
-                        q = query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), limit(BATCH_SIZE));
-                    }
+                    q = lastDoc
+                        ? query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), limit(BATCH_SIZE))
+                        : query(collection(db, 'chirps'), where('createdAt', '>=', timestamp48h), limit(BATCH_SIZE));
                 }
                 const snapshot = await getDocs(q);
                 if (snapshot.empty) {
                     hasMore = false;
                     break;
                 }
-                snapshot.docs.forEach(doc => {
+                snapshot.docs.forEach((doc) => {
                     try {
                         const chirp = chirpFromFirestore(doc);
-                        const topicName = chirp.topic;
                         const postTime = chirp.createdAt.getTime();
-                        topicCounts48h[topicName] = (topicCounts48h[topicName] || 0) + 1;
-                        if (postTime >= fourHoursAgo) {
-                            topicCounts4h[topicName] = (topicCounts4h[topicName] || 0) + 1;
-                        }
-                        if (postTime >= oneHourAgo) {
-                            topicCounts1h[topicName] = (topicCounts1h[topicName] || 0) + 1;
-                        }
+                        incrementCounts(chirp.topic, postTime);
+                        chirp.semanticTopics?.forEach((semanticTopic) => incrementCounts(semanticTopic, postTime));
                     }
                     catch (error) {
                         console.error('Error processing chirp:', error);
@@ -1399,9 +1533,8 @@ export const topicService = {
                 hasMore = snapshot.docs.length === BATCH_SIZE;
             }
             console.log(`[TopicRefresh] Processed ${totalProcessed} posts for topic engagement`);
-            // Update all topics with counts and calculate velocity (batched writes)
-            const BATCH_WRITE_SIZE = 500; // Firestore limit
             const topicNames = Object.keys(topicCounts48h);
+            const BATCH_WRITE_SIZE = 500;
             const batches = [];
             for (let i = 0; i < topicNames.length; i += BATCH_WRITE_SIZE) {
                 batches.push(topicNames.slice(i, i + BATCH_WRITE_SIZE));
@@ -1413,9 +1546,7 @@ export const topicService = {
                     const count48h = topicCounts48h[topicName] || 0;
                     const count4h = topicCounts4h[topicName] || 0;
                     const count1h = topicCounts1h[topicName] || 0;
-                    // Calculate average velocity (posts per hour over last 4h)
                     const averageVelocity = count4h / 4;
-                    // Detect spike: if current 1h rate is 2x the average
                     const isTrending = averageVelocity > 0 && count1h >= averageVelocity * 2;
                     batchWrite.set(topicRef, {
                         name: topicName,
@@ -1423,14 +1554,12 @@ export const topicService = {
                         postsLast4h: count4h,
                         postsLast1h: count1h,
                         averageVelocity1h: averageVelocity,
-                        isTrending: isTrending,
+                        isTrending,
                         lastEngagementUpdate: Timestamp.now(),
                     }, { merge: true });
                 }
                 await batchWrite.commit();
             }
-            // Also update existing topics with 0 posts (they weren't in the query)
-            // Process in batches to avoid loading all topics at once
             const allTopicNames = new Set(topicNames);
             let allTopicsLastDoc = null;
             let hasMoreTopics = true;
@@ -1445,7 +1574,7 @@ export const topicService = {
                 }
                 const zeroUpdateBatch = writeBatch(db);
                 let hasZeroUpdates = false;
-                topicsSnapshot.docs.forEach(docSnap => {
+                topicsSnapshot.docs.forEach((docSnap) => {
                     const topicName = docSnap.id;
                     if (!allTopicNames.has(topicName)) {
                         const topicRef = doc(db, 'topics', topicName);
@@ -1475,116 +1604,104 @@ export const topicService = {
     },
     // Increment topic engagement when chirp is created
     // FIXED: Now properly handles time-windowed metrics by triggering recalculation
-    async incrementTopicEngagement(topicName) {
-        try {
-            const topicRef = doc(db, 'topics', topicName);
-            const topicSnap = await getDoc(topicRef);
-            const now = Timestamp.now();
-            const nowMs = Date.now();
-            if (topicSnap.exists()) {
-                const data = topicSnap.data();
-                const lastUpdate = data.lastEngagementUpdate?.toDate() || new Date(0);
-                const hoursSinceUpdate = (nowMs - lastUpdate.getTime()) / (60 * 60 * 1000);
-                // If it's been more than 1 hour since last update, we need to recalculate
-                // to properly handle time-windowed metrics (decay old posts)
-                if (hoursSinceUpdate >= 1) {
-                    // Trigger a mini-refresh for this specific topic by querying its recent posts
-                    await this.recalculateTopicMetrics(topicName);
+    async incrementTopicEngagement(topicNames) {
+        const normalizedTopics = normalizeTopicInput(topicNames);
+        if (normalizedTopics.length === 0) {
+            return;
+        }
+        const processTopic = async (topicName) => {
+            try {
+                const topicRef = doc(db, 'topics', topicName);
+                const topicSnap = await getDoc(topicRef);
+                const now = Timestamp.now();
+                const nowMs = Date.now();
+                if (topicSnap.exists()) {
+                    const data = topicSnap.data();
+                    const lastUpdate = data.lastEngagementUpdate?.toDate() || new Date(0);
+                    const hoursSinceUpdate = (nowMs - lastUpdate.getTime()) / (60 * 60 * 1000);
+                    if (hoursSinceUpdate >= 1) {
+                        await this.recalculateTopicMetrics(topicName);
+                    }
+                    else {
+                        await updateDoc(topicRef, {
+                            postsLast48h: increment(1),
+                            postsLast1h: increment(1),
+                            postsLast4h: increment(1),
+                            lastEngagementUpdate: now,
+                        });
+                        await this.recalculateVelocity(topicName);
+                    }
                 }
                 else {
-                    // Within the hour, just increment counters
-                    // Note: This is approximate but acceptable for real-time updates
-                    // Full refresh will correct any drift
+                    await this.createTopic(topicName);
                     await updateDoc(topicRef, {
-                        postsLast48h: increment(1),
-                        postsLast1h: increment(1),
-                        postsLast4h: increment(1),
+                        postsLast48h: 1,
+                        postsLast1h: 1,
+                        postsLast4h: 1,
                         lastEngagementUpdate: now,
                     });
-                    // Still recalculate velocity to update trending status
-                    await this.recalculateVelocity(topicName);
                 }
             }
-            else {
-                // Create topic if it doesn't exist
-                await this.createTopic(topicName);
-                await updateDoc(doc(db, 'topics', topicName), {
-                    postsLast48h: 1,
-                    postsLast1h: 1,
-                    postsLast4h: 1,
-                    lastEngagementUpdate: now,
-                });
+            catch (error) {
+                console.error('Error incrementing topic engagement for', topicName, error);
             }
-        }
-        catch (error) {
-            console.error('Error incrementing topic engagement:', error);
-            // Don't throw - engagement update shouldn't break chirp creation
+        };
+        for (const topicName of normalizedTopics) {
+            await processTopic(topicName);
         }
     },
     // Recalculate metrics for a specific topic (used when time windows need updating)
     async recalculateTopicMetrics(topicName) {
         try {
+            const normalizedTopic = ensureValidTopicName(topicName);
+            if (!normalizedTopic) {
+                return;
+            }
             const now = Date.now();
             const fortyEightHoursAgo = now - 48 * 60 * 60 * 1000;
             const fourHoursAgo = now - 4 * 60 * 60 * 1000;
             const oneHourAgo = now - 60 * 60 * 1000;
             const timestamp48h = Timestamp.fromMillis(fortyEightHoursAgo);
-            // Query posts for this specific topic
-            let snapshot;
-            try {
-                const q = query(collection(db, 'chirps'), where('topic', '==', topicName), where('createdAt', '>=', timestamp48h), orderBy('createdAt', 'desc'));
-                snapshot = await getDocs(q);
-            }
-            catch (error) {
-                // Fallback if index doesn't exist
-                const q2 = query(collection(db, 'chirps'), where('topic', '==', topicName), where('createdAt', '>=', timestamp48h));
-                snapshot = await getDocs(q2);
-            }
+            const chirps = await fetchChirpsForTopicWindow(normalizedTopic, timestamp48h);
             let count48h = 0;
             let count4h = 0;
             let count1h = 0;
-            snapshot.docs.forEach(doc => {
-                try {
-                    const chirp = chirpFromFirestore(doc);
-                    const postTime = chirp.createdAt.getTime();
-                    count48h++;
-                    if (postTime >= fourHoursAgo) {
-                        count4h++;
-                    }
-                    if (postTime >= oneHourAgo) {
-                        count1h++;
-                    }
+            chirps.forEach((chirp) => {
+                const postTime = chirp.createdAt.getTime();
+                count48h++;
+                if (postTime >= fourHoursAgo) {
+                    count4h++;
                 }
-                catch (error) {
-                    console.error('Error processing chirp in recalculateTopicMetrics:', error);
+                if (postTime >= oneHourAgo) {
+                    count1h++;
                 }
             });
-            // Calculate average velocity (posts per hour over last 4h)
             const averageVelocity = count4h / 4;
-            // Detect spike: if current 1h rate is 2x the average
             const isTrending = averageVelocity > 0 && count1h >= averageVelocity * 2;
-            const topicRef = doc(db, 'topics', topicName);
+            const topicRef = doc(db, 'topics', normalizedTopic);
             await updateDoc(topicRef, {
                 postsLast48h: count48h,
                 postsLast4h: count4h,
                 postsLast1h: count1h,
                 averageVelocity1h: averageVelocity,
-                isTrending: isTrending,
+                isTrending,
                 lastEngagementUpdate: Timestamp.now(),
             });
         }
         catch (error) {
             console.error('Error recalculating topic metrics:', error);
-            // Fallback to simple increment if recalculation fails
             try {
-                const topicRef = doc(db, 'topics', topicName);
+                const normalizedTopic = ensureValidTopicName(topicName);
+                if (!normalizedTopic)
+                    return;
+                const topicRef = doc(db, 'topics', normalizedTopic);
                 await updateDoc(topicRef, {
                     postsLast48h: increment(1),
                     postsLast1h: increment(1),
                     postsLast4h: increment(1),
                     lastEngagementUpdate: Timestamp.now(),
                 });
-                await this.recalculateVelocity(topicName);
+                await this.recalculateVelocity(normalizedTopic);
             }
             catch (fallbackError) {
                 console.error('Error in fallback increment:', fallbackError);
@@ -1594,7 +1711,11 @@ export const topicService = {
     // Recalculate velocity and detect spikes
     async recalculateVelocity(topicName) {
         try {
-            const topicRef = doc(db, 'topics', topicName);
+            const normalizedTopic = ensureValidTopicName(topicName);
+            if (!normalizedTopic) {
+                return;
+            }
+            const topicRef = doc(db, 'topics', normalizedTopic);
             const topicSnap = await getDoc(topicRef);
             if (!topicSnap.exists())
                 return;
@@ -1618,7 +1739,11 @@ export const topicService = {
     // Increment user count for a topic (when user selects topic in profile)
     async incrementTopicUserCount(topicName) {
         try {
-            const topicRef = doc(db, 'topics', topicName);
+            const normalizedTopic = ensureValidTopicName(topicName);
+            if (!normalizedTopic) {
+                return;
+            }
+            const topicRef = doc(db, 'topics', normalizedTopic);
             const topicSnap = await getDoc(topicRef);
             if (topicSnap.exists()) {
                 await updateDoc(topicRef, {
@@ -1626,9 +1751,8 @@ export const topicService = {
                 });
             }
             else {
-                // Create topic if it doesn't exist with 1 user
                 await setDoc(topicRef, {
-                    name: topicName,
+                    name: normalizedTopic,
                     postsLast48h: 0,
                     totalUsers: 1,
                     lastEngagementUpdate: Timestamp.now(),
@@ -1637,18 +1761,20 @@ export const topicService = {
         }
         catch (error) {
             console.error('Error incrementing topic user count:', error);
-            // Don't throw - user count update shouldn't break user update
         }
     },
     // Decrement user count for a topic (when user removes topic from profile)
     async decrementTopicUserCount(topicName) {
         try {
-            const topicRef = doc(db, 'topics', topicName);
+            const normalizedTopic = ensureValidTopicName(topicName);
+            if (!normalizedTopic) {
+                return;
+            }
+            const topicRef = doc(db, 'topics', normalizedTopic);
             const topicSnap = await getDoc(topicRef);
             if (topicSnap.exists()) {
                 const currentData = topicSnap.data();
                 const currentCount = currentData?.totalUsers || 0;
-                // Only decrement if count > 0
                 if (currentCount > 0) {
                     await updateDoc(topicRef, {
                         totalUsers: Math.max(0, currentCount - 1),
@@ -1658,7 +1784,6 @@ export const topicService = {
         }
         catch (error) {
             console.error('Error decrementing topic user count:', error);
-            // Don't throw - user count update shouldn't break user update
         }
     },
 };

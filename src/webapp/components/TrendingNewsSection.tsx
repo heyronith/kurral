@@ -2,10 +2,12 @@
 import { useEffect } from 'react';
 import { useNewsStore } from '../store/useNewsStore';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 
 const TrendingNewsSection = () => {
   const { trendingNews, isLoading, loadTrendingNews, selectNews, lastUpdated, refreshNews, error } = useNewsStore();
   const { currentUser } = useUserStore();
+  const { theme } = useThemeStore();
   const interestsKey = currentUser?.interests?.join('|') ?? '';
 
   // Load trending news on mount and when interests change
@@ -84,10 +86,10 @@ const TrendingNewsSection = () => {
 
   if (isLoading && trendingNews.length === 0) {
     return (
-      <div className="rounded-2xl border-2 border-border/60 bg-background/70 p-4 shadow-sm backdrop-blur">
-        <h3 className="mb-3 text-sm font-semibold text-textPrimary">Today's News</h3>
+      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
+        <h3 className={`mb-3 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="py-4 text-center">
-          <p className="text-xs text-textMuted">Loading trending news...</p>
+          <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>Loading trending news...</p>
         </div>
       </div>
     );
@@ -95,8 +97,8 @@ const TrendingNewsSection = () => {
 
   if (error && trendingNews.length === 0) {
     return (
-      <div className="rounded-2xl border-2 border-border/60 bg-background/70 p-4 shadow-sm backdrop-blur">
-        <h3 className="mb-3 text-sm font-semibold text-textPrimary">Today's News</h3>
+      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
+        <h3 className={`mb-3 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="py-4 text-center">
           <p className="text-xs text-error mb-2">{error}</p>
           <button
@@ -112,22 +114,22 @@ const TrendingNewsSection = () => {
 
   if (trendingNews.length === 0) {
     return (
-      <div className="rounded-2xl border-2 border-border/60 bg-background/70 p-4 shadow-sm backdrop-blur">
-        <h3 className="mb-3 text-sm font-semibold text-textPrimary">Today's News</h3>
+      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
+        <h3 className={`mb-3 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="py-4 text-center">
-          <p className="text-xs text-textMuted">No trending news available</p>
+          <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>No trending news available</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border-2 border-border/60 bg-background/70 p-4 shadow-sm backdrop-blur">
+    <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-textPrimary">Today's News</h3>
+        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="flex items-center gap-2">
           {lastUpdated && (
-            <span className="text-[10px] text-textMuted" title={`News refreshes every 3 hours. Last updated: ${lastUpdated.toLocaleString()}`}>
+            <span className={`text-[10px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`} title={`News refreshes every 3 hours. Last updated: ${lastUpdated.toLocaleString()}`}>
               {getLastUpdatedText()}
             </span>
           )}
@@ -140,7 +142,7 @@ const TrendingNewsSection = () => {
               }
             }}
             disabled={isLoading}
-            className="p-1 rounded hover:bg-background/60 transition-colors disabled:opacity-50"
+            className={`p-1 rounded ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-background/60'} transition-colors disabled:opacity-50`}
             title="Refresh news"
           >
             <svg
@@ -152,7 +154,7 @@ const TrendingNewsSection = () => {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className={`text-textMuted ${isLoading ? 'animate-spin' : ''}`}
+              className={`${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} ${isLoading ? 'animate-spin' : ''}`}
             >
               <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
             </svg>
@@ -167,19 +169,19 @@ const TrendingNewsSection = () => {
             <button
               key={news.id}
               onClick={() => selectNews(news.id)}
-              className="w-full rounded-xl px-3 py-2.5 text-left transition hover:bg-background/60 group"
+              className={`w-full rounded-xl px-3 py-2.5 text-left transition ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-background/60'} group`}
             >
               {/* Header with rank and trending badge */}
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-textMuted">#{index + 1}</span>
+                  <span className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>#{index + 1}</span>
                   {isRecent && (
                     <span className="px-1.5 py-0.5 text-[10px] font-medium bg-primary/20 text-primary rounded">
                       Trending now
                     </span>
                   )}
                   {!isRecent && (
-                    <span className="text-xs text-textMuted">
+                    <span className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
                       {formatTimeAgo(news.publishedAt)}
                     </span>
                   )}
@@ -190,13 +192,13 @@ const TrendingNewsSection = () => {
               </div>
 
               {/* Headline */}
-              <p className="text-sm font-semibold text-textPrimary mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+              <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 line-clamp-2 group-hover:text-primary transition-colors`}>
                 {news.title}
               </p>
 
               {/* Metadata */}
               <div className="flex items-center justify-end">
-                <p className="text-xs text-textMuted">
+                <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
                   {formatEngagement(news.engagementCount)}
                 </p>
               </div>

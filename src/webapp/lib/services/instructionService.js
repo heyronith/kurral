@@ -50,111 +50,52 @@ const INSTRUCTION_SCHEMA = {
     },
     required: ['newConfig', 'explanation'],
 };
-const FOLLOWING_WEIGHT_TIERS = [
-    {
-        weight: 'heavy',
-        keywords: [
-            'only show me people I follow',
-            'max following',
-            'heavy following',
-            'more from people I follow',
-            'keep it personal',
-            'all from people I follow',
-        ],
-    },
-    {
-        weight: 'medium',
-        keywords: [
-            'balanced',
-            'mix discovery',
-            'medium following',
-            'half following',
-            'mixed feed',
-        ],
-    },
-    {
-        weight: 'light',
-        keywords: [
-            'discovery mode',
-            'light following',
-            'some new people',
-            'less following',
-            'more surprises',
-            'open feed',
-        ],
-    },
-    {
-        weight: 'none',
-        keywords: [
-            'full discovery',
-            'no following boost',
-            'show me random people',
-            'everyone',
-            'no following',
-            'fresh content',
-        ],
-    },
-];
-const POSITIVE_TOPIC_KEYWORDS = [
-    'more',
-    'boost',
-    'show',
-    'focus on',
-    'love',
-    'want',
-    'favor',
-    'highlight',
-    'prioritize',
-    'again',
-];
-const NEGATIVE_TOPIC_KEYWORDS = [
-    'less',
-    'avoid',
-    'stop',
-    'mute',
-    'no',
-    "don't",
-    'dont',
-    'skip',
-    'drop',
-    'hide',
-    'calm',
-];
-const ACTIVE_ON_KEYWORDS = ['active conversation', 'active discussions', 'boost active', 'lively conversation', 'hot discussion', 'more active'];
-const ACTIVE_OFF_KEYWORDS = ['less active', 'not active', 'quiet conversations', 'calm feed', 'avoid active', 'reduce active'];
+const normalizeInstructionTopic = (topic) => {
+    if (!topic) {
+        return null;
+    }
+    const normalized = topic.replace(/#/g, '').trim().toLowerCase();
+    return normalized || null;
+};
+const sanitizeInstructionTopics = (topics = []) => {
+    const seen = new Set();
+    topics.forEach((topic) => {
+        const normalized = normalizeInstructionTopic(topic);
+        if (normalized) {
+            seen.add(normalized);
+        }
+    });
+    return Array.from(seen);
+};
 export class InstructionService {
     constructor() {
         Object.defineProperty(this, "agent", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: null
+            value: void 0
         });
-        if (BaseAgent.isAvailable()) {
-            this.agent = new BaseAgent();
+        if (!BaseAgent.isAvailable()) {
+            throw new Error('AI agent is not available. Please set VITE_OPENAI_API_KEY environment variable to use instruction interpretation.');
         }
+        this.agent = new BaseAgent();
     }
     async interpretInstruction(instruction, currentConfig, preferredTopics, currentInterests = []) {
         const trimmedInstruction = instruction.trim();
         if (!trimmedInstruction) {
             throw new Error('Please describe how you want the feed to behave.');
         }
-        const topicPool = this.buildTopicPool(preferredTopics);
-        if (this.agent) {
-            try {
-                const aiResponse = await this.callAiInterpreter(trimmedInstruction, currentConfig, topicPool, currentInterests);
-                return this.normalizeAiResponse(aiResponse, currentConfig);
-            }
-            catch (error) {
-                console.warn('Instruction agent failed, falling back to heuristics:', error);
-            }
+        const topicPool = this.buildTopicPool(preferredTopics, currentInterests);
+        try {
+            const aiResponse = await this.callAiInterpreter(trimmedInstruction, currentConfig, topicPool, currentInterests);
+            return this.normalizeAiResponse(aiResponse, currentConfig);
         }
-        return this.fallbackInterpretation(trimmedInstruction, currentConfig, topicPool);
+        catch (error) {
+            console.error('[InstructionService] AI agent failed:', error);
+            throw new Error(error?.message || 'Failed to interpret instruction. Please check your OpenAI API key and try again.');
+        }
     }
     async callAiInterpreter(instruction, currentConfig, topicPool, currentInterests = []) {
-        if (!this.agent) {
-            throw new Error('Instruction agent is not available.');
-        }
         const prompt = `User instruction: "${instruction}"
 
 Current For You settings:
@@ -235,235 +176,30 @@ Use the user's instruction to return a new For You configuration.`;
         }
         return `Updated: ${changes.join(', ')}.`;
     }
-    fallbackInterpretation(instruction, currentConfig, topicPool) {
-        const lowers = instruction.toLowerCase();
-        const changes = [];
-        const newConfig = { ...currentConfig };
-        const detectedWeight = this.detectFollowingWeight(lowers);
-        if (detectedWeight && detectedWeight !== currentConfig.followingWeight) {
-            newConfig.followingWeight = detectedWeight;
-            changes.push(`Set following boost to ${detectedWeight}`);
-        }
-        const detectedActive = this.detectActiveBoost(lowers);
-        if (detectedActive !== null && detectedActive !== currentConfig.boostActiveConversations) {
-            newConfig.boostActiveConversations = detectedActive;
-            changes.push(detectedActive
-                ? 'Boosted active conversations'
-                : 'Reduced the emphasis on active conversations');
-        }
-        const topicAdjustment = this.adjustTopicsFromInstruction(lowers, currentConfig, topicPool);
-        const interestAdjustment = this.extractInterestsFromInstruction(lowers, topicPool);
-        if (topicAdjustment.updated) {
-            newConfig.likedTopics = this.sortTopics(topicAdjustment.liked);
-            newConfig.mutedTopics = this.sortTopics(topicAdjustment.muted);
-            changes.push(...topicAdjustment.changes);
-        }
-        // Always extract interests from instruction, even in fallback
-        if (interestAdjustment.add.length > 0 || interestAdjustment.remove.length > 0) {
-            if (interestAdjustment.add.length > 0) {
-                changes.push(`Added interests: ${interestAdjustment.add.join(', ')}`);
-            }
-            if (interestAdjustment.remove.length > 0) {
-                changes.push(`Removed interests: ${interestAdjustment.remove.join(', ')}`);
-            }
-        }
-        const explanation = changes.length > 0
-            ? `AI heuristics applied: ${changes.join('; ')}.`
-            : "Couldn't detect any strong signal in your instruction, so the configuration stayed as is.";
-        return {
-            newConfig,
-            explanation,
-            interestsToAdd: interestAdjustment.add,
-            interestsToRemove: interestAdjustment.remove,
-        };
-    }
-    detectFollowingWeight(instruction) {
-        for (const tier of FOLLOWING_WEIGHT_TIERS) {
-            if (this.containsAny(instruction, tier.keywords)) {
-                return tier.weight;
-            }
-        }
-        return null;
-    }
-    detectActiveBoost(instruction) {
-        if (this.containsAny(instruction, ACTIVE_OFF_KEYWORDS)) {
-            return false;
-        }
-        if (this.containsAny(instruction, ACTIVE_ON_KEYWORDS)) {
-            return true;
-        }
-        return null;
-    }
-    adjustTopicsFromInstruction(instruction, currentConfig, topicPool) {
-        const likedSet = new Set(currentConfig.likedTopics);
-        const mutedSet = new Set(currentConfig.mutedTopics);
-        const mentionedTopics = this.findMentionedTopics(instruction, topicPool);
-        const changes = [];
-        mentionedTopics.forEach((topic) => {
-            const positiveNear = this.topicReferencedWithKeywords(instruction, topic, POSITIVE_TOPIC_KEYWORDS);
-            const negativeNear = this.topicReferencedWithKeywords(instruction, topic, NEGATIVE_TOPIC_KEYWORDS);
-            if (positiveNear && !negativeNear) {
-                if (!likedSet.has(topic)) {
-                    likedSet.add(topic);
-                    mutedSet.delete(topic);
-                    changes.push(`Liked #${topic}`);
-                }
-            }
-            else if (negativeNear && !positiveNear) {
-                if (!mutedSet.has(topic)) {
-                    mutedSet.add(topic);
-                    likedSet.delete(topic);
-                    changes.push(`Muted #${topic}`);
-                }
+    buildTopicPool(preferredTopics, currentInterests) {
+        const topicSet = new Set();
+        preferredTopics.forEach((topic) => {
+            const normalized = normalizeInstructionTopic(topic);
+            if (normalized) {
+                topicSet.add(normalized);
             }
         });
-        return {
-            liked: Array.from(likedSet),
-            muted: Array.from(mutedSet),
-            changes,
-            updated: changes.length > 0,
-        };
-    }
-    findMentionedTopics(instruction, topicPool) {
-        const pool = Array.from(new Set([...topicPool, ...ALL_TOPICS]));
-        const matches = [];
-        pool.forEach((topic) => {
-            const normalized = topic.toLowerCase();
-            if (instruction.includes(normalized) ||
-                instruction.includes(`#${normalized}`)) {
-                matches.push(topic);
-            }
-        });
-        return matches;
-    }
-    topicReferencedWithKeywords(instruction, topic, keywords) {
-        return keywords.some((keyword) => {
-            const escapedKeyword = this.escapeRegex(keyword);
-            const escapedTopic = this.escapeRegex(topic);
-            const regex1 = new RegExp(`\\b${escapedKeyword}\\b[\\s\\S]{0,10}\\b${escapedTopic}\\b`, 'i');
-            const regex2 = new RegExp(`\\b${escapedTopic}\\b[\\s\\S]{0,10}\\b${escapedKeyword}\\b`, 'i');
-            return regex1.test(instruction) || regex2.test(instruction);
-        });
-    }
-    buildTopicPool(preferredTopics) {
-        if (preferredTopics.length > 0) {
-            return Array.from(new Set([...preferredTopics]));
+        sanitizeInstructionTopics(currentInterests).forEach((topic) => topicSet.add(topic));
+        if (topicSet.size === 0) {
+            return [...ALL_TOPICS];
         }
-        return [...ALL_TOPICS];
+        return Array.from(topicSet);
     }
     sanitizeInterests(interests) {
         return Array.from(new Set(interests
             .map((interest) => interest.trim().toLowerCase())
             .filter(Boolean)));
     }
-    extractInterestsFromInstruction(instruction, topicPool) {
-        const add = [];
-        const remove = [];
-        const topicSet = new Set(topicPool.map((topic) => topic.toLowerCase()));
-        const lowers = instruction.toLowerCase();
-        // Extract interests from explicit patterns: "more X", "show me X", "interested in X"
-        const addPatterns = [
-            /(?:more|show me|i want|prefer|focus on|love|interested in|add|like|want to see)\s+([a-z0-9#][a-z0-9#\s-]{2,})/gi,
-            /(?:about|regarding|concerning|related to)\s+([a-z0-9#][a-z0-9#\s-]{2,})/gi,
-        ];
-        // Extract interests from removal patterns: "less X", "avoid X", "no X"
-        const removePatterns = [
-            /(?:less|avoid|stop|no more|hide|tired of|don't want|don't show|remove|exclude)\s+([a-z0-9#][a-z0-9#\s-]{2,})/gi,
-        ];
-        // Extract from patterns
-        addPatterns.forEach((regex) => {
-            let match;
-            while ((match = regex.exec(instruction)) !== null) {
-                const term = match[1].trim().toLowerCase();
-                if (term.length < 3)
-                    continue;
-                if (topicSet.has(term))
-                    continue;
-                // Split compound terms like "react tutorials" → ["react", "tutorials"]
-                const parts = term.split(/\s+/);
-                parts.forEach((part) => {
-                    if (part.length >= 3 && !topicSet.has(part) && !add.includes(part)) {
-                        add.push(part);
-                    }
-                });
-                if (term.length >= 3 && term.split(/\s+/).length <= 3 && !add.includes(term)) {
-                    add.push(term);
-                }
-            }
-        });
-        removePatterns.forEach((regex) => {
-            let match;
-            while ((match = regex.exec(instruction)) !== null) {
-                const term = match[1].trim().toLowerCase();
-                if (term.length < 3)
-                    continue;
-                if (topicSet.has(term))
-                    continue;
-                const parts = term.split(/\s+/);
-                parts.forEach((part) => {
-                    if (part.length >= 3 && !topicSet.has(part) && !remove.includes(part)) {
-                        remove.push(part);
-                    }
-                });
-                if (term.length >= 3 && term.split(/\s+/).length <= 3 && !remove.includes(term)) {
-                    remove.push(term);
-                }
-            }
-        });
-        // Also extract standalone topic keywords (technologies, subjects mentioned directly)
-        const commonTechKeywords = [
-            'react', 'vue', 'angular', 'javascript', 'typescript', 'python', 'java', 'go', 'rust',
-            'ai', 'machine learning', 'deep learning', 'neural networks', 'nlp',
-            'design', 'ui', 'ux', 'figma', 'sketch',
-            'startup', 'funding', 'vc', 'saas', 'startup funding',
-            'crypto', 'blockchain', 'bitcoin', 'ethereum', 'defi',
-            'productivity', 'workflow', 'habit', 'routine',
-            'music', 'guitar', 'piano', 'album',
-            'sports', 'nba', 'nfl', 'soccer', 'football',
-        ];
-        commonTechKeywords.forEach((keyword) => {
-            const keywordLower = keyword.toLowerCase();
-            const regex = new RegExp(`\\b${keywordLower.replace(/\s+/g, '\\s+')}\\b`, 'i');
-            if (regex.test(instruction) && !topicSet.has(keywordLower) && !add.includes(keywordLower)) {
-                // Only add if not in a removal context
-                const beforeContext = lowers.substring(0, lowers.indexOf(keywordLower));
-                const isRemoval = /(?:less|avoid|stop|no more|hide|tired of|don't want|don't show|remove|exclude)\s*$/i.test(beforeContext);
-                if (isRemoval) {
-                    if (!remove.includes(keywordLower)) {
-                        remove.push(keywordLower);
-                    }
-                }
-                else {
-                    add.push(keywordLower);
-                }
-            }
-        });
-        return {
-            add: this.sanitizeInterests(add),
-            remove: this.sanitizeInterests(remove),
-        };
-    }
     sanitizeTopics(topics) {
-        const seen = new Set();
-        const cleaned = [];
-        topics.forEach((topic) => {
-            const normalized = topic.trim().toLowerCase();
-            const match = ALL_TOPICS.find((available) => available === normalized);
-            if (match && !seen.has(match)) {
-                seen.add(match);
-                cleaned.push(match);
-            }
-        });
-        return cleaned;
+        return sanitizeInstructionTopics(topics);
     }
     resolveTopicConflicts(liked, muted) {
-        const mutedSet = new Set(muted);
-        const cleanedMuted = muted.filter((topic) => {
-            if (liked.includes(topic)) {
-                return false;
-            }
-            return true;
-        });
+        const cleanedMuted = muted.filter((topic) => !liked.includes(topic));
         return {
             liked,
             muted: cleanedMuted,
@@ -479,12 +215,23 @@ Use the user's instruction to return a new For You configuration.`;
     sortTopics(topics) {
         return [...topics].sort((a, b) => a.localeCompare(b));
     }
-    containsAny(input, keywords) {
-        const lowered = input.toLowerCase();
-        return keywords.some((keyword) => lowered.includes(keyword.toLowerCase()));
-    }
-    escapeRegex(value) {
-        return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-    }
 }
-export const instructionService = new InstructionService();
+// Create instructionService instance
+// Will throw error at construction if BaseAgent is not available
+let instructionServiceInstance = null;
+export const instructionService = (() => {
+    if (!BaseAgent.isAvailable()) {
+        console.error('InstructionService cannot be initialized: VITE_OPENAI_API_KEY is not set. ' +
+            'Please set the environment variable to use instruction interpretation features.');
+        // Return a proxy that throws on any method call
+        return new Proxy({}, {
+            get() {
+                throw new Error('AI agent is not available. Please set VITE_OPENAI_API_KEY environment variable to use instruction interpretation.');
+            },
+        });
+    }
+    if (!instructionServiceInstance) {
+        instructionServiceInstance = new InstructionService();
+    }
+    return instructionServiceInstance;
+})();

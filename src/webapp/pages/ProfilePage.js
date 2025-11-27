@@ -2,14 +2,73 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { userService, chirpService } from '../lib/firestore';
 import { uploadProfilePicture, uploadCoverPhoto, deleteImage } from '../lib/storage';
+import { initializeKurralScore } from '../lib/services/kurralScoreService';
 import ChirpCard from '../components/ChirpCard';
 import AppLayout from '../components/AppLayout';
 import EditProfileModal from '../components/EditProfileModal';
+import FollowersFollowingModal from '../components/FollowersFollowingModal';
+const getKurralTier = (score) => {
+    if (score >= 88)
+        return 'Excellent';
+    if (score >= 77)
+        return 'Good';
+    if (score >= 65)
+        return 'Fair';
+    if (score >= 53)
+        return 'Poor';
+    return 'Very Poor';
+};
+const getScoreColor = (score) => {
+    if (score >= 88)
+        return 'bg-green-500';
+    if (score >= 77)
+        return 'bg-blue-500';
+    if (score >= 65)
+        return 'bg-yellow-500';
+    if (score >= 53)
+        return 'bg-orange-500';
+    return 'bg-red-500';
+};
+const getScoreTextColor = (score) => {
+    if (score >= 88)
+        return 'text-green-500';
+    if (score >= 77)
+        return 'text-blue-500';
+    if (score >= 65)
+        return 'text-yellow-500';
+    if (score >= 53)
+        return 'text-orange-500';
+    return 'text-red-500';
+};
+const getScoreBarColor = (score) => {
+    if (score >= 88)
+        return 'bg-gradient-to-r from-green-500 to-green-600';
+    if (score >= 77)
+        return 'bg-gradient-to-r from-blue-500 to-blue-600';
+    if (score >= 65)
+        return 'bg-gradient-to-r from-yellow-500 to-yellow-600';
+    if (score >= 53)
+        return 'bg-gradient-to-r from-orange-500 to-orange-600';
+    return 'bg-gradient-to-r from-red-500 to-red-600';
+};
+const getScoreStrokeColor = (score) => {
+    if (score >= 88)
+        return '#22c55e';
+    if (score >= 77)
+        return '#3b82f6';
+    if (score >= 65)
+        return '#eab308';
+    if (score >= 53)
+        return '#f97316';
+    return '#ef4444';
+};
 const ProfilePage = () => {
     const { userId } = useParams();
     const { currentUser, getUser, loadUser, followUser, unfollowUser, isFollowing, setCurrentUser, addUser, users } = useUserStore();
+    const { theme } = useThemeStore();
     const [profileUser, setProfileUser] = useState(null);
     const [userChirps, setUserChirps] = useState([]);
     const [followersCount, setFollowersCount] = useState(0);
@@ -20,6 +79,8 @@ const ProfilePage = () => {
     const [uploadingCoverPhoto, setUploadingCoverPhoto] = useState(false);
     const [hoveringProfilePicture, setHoveringProfilePicture] = useState(false);
     const [hoveringCoverPhoto, setHoveringCoverPhoto] = useState(false);
+    const [followersModalOpen, setFollowersModalOpen] = useState(false);
+    const [followingModalOpen, setFollowingModalOpen] = useState(false);
     const profilePictureInputRef = useRef(null);
     const coverPhotoInputRef = useRef(null);
     useEffect(() => {
@@ -40,6 +101,21 @@ const ProfilePage = () => {
                     }
                 }
                 if (user) {
+                    // Initialize kurralScore if user doesn't have it yet
+                    if (!user.kurralScore) {
+                        try {
+                            await initializeKurralScore(user.id);
+                            // Reload user to get updated kurralScore
+                            const updatedUser = await userService.getUser(userId);
+                            if (updatedUser) {
+                                user = updatedUser;
+                            }
+                        }
+                        catch (error) {
+                            console.error('Error initializing kurralScore:', error);
+                            // Continue with user even if initialization fails
+                        }
+                    }
                     setProfileUser(user);
                 }
             }
@@ -188,25 +264,34 @@ const ProfilePage = () => {
         }
     };
     if (isLoading) {
-        return (_jsx("div", { className: "min-h-screen flex items-center justify-center bg-background", children: _jsx("div", { className: "text-textMuted", children: "Loading..." }) }));
+        return (_jsx("div", { className: `min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`, children: _jsx("div", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Loading..." }) }));
     }
     if (!profileUser) {
-        return (_jsx("div", { className: "min-h-screen flex items-center justify-center bg-background", children: _jsxs("div", { className: "text-center", children: [_jsx("h1", { className: "text-xl font-semibold text-textPrimary mb-2", children: "User not found" }), _jsx(Link, { to: "/app", className: "text-primary hover:underline", children: "Go back to app" })] }) }));
+        return (_jsx("div", { className: `min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`, children: _jsxs("div", { className: "text-center", children: [_jsx("h1", { className: `text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`, children: "User not found" }), _jsx(Link, { to: "/app", className: "text-primary hover:underline", children: "Go back to app" })] }) }));
     }
     const isOwnProfile = currentUser?.id === profileUser.id;
     const following = isFollowing(profileUser.id);
     const displayName = profileUser.displayName || profileUser.name;
     const userHandle = profileUser.userId || profileUser.handle;
+    const kurralScoreValue = profileUser.kurralScore?.score ?? null;
+    const accountAgeDays = Math.floor((Date.now() - profileUser.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    const meetsScoreThreshold = kurralScoreValue !== null && kurralScoreValue >= 77;
+    const meetsAccountAgeThreshold = accountAgeDays >= 30;
+    const isMonetizationEligible = meetsScoreThreshold && meetsAccountAgeThreshold;
     const initials = displayName
         .split(' ')
         .map((part) => part[0]?.toUpperCase())
         .join('')
         .slice(0, 2);
-    return (_jsxs(AppLayout, { pageTitle: "Profile", wrapContent: true, children: [_jsxs("div", { className: "border-b border-border", children: [_jsxs("div", { className: "relative w-full h-48 bg-gradient-to-br from-primary/20 via-accent/20 to-primary/30 cursor-pointer group", onMouseEnter: () => isOwnProfile && setHoveringCoverPhoto(true), onMouseLeave: () => setHoveringCoverPhoto(false), onClick: () => isOwnProfile && coverPhotoInputRef.current?.click(), children: [profileUser.coverPhotoUrl ? (_jsx("img", { src: profileUser.coverPhotoUrl, alt: `${displayName}'s cover photo`, className: "w-full h-full object-cover" })) : null, isOwnProfile && (_jsxs(_Fragment, { children: [_jsx("div", { className: `absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-200 ${hoveringCoverPhoto ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-sm font-medium", children: uploadingCoverPhoto ? 'Uploading...' : 'Change cover photo' }) }), _jsx("input", { ref: coverPhotoInputRef, type: "file", accept: "image/*", onChange: handleCoverPhotoChange, className: "hidden", disabled: uploadingCoverPhoto })] }))] }), _jsx("div", { className: "px-6 py-4", children: _jsxs("div", { className: "flex items-start justify-between gap-4 mb-4", children: [_jsxs("div", { className: "flex flex-col items-start gap-3 flex-1 min-w-0", children: [_jsxs("div", { className: "relative cursor-pointer group -mt-16 flex-shrink-0", onMouseEnter: () => isOwnProfile && setHoveringProfilePicture(true), onMouseLeave: () => setHoveringProfilePicture(false), onClick: () => isOwnProfile && profilePictureInputRef.current?.click(), children: [_jsxs("div", { className: "flex h-24 w-24 items-center justify-center rounded-full bg-background border-4 border-background overflow-hidden z-10 relative", children: [profileUser.profilePictureUrl ? (_jsx("img", { src: profileUser.profilePictureUrl, alt: `${displayName}'s profile picture`, className: "w-full h-full object-cover" })) : (_jsx("div", { className: "flex h-full w-full items-center justify-center bg-primary/20 text-2xl font-semibold text-primary", children: initials })), isOwnProfile && (_jsx("div", { className: `absolute inset-0 bg-black/60 rounded-full flex items-center justify-center transition-opacity duration-200 ${hoveringProfilePicture ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-xs font-medium text-center px-2", children: uploadingProfilePicture ? 'Uploading...' : 'Change' }) }))] }), isOwnProfile && (_jsx("input", { ref: profilePictureInputRef, type: "file", accept: "image/*", onChange: handleProfilePictureChange, className: "hidden", disabled: uploadingProfilePicture }))] }), _jsxs("div", { className: "flex-1 min-w-0 w-full relative z-10 -mt-12 pt-16", children: [_jsx("h2", { className: "text-xl font-bold text-textPrimary mb-0.5", children: displayName }), _jsxs("p", { className: "text-sm text-textMuted mb-3", children: ["@", userHandle] }), _jsxs("div", { className: "flex items-center gap-4 text-sm mb-3 flex-wrap", children: [_jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: "font-semibold text-textPrimary", children: profileUser.following.length }), _jsx("span", { className: "text-textMuted", children: "Following" })] }), _jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: "font-semibold text-textPrimary", children: followersCount }), _jsx("span", { className: "text-textMuted", children: "Followers" })] }), _jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: "font-semibold text-textPrimary", children: userChirps.length }), _jsx("span", { className: "text-textMuted", children: "Posts" })] })] }), profileUser.reputation && Object.keys(profileUser.reputation).length > 0 && (_jsxs("div", { className: "mb-3", children: [_jsx("div", { className: "text-xs font-semibold text-textPrimary mb-2", children: "Reputation by Domain" }), _jsx("div", { className: "flex flex-wrap gap-1.5", children: Object.entries(profileUser.reputation)
+    return (_jsxs(AppLayout, { pageTitle: "Profile", wrapContent: true, children: [_jsxs("div", { className: `border-b ${theme === 'dark' ? 'border-white/10' : 'border-border'}`, children: [_jsxs("div", { className: "relative w-full h-48 bg-gradient-to-br from-primary/20 via-accent/20 to-primary/30 cursor-pointer group", onMouseEnter: () => isOwnProfile && setHoveringCoverPhoto(true), onMouseLeave: () => setHoveringCoverPhoto(false), onClick: () => isOwnProfile && coverPhotoInputRef.current?.click(), children: [profileUser.coverPhotoUrl ? (_jsx("img", { src: profileUser.coverPhotoUrl, alt: `${displayName}'s cover photo`, className: "w-full h-full object-cover" })) : null, isOwnProfile && (_jsxs(_Fragment, { children: [_jsx("div", { className: `absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-200 ${hoveringCoverPhoto ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-sm font-medium", children: uploadingCoverPhoto ? 'Uploading...' : 'Change cover photo' }) }), _jsx("input", { ref: coverPhotoInputRef, type: "file", accept: "image/*", onChange: handleCoverPhotoChange, className: "hidden", disabled: uploadingCoverPhoto })] }))] }), _jsx("div", { className: "px-6 py-4", children: _jsxs("div", { className: "flex items-start justify-between gap-4 mb-4", children: [_jsxs("div", { className: "flex flex-col items-start gap-3 flex-1 min-w-0", children: [_jsxs("div", { className: "relative cursor-pointer group -mt-16 flex-shrink-0", onMouseEnter: () => isOwnProfile && setHoveringProfilePicture(true), onMouseLeave: () => setHoveringProfilePicture(false), onClick: () => isOwnProfile && profilePictureInputRef.current?.click(), children: [_jsxs("div", { className: `flex h-24 w-24 items-center justify-center rounded-full ${theme === 'dark' ? 'bg-black' : 'bg-background border-4 border-background'} overflow-hidden z-10 relative`, children: [profileUser.profilePictureUrl ? (_jsx("img", { src: profileUser.profilePictureUrl, alt: `${displayName}'s profile picture`, className: "w-full h-full object-cover" })) : (_jsx("div", { className: "flex h-full w-full items-center justify-center bg-primary/20 text-2xl font-semibold text-primary", children: initials })), isOwnProfile && (_jsx("div", { className: `absolute inset-0 bg-black/60 rounded-full flex items-center justify-center transition-opacity duration-200 ${hoveringProfilePicture ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-xs font-medium text-center px-2", children: uploadingProfilePicture ? 'Uploading...' : 'Change' }) }))] }), isOwnProfile && (_jsx("input", { ref: profilePictureInputRef, type: "file", accept: "image/*", onChange: handleProfilePictureChange, className: "hidden", disabled: uploadingProfilePicture }))] }), _jsxs("div", { className: "flex-1 min-w-0 w-full relative z-10 -mt-12 pt-16", children: [_jsx("h2", { className: `text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-0.5`, children: displayName }), _jsxs("p", { className: `text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-3`, children: ["@", userHandle] }), _jsxs("div", { className: "flex items-center gap-4 text-sm mb-3 flex-wrap", children: [_jsxs("button", { onClick: () => setFollowingModalOpen(true), className: "flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer", children: [_jsx("span", { className: `font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: profileUser.following.length }), _jsx("span", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Following" })] }), _jsxs("button", { onClick: () => setFollowersModalOpen(true), className: "flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer", children: [_jsx("span", { className: `font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: followersCount }), _jsx("span", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Followers" })] }), _jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: `font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: userChirps.length }), _jsx("span", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Posts" })] })] }), profileUser.reputation && Object.keys(profileUser.reputation).length > 0 && (_jsxs("div", { className: "mb-3", children: [_jsx("div", { className: `text-xs font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`, children: "Reputation by Domain" }), _jsx("div", { className: "flex flex-wrap gap-1.5", children: Object.entries(profileUser.reputation)
                                                                 .sort(([, a], [, b]) => b - a)
                                                                 .slice(0, 5)
-                                                                .map(([domain, score]) => (_jsxs("div", { className: "px-2 py-1 bg-backgroundElevated/60 text-textPrimary rounded border border-border/50 text-xs", title: `${domain}: ${(score * 100).toFixed(0)}`, children: [_jsx("span", { className: "font-medium capitalize", children: domain }), _jsx("span", { className: "ml-1 text-accent", children: (score * 100).toFixed(0) })] }, domain))) })] })), profileUser.bio && (_jsx("p", { className: "text-sm text-textPrimary mb-2 whitespace-pre-wrap", children: profileUser.bio })), (profileUser.location || profileUser.url) && (_jsxs("div", { className: "flex flex-wrap gap-3 text-xs text-textMuted mb-2", children: [profileUser.location && (_jsxs("span", { className: "flex items-center gap-1", children: [_jsx("span", { children: "\u2022" }), _jsx("span", { children: profileUser.location })] })), profileUser.url && (_jsxs("a", { href: profileUser.url, target: "_blank", rel: "noopener noreferrer", className: "flex items-center gap-1 text-primary hover:underline", children: [_jsx("span", { children: "\uD83D\uDD17" }), _jsx("span", { className: "truncate max-w-[200px]", children: profileUser.url.replace(/^https?:\/\//, '') })] }))] })), profileUser.interests && profileUser.interests.length > 0 && (_jsxs("div", { className: "flex flex-wrap gap-1.5", children: [profileUser.interests.slice(0, 5).map((interest) => (_jsx("span", { className: "px-2 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded text-xs", title: interest, children: interest }, interest))), profileUser.interests.length > 5 && (_jsxs("span", { className: "px-2 py-0.5 text-xs text-textMuted", children: ["+", profileUser.interests.length - 5] }))] }))] })] }), _jsxs("div", { className: "flex-shrink-0 pt-2 flex flex-col gap-2", children: [isOwnProfile && (_jsx("button", { onClick: () => setIsEditModalOpen(true), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-background/50 border border-border text-textPrimary hover:bg-background/70", children: "Edit Profile" })), !isOwnProfile && currentUser && (_jsx("button", { onClick: handleFollow, className: `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${following
-                                                ? 'bg-background/50 border border-border text-textPrimary hover:bg-background/70'
-                                                : 'bg-primary text-white hover:bg-primary/90'}`, children: following ? 'Following' : 'Follow' })), profileUser.valueStats && (_jsxs("div", { className: "px-3 py-2 bg-accent/5 rounded-lg border border-accent/20 text-xs", children: [_jsxs("div", { className: "flex items-center gap-1.5 mb-1", children: [_jsx("span", { className: "text-textMuted", children: "\u2605" }), _jsx("span", { className: "font-semibold text-textPrimary", children: "Value (30d)" })] }), _jsxs("div", { className: "flex items-center gap-3 text-textMuted", children: [_jsxs("span", { children: ["Posts: ", _jsx("span", { className: "font-semibold text-textPrimary", children: (profileUser.valueStats.postValue30d * 100).toFixed(0) })] }), _jsx("span", { children: "\u2022" }), _jsxs("span", { children: ["Comments: ", _jsx("span", { className: "font-semibold text-textPrimary", children: (profileUser.valueStats.commentValue30d * 100).toFixed(0) })] }), _jsx("span", { children: "\u2022" }), _jsxs("span", { className: "font-semibold text-accent", children: ["Total: ", ((profileUser.valueStats.postValue30d + profileUser.valueStats.commentValue30d) * 100).toFixed(0)] })] })] }))] })] }) })] }), _jsx("div", { className: "max-h-[calc(100vh-350px)] overflow-y-auto", children: isLoadingContent ? (_jsx("div", { className: "p-8 text-center text-textMuted", children: "Loading..." })) : userChirps.length > 0 ? (userChirps.map((chirp) => (_jsx(ChirpCard, { chirp: chirp }, chirp.id)))) : (_jsx("div", { className: "p-8 text-center text-textMuted", children: _jsx("p", { children: "No posts yet" }) })) }), profileUser && (_jsx(EditProfileModal, { open: isEditModalOpen, onClose: () => setIsEditModalOpen(false), user: profileUser, onUpdate: handleProfileUpdate }))] }));
+                                                                .map(([domain, score]) => (_jsxs("div", { className: `px-2 py-1 ${theme === 'dark' ? 'bg-transparent text-white border-white/10' : 'bg-backgroundElevated/60 text-textPrimary border-border/50'} rounded border text-xs`, title: `${domain}: ${(score * 100).toFixed(0)}`, children: [_jsx("span", { className: "font-medium capitalize", children: domain }), _jsx("span", { className: "ml-1 text-accent", children: (score * 100).toFixed(0) })] }, domain))) })] })), profileUser.bio && (_jsx("p", { className: `text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 whitespace-pre-wrap`, children: profileUser.bio })), (profileUser.location || profileUser.url) && (_jsxs("div", { className: `flex flex-wrap gap-3 text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-2`, children: [profileUser.location && (_jsxs("span", { className: "flex items-center gap-1", children: [_jsx("span", { children: "\u2022" }), _jsx("span", { children: profileUser.location })] })), profileUser.url && (_jsxs("a", { href: profileUser.url, target: "_blank", rel: "noopener noreferrer", className: "flex items-center gap-1 text-primary hover:underline", children: [_jsx("span", { children: "\uD83D\uDD17" }), _jsx("span", { className: "truncate max-w-[200px]", children: profileUser.url.replace(/^https?:\/\//, '') })] }))] })), profileUser.interests && profileUser.interests.length > 0 && (_jsxs("div", { className: "flex flex-wrap gap-1.5", children: [profileUser.interests.slice(0, 5).map((interest) => (_jsx("span", { className: "px-2 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded text-xs", title: interest, children: interest }, interest))), profileUser.interests.length > 5 && (_jsxs("span", { className: "px-2 py-0.5 text-xs text-textMuted", children: ["+", profileUser.interests.length - 5] }))] }))] })] }), _jsxs("div", { className: "flex-shrink-0 pt-2 flex flex-col gap-2", children: [isOwnProfile && (_jsx("button", { onClick: () => setIsEditModalOpen(true), className: `px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white hover:bg-white/20' : 'bg-background/50 border-border text-textPrimary hover:bg-background/70'}`, children: "Edit Profile" })), !isOwnProfile && currentUser && (_jsx("button", { onClick: handleFollow, className: `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${following
+                                                ? theme === 'dark'
+                                                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                                                    : 'bg-background/50 border border-border text-textPrimary hover:bg-background/70'
+                                                : 'bg-primary text-white hover:bg-primary/90'}`, children: following ? 'Following' : 'Follow' })), profileUser.kurralScore && kurralScoreValue !== null && (_jsx("div", { className: `px-4 py-3 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-backgroundElevated/40 border-border/60'} w-full min-w-[200px]`, children: _jsxs("div", { className: "flex items-center justify-between", children: [_jsxs("div", { className: "relative w-16 h-16 flex-shrink-0", children: [_jsxs("svg", { className: "w-16 h-16 transform -rotate-90", viewBox: "0 0 36 36", children: [_jsx("circle", { cx: "18", cy: "18", r: "15", fill: "none", stroke: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', strokeWidth: "3" }), _jsx("circle", { cx: "18", cy: "18", r: "15", fill: "none", stroke: getScoreStrokeColor(kurralScoreValue), strokeWidth: "3", strokeDasharray: `${kurralScoreValue * 0.942}, 94.2`, strokeLinecap: "round", className: "transition-all duration-500" })] }), _jsx("div", { className: "absolute inset-0 flex items-center justify-center", children: _jsx("div", { className: `w-4 h-4 rounded-full ${getScoreColor(kurralScoreValue)} shadow-lg`, style: {
+                                                                        boxShadow: `0 0 8px ${getScoreStrokeColor(kurralScoreValue)}40`,
+                                                                    } }) })] }), isMonetizationEligible && (_jsxs("div", { className: "flex items-center gap-1.5", children: [_jsx("div", { className: "w-2 h-2 rounded-full bg-green-500 animate-pulse" }), _jsx("div", { className: `w-1.5 h-1.5 rounded-full ${theme === 'dark' ? 'bg-green-400' : 'bg-green-600'}` })] }))] }) }))] })] }) })] }), _jsx("div", { className: "max-h-[calc(100vh-350px)] overflow-y-auto", children: isLoadingContent ? (_jsx("div", { className: "p-8 text-center text-textMuted", children: "Loading..." })) : userChirps.length > 0 ? (userChirps.map((chirp) => (_jsx(ChirpCard, { chirp: chirp }, chirp.id)))) : (_jsx("div", { className: "p-8 text-center text-textMuted", children: _jsx("p", { children: "No posts yet" }) })) }), profileUser && (_jsx(EditProfileModal, { open: isEditModalOpen, onClose: () => setIsEditModalOpen(false), user: profileUser, onUpdate: handleProfileUpdate })), profileUser && (_jsxs(_Fragment, { children: [_jsx(FollowersFollowingModal, { open: followersModalOpen, onClose: () => setFollowersModalOpen(false), userId: profileUser.id, mode: "followers" }), _jsx(FollowersFollowingModal, { open: followingModalOpen, onClose: () => setFollowingModalOpen(false), userId: profileUser.id, mode: "following" })] }))] }));
 };
 export default ProfilePage;

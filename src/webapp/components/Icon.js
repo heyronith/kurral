@@ -47,3 +47,9 @@ export const NewspaperIcon = (props) => (_jsxs(IconFrame, { ...props, children: 
 export const BellIcon = (props) => (_jsx(IconFrame, { ...props, children: _jsx("path", { d: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" }) }));
 // Shield/Integrity icon
 export const ShieldCheckIcon = (props) => (_jsxs(IconFrame, { ...props, children: [_jsx("path", { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" }), _jsx("path", { d: "M9 12l2 2 4-4" })] }));
+// Dashboard/Analytics icon
+export const DashboardIcon = (props) => (_jsxs(IconFrame, { ...props, children: [_jsx("rect", { x: "3", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "14", width: "7", height: "7", rx: "1" })] }));
+// Moon/Dark mode icon
+export const MoonIcon = (props) => (_jsx(IconFrame, { ...props, children: _jsx("path", { d: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" }) }));
+// Sun/Light mode icon
+export const SunIcon = (props) => (_jsxs(IconFrame, { ...props, children: [_jsx("circle", { cx: "12", cy: "12", r: "5" }), _jsx("path", { d: "M12 1v2" }), _jsx("path", { d: "M12 21v2" }), _jsx("path", { d: "M4.22 4.22l1.42 1.42" }), _jsx("path", { d: "M18.36 18.36l1.42 1.42" }), _jsx("path", { d: "M1 12h2" }), _jsx("path", { d: "M21 12h2" }), _jsx("path", { d: "M4.22 19.78l1.42-1.42" }), _jsx("path", { d: "M18.36 5.64l1.42-1.42" })] }));

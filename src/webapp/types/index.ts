@@ -10,6 +10,8 @@ export type Topic =
   | 'politics'
   | 'crypto';
 
+export type TopicName = string;
+
 export type ClaimDomain =
   | 'health'
   | 'finance'
@@ -67,6 +69,28 @@ export type ValueScore = ValueVector & {
   drivers?: string[];
 };
 
+export type KurralScoreComponents = {
+  qualityHistory: number;
+  violationHistory: number;
+  engagementQuality: number;
+  consistency: number;
+  communityTrust: number;
+};
+
+export type KurralScoreHistoryEntry = {
+  date: Date;
+  score: number;
+  delta: number;
+  reason: string;
+};
+
+export type KurralScore = {
+  score: number; // 300-850
+  lastUpdated: Date;
+  components: KurralScoreComponents;
+  history: KurralScoreHistoryEntry[];
+};
+
 export type DiscussionQuality = {
   informativeness: number;
   civility: number;
@@ -102,11 +126,20 @@ export type User = {
     lifetimeCommentValue?: number;
     lastUpdated: Date;
   };
+  kurralScore?: KurralScore;
+  forYouConfig?: ForYouConfig;
+  profileSummary?: string; // AI-generated semantic profile summary
+  profileSummaryVersion?: number; // Version number for tracking updates
+  profileSummaryUpdatedAt?: Date; // When summary was last generated
+  profileEmbedding?: number[]; // Embedding vector for profile summary
+  profileEmbeddingVersion?: number;
 };
 
 export type TunedAudience = {
   allowFollowers: boolean;
   allowNonFollowers: boolean;
+  targetAudienceDescription?: string; // Optional semantic description
+  targetAudienceEmbedding?: number[]; // Embedding for semantic audience description
 };
 
 export type ReachMode = 'forAll' | 'tuned';
@@ -122,6 +155,7 @@ export type Chirp = {
   analyzedAt?: Date;
   reachMode: ReachMode;
   tunedAudience?: TunedAudience;
+  contentEmbedding?: number[]; // Embedding for the chirp content
   createdAt: Date;
   rechirpOfId?: string; // If this is a rechirp, reference original
   commentCount: number;
@@ -156,8 +190,19 @@ export type FollowingWeight = 'none' | 'light' | 'medium' | 'heavy';
 export type ForYouConfig = {
   followingWeight: FollowingWeight;
   boostActiveConversations: boolean;
-  likedTopics: Topic[];
-  mutedTopics: Topic[];
+  likedTopics: TopicName[];
+  mutedTopics: TopicName[];
+  timeWindowDays?: number;
+  semanticSimilarityThreshold?: number;
+};
+
+export const DEFAULT_FOR_YOU_CONFIG: ForYouConfig = {
+  followingWeight: 'medium',
+  boostActiveConversations: true,
+  likedTopics: [],
+  mutedTopics: [],
+  timeWindowDays: 7,
+  semanticSimilarityThreshold: 0.7,
 };
 
 export type FeedType = 'latest' | 'forYou';

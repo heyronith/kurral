@@ -161,3 +161,88 @@ npm run test:personalized-news
 - You need to manually trigger news generation in the app UI
 - Test user credentials are printed at the end of the script
 
+### Comprehensive Platform Test (`test-platform-comprehensive.js`)
+
+**End-to-end platform test that creates a full test environment with users, posts, comments, and activity.**
+
+```bash
+npm run test:platform
+```
+
+**What it creates:**
+- ✅ 1 main user (author) with selected topics (dev, startups, productivity)
+- ✅ 40 other users with varied topics/interests
+- ✅ Following relationships (main user follows 15-20 users, 15-20 users follow main user)
+- ✅ 100-150+ posts across all 8 topics with varied timestamps
+- ✅ Comments and nested replies on 30-40% of posts
+- ✅ Rechirps on 10-15 posts
+- ✅ Topic engagement metrics updated
+- ✅ All data persisted to Firestore
+
+**What it tests:**
+- ✅ User creation and authentication
+- ✅ Post creation across all topics
+- ✅ Following/unfollowing relationships
+- ✅ Comment system (top-level and nested replies)
+- ✅ Rechirp functionality
+- ✅ Topic engagement tracking
+- ✅ Data persistence to Firestore
+- ✅ Feed personalization setup
+- ✅ Notification triggers (comments, replies, rechirps)
+
+**How it works:**
+1. Creates 1 main user (author) with topics: `['dev', 'startups', 'productivity']`
+2. Creates 40 other users with random topic selections (2-4 topics each)
+3. Sets up following relationships:
+   - Main user follows 15-20 other users
+   - 15-20 users follow main user
+   - Cross-following between other users
+4. Creates posts:
+   - Main user: 20-25 posts across their topics
+   - Other users: 3-5 posts each (120-200 total)
+   - Posts distributed over last 48 hours
+   - Mix of `forAll` and `tuned` reach modes
+5. Creates comments:
+   - 2-5 top-level comments per selected post
+   - 1-3 replies per top-level comment (on 60% of comments)
+   - Comments from various users
+6. Creates rechirps:
+   - 10-15 posts rechirped
+   - 1-3 users rechirp each selected post
+7. Verifies all data creation
+
+**Expected output:**
+- 41 total users created (1 main + 40 others)
+- 100-150+ posts created across all topics
+- 100-200+ comments created (top-level + replies)
+- 10-15 rechirps created
+- Following relationships established
+- All topics have engagement metrics
+- Main user credentials printed for testing
+
+**Test User Credentials:**
+The script prints the main user credentials at the end:
+- Email: `main-author-{timestamp}@test.com`
+- Password: `TestPassword123!`
+- User ID and handle are also displayed
+
+**Next Steps After Running:**
+1. Log in to the app with the main user credentials
+2. Check the "Latest" feed - should show posts from followed users
+3. Check the "For You" feed - should show personalized content
+4. Test commenting, replying, and rechirping
+5. Check notifications - should see activity from other users
+6. Test profile pages - view other users' profiles
+7. Test following/unfollowing
+8. Check trending topics - should see topics with high engagement
+9. Test news generation - refresh news to see AI-generated content
+10. Test value scoring - posts should have value scores calculated
+
+**Note:**
+- This script creates a significant amount of test data
+- All data is persisted to your Firebase project
+- The script includes rate limiting to avoid Firebase quotas
+- Execution time: ~2-5 minutes depending on network speed
+- You can run this multiple times (handles existing users gracefully)
+- Main user email includes timestamp to avoid conflicts
+

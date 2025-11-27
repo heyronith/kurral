@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
+import { useConfigStore } from '../store/useConfigStore';
 import { chirpService, commentService, realtimeService } from '../lib/firestore';
 import FeedTabs from '../components/FeedTabs';
 import LatestFeed from '../components/LatestFeed';
@@ -34,6 +35,12 @@ const ChirpApp = () => {
   // Setup notifications for current user
   useNotificationSetup(currentUser?.id || null);
 
+  const initializeForYouConfig = useConfigStore((state) => state.initializeConfig);
+
+  useEffect(() => {
+    initializeForYouConfig(currentUser);
+  }, [currentUser?.id, initializeForYouConfig]);
+
 
   // Initialize background reputation recalculation job (runs daily)
   useEffect(() => {
@@ -48,111 +55,103 @@ const ChirpApp = () => {
       return;
     }
 
-    let unsubscribeFollowing: (() => void) | null = null;
-    let unsubscribeSemantic: (() => void) | null = null;
-    let unsubscribeComments: Record<string, () => void> = {};
+    let isMounted = true;
+    const unsubscribeFns: Array<() => void> = [];
+    const commentUnsubscribes = new Map<string, () => void>();
+
+    const attachCommentListener = async (chirpId: string) => {
+      if (commentUnsubscribes.has(chirpId) || !isMounted) {
+        return;
+      }
+      const comments = await commentService.getCommentsForChirp(chirpId);
+      if (!isMounted) {
+        return;
+      }
+      loadComments(chirpId, comments);
+      const unsubscribe = realtimeService.subscribeToComments(chirpId, (updatedComments) => {
+        if (!isMounted) {
+          return;
+        }
+        loadComments(chirpId, updatedComments);
+      });
+      commentUnsubscribes.set(chirpId, unsubscribe);
+    };
+
+    const hydrateChirpMetadata = async (chirps: Chirp[]) => {
+      if (!isMounted || chirps.length === 0) return;
+
+      const commentPromises = chirps.map((chirp) => attachCommentListener(chirp.id));
+      await Promise.allSettled(commentPromises);
+
+      const authorIds = new Set<string>(chirps.map((chirp) => chirp.authorId));
+      for (const authorId of authorIds) {
+        if (!isMounted) break;
+        await loadUser(authorId);
+      }
+    };
 
     const setupRealtimeListeners = async () => {
       try {
-        // Load personalized chirps for For You feed
         const personalizedChirps = await chirpService.getPersonalizedChirps(currentUser, 150);
+        if (!isMounted) return;
         loadChirps(personalizedChirps);
 
-        // Set up semantic topic listener
+        await hydrateChirpMetadata(personalizedChirps);
+
         if (currentUser.interests && currentUser.interests.length > 0) {
           const semanticUnsub = realtimeService.subscribeToSemanticTopics(
             currentUser.interests,
             async (chirps) => {
-              if (chirps.length > 0) {
+              if (!isMounted || chirps.length === 0) return;
                 upsertChirps(chirps);
-                chirps.forEach((chirp) => {
-                  loadUser(chirp.authorId);
-                });
-                // Load comments for new chirps
-                for (const chirp of chirps) {
-                  if (!unsubscribeComments[chirp.id]) {
-                    const comments = await commentService.getCommentsForChirp(chirp.id);
-                    loadComments(chirp.id, comments);
-                    unsubscribeComments[chirp.id] = realtimeService.subscribeToComments(
-                      chirp.id,
-                      (comments) => {
-                        loadComments(chirp.id, comments);
-                      }
-                    );
-                  }
-                }
-              }
+              await hydrateChirpMetadata(chirps);
             },
             80
           );
           if (semanticUnsub) {
-            unsubscribeSemantic = semanticUnsub;
+            unsubscribeFns.push(semanticUnsub);
           }
         }
 
-        // Set up following listener
-        unsubscribeFollowing = realtimeService.subscribeToLatestChirps(
+        const followingUnsub = realtimeService.subscribeToLatestChirps(
           currentUser.following.slice(0, 10),
           async (chirps) => {
-            if (chirps.length > 0) {
+            if (!isMounted || chirps.length === 0) return;
               upsertChirps(chirps);
-              chirps.forEach((chirp) => {
-                loadUser(chirp.authorId);
-              });
-              // Load comments for new chirps
-              for (const chirp of chirps) {
-                if (!unsubscribeComments[chirp.id]) {
-                  const comments = await commentService.getCommentsForChirp(chirp.id);
-                  loadComments(chirp.id, comments);
-                  unsubscribeComments[chirp.id] = realtimeService.subscribeToComments(
-                    chirp.id,
-                    (comments) => {
-                      loadComments(chirp.id, comments);
-                    }
-                  );
-                }
-              }
-            }
+            await hydrateChirpMetadata(chirps);
           }
         );
-
-        // Load comments for all chirps
-        for (const chirp of personalizedChirps) {
-          const comments = await commentService.getCommentsForChirp(chirp.id);
-          loadComments(chirp.id, comments);
-
-          // Set up real-time listener for comments
-          unsubscribeComments[chirp.id] = realtimeService.subscribeToComments(
-            chirp.id,
-            (comments) => {
-              loadComments(chirp.id, comments);
-            }
-          );
+        if (followingUnsub) {
+          unsubscribeFns.push(followingUnsub);
         }
 
-        // Load user data for authors
-        const authorIds = new Set<string>(personalizedChirps.map((c) => c.authorId));
-        for (const authorId of authorIds) {
-          await loadUser(authorId);
+        const recentUnsub = realtimeService.subscribeToRecentChirps(
+          async (chirps) => {
+            if (!isMounted || chirps.length === 0) return;
+            upsertChirps(chirps);
+            await hydrateChirpMetadata(chirps);
+          },
+          150
+        );
+        if (recentUnsub) {
+          unsubscribeFns.push(recentUnsub);
         }
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
+        if (isMounted) {
         setIsLoading(false);
+        }
       }
     };
 
     setupRealtimeListeners();
 
-    // Cleanup listeners on unmount
     return () => {
-      if (unsubscribeFollowing) {
-        unsubscribeFollowing();
-      }
-      if (unsubscribeSemantic) {
-        unsubscribeSemantic();
-      }
-      Object.values(unsubscribeComments).forEach((unsub) => unsub());
+      isMounted = false;
+      unsubscribeFns.forEach((unsub) => unsub());
+      commentUnsubscribes.forEach((unsub) => unsub());
+      commentUnsubscribes.clear();
     };
   }, [currentUser, loadChirps, loadComments, loadUser, upsertChirps]);
 
@@ -224,12 +223,12 @@ const ChirpApp = () => {
     if (!currentUser) return;
 
     // Process immediately on mount (user just logged in)
-    chirpService.processScheduledPosts();
+    chirpService.processScheduledPosts(currentUser.id);
 
     // Process every 5 minutes instead of every minute
     // This reduces costs by 80% while still being responsive
     const intervalId = setInterval(() => {
-      chirpService.processScheduledPosts();
+      chirpService.processScheduledPosts(currentUser.id);
     }, 5 * 60 * 1000); // Every 5 minutes
 
     return () => {

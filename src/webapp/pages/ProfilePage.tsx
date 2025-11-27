@@ -1,16 +1,60 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { userService, chirpService } from '../lib/firestore';
 import { uploadProfilePicture, uploadCoverPhoto, deleteImage } from '../lib/storage';
+import { initializeKurralScore } from '../lib/services/kurralScoreService';
 import type { User, Chirp } from '../types';
 import ChirpCard from '../components/ChirpCard';
 import AppLayout from '../components/AppLayout';
 import EditProfileModal from '../components/EditProfileModal';
+import FollowersFollowingModal from '../components/FollowersFollowingModal';
+
+const getKurralTier = (score: number): string => {
+  if (score >= 88) return 'Excellent';
+  if (score >= 77) return 'Good';
+  if (score >= 65) return 'Fair';
+  if (score >= 53) return 'Poor';
+  return 'Very Poor';
+};
+
+const getScoreColor = (score: number): string => {
+  if (score >= 88) return 'bg-green-500';
+  if (score >= 77) return 'bg-blue-500';
+  if (score >= 65) return 'bg-yellow-500';
+  if (score >= 53) return 'bg-orange-500';
+  return 'bg-red-500';
+};
+
+const getScoreTextColor = (score: number): string => {
+  if (score >= 88) return 'text-green-500';
+  if (score >= 77) return 'text-blue-500';
+  if (score >= 65) return 'text-yellow-500';
+  if (score >= 53) return 'text-orange-500';
+  return 'text-red-500';
+};
+
+const getScoreBarColor = (score: number): string => {
+  if (score >= 88) return 'bg-gradient-to-r from-green-500 to-green-600';
+  if (score >= 77) return 'bg-gradient-to-r from-blue-500 to-blue-600';
+  if (score >= 65) return 'bg-gradient-to-r from-yellow-500 to-yellow-600';
+  if (score >= 53) return 'bg-gradient-to-r from-orange-500 to-orange-600';
+  return 'bg-gradient-to-r from-red-500 to-red-600';
+};
+
+const getScoreStrokeColor = (score: number): string => {
+  if (score >= 88) return '#22c55e';
+  if (score >= 77) return '#3b82f6';
+  if (score >= 65) return '#eab308';
+  if (score >= 53) return '#f97316';
+  return '#ef4444';
+};
 
 const ProfilePage = () => {
   const { userId } = useParams<{ userId: string }>();
   const { currentUser, getUser, loadUser, followUser, unfollowUser, isFollowing, setCurrentUser, addUser, users } = useUserStore();
+  const { theme } = useThemeStore();
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [userChirps, setUserChirps] = useState<Chirp[]>([]);
   const [followersCount, setFollowersCount] = useState<number>(0);
@@ -21,6 +65,8 @@ const ProfilePage = () => {
   const [uploadingCoverPhoto, setUploadingCoverPhoto] = useState(false);
   const [hoveringProfilePicture, setHoveringProfilePicture] = useState(false);
   const [hoveringCoverPhoto, setHoveringCoverPhoto] = useState(false);
+  const [followersModalOpen, setFollowersModalOpen] = useState(false);
+  const [followingModalOpen, setFollowingModalOpen] = useState(false);
   
   const profilePictureInputRef = useRef<HTMLInputElement>(null);
   const coverPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +92,20 @@ const ProfilePage = () => {
         }
 
         if (user) {
+          // Initialize kurralScore if user doesn't have it yet
+          if (!user.kurralScore) {
+            try {
+              await initializeKurralScore(user.id);
+              // Reload user to get updated kurralScore
+              const updatedUser = await userService.getUser(userId);
+              if (updatedUser) {
+                user = updatedUser;
+              }
+            } catch (error) {
+              console.error('Error initializing kurralScore:', error);
+              // Continue with user even if initialization fails
+            }
+          }
           setProfileUser(user);
         }
       } catch (error) {
@@ -206,17 +266,17 @@ const ProfilePage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-textMuted">Loading...</div>
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`}>
+        <div className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Loading...</div>
       </div>
     );
   }
 
   if (!profileUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`}>
         <div className="text-center">
-          <h1 className="text-xl font-semibold text-textPrimary mb-2">User not found</h1>
+          <h1 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`}>User not found</h1>
           <Link to="/app" className="text-primary hover:underline">
             Go back to app
           </Link>
@@ -230,6 +290,14 @@ const ProfilePage = () => {
   const displayName = profileUser.displayName || profileUser.name;
   const userHandle = profileUser.userId || profileUser.handle;
 
+  const kurralScoreValue = profileUser.kurralScore?.score ?? null;
+  const accountAgeDays = Math.floor(
+    (Date.now() - profileUser.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  const meetsScoreThreshold = kurralScoreValue !== null && kurralScoreValue >= 77;
+  const meetsAccountAgeThreshold = accountAgeDays >= 30;
+  const isMonetizationEligible = meetsScoreThreshold && meetsAccountAgeThreshold;
+
   const initials = displayName
     .split(' ')
     .map((part) => part[0]?.toUpperCase())
@@ -239,7 +307,7 @@ const ProfilePage = () => {
   return (
     <AppLayout pageTitle="Profile" wrapContent={true}>
       {/* Profile Header */}
-      <div className="border-b border-border">
+      <div className={`border-b ${theme === 'dark' ? 'border-white/10' : 'border-border'}`}>
         {/* Cover Photo */}
         <div 
           className="relative w-full h-48 bg-gradient-to-br from-primary/20 via-accent/20 to-primary/30 cursor-pointer group"
@@ -288,7 +356,7 @@ const ProfilePage = () => {
                 onMouseLeave={() => setHoveringProfilePicture(false)}
                 onClick={() => isOwnProfile && profilePictureInputRef.current?.click()}
               >
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-background border-4 border-background overflow-hidden z-10 relative">
+                <div className={`flex h-24 w-24 items-center justify-center rounded-full ${theme === 'dark' ? 'bg-black' : 'bg-background border-4 border-background'} overflow-hidden z-10 relative`}>
                   {profileUser.profilePictureUrl ? (
                     <img
                       src={profileUser.profilePictureUrl}
@@ -326,29 +394,35 @@ const ProfilePage = () => {
               
               {/* Name and Handle - Below profile picture */}
               <div className="flex-1 min-w-0 w-full relative z-10 -mt-12 pt-16">
-                <h2 className="text-xl font-bold text-textPrimary mb-0.5">{displayName}</h2>
-                <p className="text-sm text-textMuted mb-3">@{userHandle}</p>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-0.5`}>{displayName}</h2>
+                <p className={`text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-3`}>@{userHandle}</p>
                 
                 {/* Stats - Compact inline */}
                 <div className="flex items-center gap-4 text-sm mb-3 flex-wrap">
+                  <button
+                    onClick={() => setFollowingModalOpen(true)}
+                    className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
+                  >
+                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>{profileUser.following.length}</span>
+                    <span className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Following</span>
+                  </button>
+                  <button
+                    onClick={() => setFollowersModalOpen(true)}
+                    className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
+                  >
+                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>{followersCount}</span>
+                    <span className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Followers</span>
+                  </button>
                   <div className="flex items-center gap-1">
-                    <span className="font-semibold text-textPrimary">{profileUser.following.length}</span>
-                    <span className="text-textMuted">Following</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="font-semibold text-textPrimary">{followersCount}</span>
-                    <span className="text-textMuted">Followers</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="font-semibold text-textPrimary">{userChirps.length}</span>
-                    <span className="text-textMuted">Posts</span>
+                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>{userChirps.length}</span>
+                    <span className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Posts</span>
                   </div>
                 </div>
 
                 {/* Reputation by Domain */}
                 {profileUser.reputation && Object.keys(profileUser.reputation).length > 0 && (
                   <div className="mb-3">
-                    <div className="text-xs font-semibold text-textPrimary mb-2">Reputation by Domain</div>
+                    <div className={`text-xs font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`}>Reputation by Domain</div>
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(profileUser.reputation)
                         .sort(([, a], [, b]) => b - a)
@@ -356,7 +430,7 @@ const ProfilePage = () => {
                         .map(([domain, score]) => (
                           <div
                             key={domain}
-                            className="px-2 py-1 bg-backgroundElevated/60 text-textPrimary rounded border border-border/50 text-xs"
+                            className={`px-2 py-1 ${theme === 'dark' ? 'bg-transparent text-white border-white/10' : 'bg-backgroundElevated/60 text-textPrimary border-border/50'} rounded border text-xs`}
                             title={`${domain}: ${(score * 100).toFixed(0)}`}
                           >
                             <span className="font-medium capitalize">{domain}</span>
@@ -369,12 +443,12 @@ const ProfilePage = () => {
 
                 {/* Bio - Compact */}
                 {profileUser.bio && (
-                  <p className="text-sm text-textPrimary mb-2 whitespace-pre-wrap">{profileUser.bio}</p>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 whitespace-pre-wrap`}>{profileUser.bio}</p>
                 )}
 
                 {/* Location and URL - Compact */}
                 {(profileUser.location || profileUser.url) && (
-                  <div className="flex flex-wrap gap-3 text-xs text-textMuted mb-2">
+                  <div className={`flex flex-wrap gap-3 text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-2`}>
                     {profileUser.location && (
                       <span className="flex items-center gap-1">
                         <span>•</span>
@@ -422,7 +496,7 @@ const ProfilePage = () => {
               {isOwnProfile && (
                 <button
                   onClick={() => setIsEditModalOpen(true)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-background/50 border border-border text-textPrimary hover:bg-background/70"
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white hover:bg-white/20' : 'bg-background/50 border-border text-textPrimary hover:bg-background/70'}`}
                 >
                   Edit Profile
                 </button>
@@ -432,37 +506,51 @@ const ProfilePage = () => {
                   onClick={handleFollow}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     following
-                      ? 'bg-background/50 border border-border text-textPrimary hover:bg-background/70'
+                      ? theme === 'dark' 
+                        ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                        : 'bg-background/50 border border-border text-textPrimary hover:bg-background/70'
                       : 'bg-primary text-white hover:bg-primary/90'
                   }`}
                 >
                   {following ? 'Following' : 'Follow'}
                 </button>
               )}
-              
-              {/* Value Stats - Compact Card */}
-              {profileUser.valueStats && (
-                <div className="px-3 py-2 bg-accent/5 rounded-lg border border-accent/20 text-xs">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-textMuted">★</span>
-                    <span className="font-semibold text-textPrimary">Value (30d)</span>
+
+              {profileUser.kurralScore && kurralScoreValue !== null && (
+                <div className={`px-4 py-3 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-backgroundElevated/40 border-border/60'} w-full min-w-[200px]`}>
+                  {/* Kurral Score Title */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-2 h-2 rounded-full ${getScoreColor(kurralScoreValue)}`}></div>
+                    <span className={`text-xs font-medium ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>Kurral Score</span>
                   </div>
-                  <div className="flex items-center gap-3 text-textMuted">
-                    <span>
-                      Posts: <span className="font-semibold text-textPrimary">
-                        {(profileUser.valueStats.postValue30d * 100).toFixed(0)}
-                      </span>
-                    </span>
-                    <span>•</span>
-                    <span>
-                      Comments: <span className="font-semibold text-textPrimary">
-                        {(profileUser.valueStats.commentValue30d * 100).toFixed(0)}
-                      </span>
-                    </span>
-                    <span>•</span>
-                    <span className="font-semibold text-accent">
-                      Total: {((profileUser.valueStats.postValue30d + profileUser.valueStats.commentValue30d) * 100).toFixed(0)}
-                    </span>
+                  
+                  {/* Dotted Metric */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {/* Color intensity dots */}
+                      {[1, 2, 3, 4, 5].map((level) => {
+                        const threshold = level * 20;
+                        const isActive = kurralScoreValue >= threshold - 20;
+                    return (
+                          <div
+                            key={level}
+                            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                              isActive
+                                ? getScoreColor(kurralScoreValue)
+                                : theme === 'dark' ? 'bg-white/10' : 'bg-border/40'
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Monetization visual indicator */}
+                    {isMonetizationEligible && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        <div className={`w-1 h-1 rounded-full ${theme === 'dark' ? 'bg-green-400' : 'bg-green-600'}`}></div>
+                    </div>
+                  )}
                   </div>
                 </div>
               )}
@@ -494,6 +582,24 @@ const ProfilePage = () => {
           user={profileUser}
           onUpdate={handleProfileUpdate}
         />
+      )}
+
+      {/* Followers/Following Modals */}
+      {profileUser && (
+        <>
+          <FollowersFollowingModal
+            open={followersModalOpen}
+            onClose={() => setFollowersModalOpen(false)}
+            userId={profileUser.id}
+            mode="followers"
+          />
+          <FollowersFollowingModal
+            open={followingModalOpen}
+            onClose={() => setFollowingModalOpen(false)}
+            userId={profileUser.id}
+            mode="following"
+          />
+        </>
       )}
     </AppLayout>
   );

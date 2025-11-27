@@ -1,6 +1,7 @@
 import { useState, useMemo, type KeyboardEvent } from 'react';
 import { useConfigStore } from '../store/useConfigStore';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { ALL_TOPICS, type Topic } from '../types';
 import { instructionService } from '../lib/services/instructionService';
 
@@ -46,6 +47,7 @@ const SMART_PRESETS: SmartPreset[] = [
 const ForYouControls = () => {
   const { forYouConfig, setForYouConfig } = useConfigStore();
   const { currentUser, updateInterests } = useUserStore();
+  const { theme } = useThemeStore();
 
   const maxInstructionTopics = useMemo(() => {
     if (!currentUser?.topics?.length) return ALL_TOPICS;
@@ -152,11 +154,11 @@ const ForYouControls = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 bg-backgroundElevated/20 border-b border-border/60">
+    <div className={`p-6 space-y-6 ${theme === 'dark' ? 'bg-transparent border-white/10' : 'bg-backgroundElevated/20 border-border/60'} border-b`}>
       {/* Header */}
       <div className="pb-2">
-        <h3 className="text-base font-semibold text-textPrimary mb-1.5">Tune Your Feed</h3>
-        <p className="text-xs text-textMuted leading-relaxed">
+        <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-1.5`}>Tune Your Feed</h3>
+        <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} leading-relaxed`}>
           Tell the AI how you want your feed to feel, or use a quick preset.
         </p>
       </div>
@@ -169,13 +171,13 @@ const ForYouControls = () => {
               key={preset.id}
               onClick={() => handlePresetClick(preset)}
               disabled={instructionStatus === 'pending'}
-              className="group relative p-3.5 rounded-lg border border-border/60 bg-card/40 hover:bg-card/60 hover:border-accent/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-left shadow-button hover:shadow-elevated"
+              className={`group relative p-3.5 rounded-lg border ${theme === 'dark' ? 'border-white/20 bg-transparent hover:bg-white/10 hover:border-white/40' : 'border-border/60 bg-card/40 hover:bg-card/60 hover:border-accent/40'} transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-left ${theme === 'dark' ? '' : 'shadow-button hover:shadow-elevated'}`}
             >
               <div className="flex items-start gap-2.5">
                 <span className="text-xl">{preset.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-textPrimary">{preset.label}</div>
-                  <div className="text-[10px] text-textMuted mt-1 leading-snug">{preset.description}</div>
+                  <div className={`text-xs font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>{preset.label}</div>
+                  <div className={`text-[10px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mt-1 leading-snug`}>{preset.description}</div>
                 </div>
               </div>
             </button>
@@ -189,17 +191,17 @@ const ForYouControls = () => {
         <div>
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-[10px] font-semibold text-textLabel uppercase tracking-wider">
+              <p className={`text-[10px] font-semibold ${theme === 'dark' ? 'text-white/70' : 'text-textLabel'} uppercase tracking-wider`}>
                 Your Interests
               </p>
-              <p className="text-[11px] text-textMuted mt-0.5">
+              <p className={`text-[11px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mt-0.5`}>
                 AI extracts interests from your instructions. Click ✕ to remove.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 min-h-[32px]">
             {currentInterests.length === 0 && (
-              <span className="text-[11px] text-textMuted italic">
+              <span className={`text-[11px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} italic`}>
                 No interests yet. Tell the AI what you want to see.
               </span>
             )}
@@ -219,7 +221,7 @@ const ForYouControls = () => {
 
         <div className="relative">
           <textarea
-            className="w-full rounded-lg border border-border/60 bg-card/40 px-4 py-3 text-sm text-textPrimary placeholder:text-textMuted/50 outline-none focus:border-accent/60 focus:bg-card/60 focus:ring-2 focus:ring-accent/20 transition-all resize-none shadow-inner"
+            className={`w-full rounded-lg border ${theme === 'dark' ? 'border-white/20 bg-white/5 text-white placeholder:text-white/50 focus:border-accent/60 focus:bg-white/10 focus:ring-accent/20' : 'border-border/60 bg-card/40 text-textPrimary placeholder:text-textMuted/50 focus:border-accent/60 focus:bg-card/60 focus:ring-accent/20'} px-4 py-3 text-sm outline-none focus:ring-2 transition-all resize-none ${theme === 'dark' ? '' : 'shadow-inner'}`}
             placeholder="Tell the AI what you want... e.g. 'Show me react tutorials and AI research', 'More design content, less politics', 'Prioritize startup funding posts'"
             value={instructionInput}
             onChange={(e) => setInstructionInput(e.target.value)}

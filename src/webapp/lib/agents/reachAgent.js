@@ -1,5 +1,6 @@
 // Reach Suggestion Agent - Suggests optimal reach settings and topics for chirps
 import BaseAgent from './baseAgent';
+import { tryGenerateEmbedding } from '../services/embeddingService';
 const LEGACY_TOPIC_KEYWORDS = {
     dev: ['dev', 'code', 'coding', 'software', 'engineer', 'react', 'javascript', 'typescript', 'programming', 'frontend', 'backend'],
     startups: ['startup', 'founder', 'pitch', 'vc', 'venture', 'funding', 'saas', 'growth'],
@@ -221,6 +222,15 @@ Consider:
             if (!result.overallExplanation) {
                 result.overallExplanation = result.explanation || 'AI suggested these settings for optimal engagement.';
             }
+            const suggestedTopicNames = result.suggestedTopics
+                .map((suggestion) => suggestion.topic)
+                .filter(Boolean);
+            const defaultAudienceDescription = suggestedTopicNames.length > 0
+                ? `People interested in ${suggestedTopicNames.map((topic) => `#${topic}`).join(', ')}`
+                : result.explanation || 'Relevant audience';
+            result.targetAudienceDescription = result.targetAudienceDescription || defaultAudienceDescription;
+            result.targetAudienceEmbedding =
+                result.targetAudienceEmbedding || (await tryGenerateEmbedding(result.targetAudienceDescription));
             return {
                 success: true,
                 data: result,
@@ -248,6 +258,8 @@ Consider:
                 },
                 explanation: 'Using default settings.',
                 overallExplanation: 'Using default settings as fallback.',
+                targetAudienceDescription: 'Default reach settings.',
+                targetAudienceEmbedding: undefined,
             };
             return {
                 success: false,
@@ -364,6 +376,7 @@ Consider:
                     tunedAudience,
                     explanation,
                     overallExplanation: explanation, // Add overallExplanation for compatibility
+                    targetAudienceDescription: explanation,
                 },
             };
         }

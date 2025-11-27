@@ -1,5 +1,25 @@
 // Algorithm Tuning Agent - Learns optimal algorithm weights for users
 import BaseAgent from './baseAgent';
+const normalizeBehaviorTopic = (topic) => {
+    if (!topic)
+        return null;
+    const normalized = topic.trim().toLowerCase();
+    return normalized || null;
+};
+const buildTopicEngagementMap = (chirps) => {
+    const counts = {};
+    const addTopic = (topic) => {
+        const normalized = normalizeBehaviorTopic(topic);
+        if (!normalized)
+            return;
+        counts[normalized] = (counts[normalized] || 0) + 1;
+    };
+    chirps.forEach((chirp) => {
+        addTopic(chirp.topic);
+        chirp.semanticTopics?.forEach(addTopic);
+    });
+    return counts;
+};
 const SYSTEM_INSTRUCTION = `You are an expert recommendation algorithm analyst. Your job is to analyze user behavior and suggest optimal feed algorithm settings.
 
 Given a user's behavior data:
@@ -45,11 +65,8 @@ export class TuningAgent {
     async suggestTuning(behaviorData) {
         try {
             // Calculate engagement metrics
-            const topicEngagement = {};
+            const topicEngagement = buildTopicEngagementMap(behaviorData.chirpsEngaged);
             const totalEngagement = behaviorData.chirpsEngaged.length;
-            behaviorData.chirpsEngaged.forEach(chirp => {
-                topicEngagement[chirp.topic] = (topicEngagement[chirp.topic] || 0) + 1;
-            });
             // Calculate following engagement rate
             const followingChirps = behaviorData.chirpsEngaged.filter(c => behaviorData.followingList.includes(c.authorId));
             const followingEngagementRate = behaviorData.chirpsEngaged.length > 0
@@ -131,19 +148,7 @@ Suggest improvements based on clear behavioral patterns. Only suggest changes if
     static collectBehaviorData(user, allChirps, viewedChirpIds, engagedChirpIds, currentConfig) {
         const chirpsViewed = allChirps.filter(c => viewedChirpIds.includes(c.id));
         const chirpsEngaged = allChirps.filter(c => engagedChirpIds.includes(c.id));
-        const topicEngagement = {
-            dev: 0,
-            startups: 0,
-            music: 0,
-            sports: 0,
-            productivity: 0,
-            design: 0,
-            politics: 0,
-            crypto: 0,
-        };
-        chirpsEngaged.forEach(chirp => {
-            topicEngagement[chirp.topic] = (topicEngagement[chirp.topic] || 0) + 1;
-        });
+        const topicEngagement = buildTopicEngagementMap(chirpsEngaged);
         return {
             chirpsViewed,
             chirpsEngaged,

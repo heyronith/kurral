@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Chirp, CommentTreeNode } from '../types';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { tuningService } from '../lib/services/tuningService';
 import { commentService, realtimeService } from '../lib/firestore';
 import { TrashIcon } from './Icon';
@@ -28,6 +29,7 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { addComment, deleteComment } = useFeedStore();
   const { currentUser, getUser } = useUserStore();
+  const { theme } = useThemeStore();
   const replyToUser = comment.replyToUserId ? getUser(comment.replyToUserId) : null;
   const author = getUser(comment.authorId);
 
@@ -269,7 +271,7 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder={`Reply to @${author.handle}...`}
-                    className="w-full bg-background/50 border border-border rounded-lg p-2.5 text-sm text-textPrimary placeholder-textMuted resize-none outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all"
+                    className={`w-full border rounded-lg p-2.5 text-sm resize-none outline-none focus:ring-1 transition-all ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-accent focus:ring-accent/50' : 'bg-background/50 border-border text-textPrimary placeholder:text-textMuted focus:border-primary focus:ring-primary/50'}`}
                     rows={2}
                     autoFocus
                   />
@@ -280,7 +282,7 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
                         setIsReplying(false);
                         setReplyText('');
                       }}
-                      className="px-3 py-1.5 text-xs rounded-lg transition-all duration-200 bg-background/50 text-textMuted hover:bg-backgroundHover"
+                      className={`px-3 py-1.5 text-xs rounded-lg transition-all duration-200 ${theme === 'dark' ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-background/50 text-textMuted hover:bg-backgroundHover'}`}
                     >
                       Cancel
                     </button>
@@ -290,7 +292,9 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
                       className={`px-3 py-1.5 text-xs rounded-lg transition-all duration-200 ${
                         replyText.trim()
                           ? 'bg-primary text-white hover:bg-primary/90 active:scale-95'
-                          : 'bg-background/50 text-textMuted cursor-not-allowed'
+                          : theme === 'dark' 
+                            ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                            : 'bg-background/50 text-textMuted cursor-not-allowed'
                       }`}
                     >
                       Reply
@@ -327,6 +331,7 @@ const CommentSection = ({ chirp, initialExpanded = false }: CommentSectionProps)
   const [commentText, setCommentText] = useState('');
   const { addComment, getCommentTreeForChirp, loadComments, comments } = useFeedStore();
   const { currentUser } = useUserStore();
+  const { theme } = useThemeStore();
   const commentTree = getCommentTreeForChirp(chirp.id);
   const { getUser } = useUserStore();
 
@@ -419,7 +424,7 @@ const CommentSection = ({ chirp, initialExpanded = false }: CommentSectionProps)
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
                     placeholder="Write a comment..."
-                    className="w-full bg-background/50 border border-border rounded-lg p-3 text-sm text-textPrimary placeholder-textMuted resize-none outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all"
+                    className={`w-full border rounded-lg p-3 text-sm resize-none outline-none focus:ring-1 transition-all ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-accent focus:ring-accent/50' : 'bg-background/50 border-border text-textPrimary placeholder:text-textMuted focus:border-primary focus:ring-primary/50'}`}
                     rows={3}
                     aria-label="Comment text"
                     autoFocus={initialExpanded}
@@ -431,7 +436,9 @@ const CommentSection = ({ chirp, initialExpanded = false }: CommentSectionProps)
                       className={`px-4 py-2 text-sm rounded-lg transition-all duration-200 ${
                         commentText.trim()
                           ? 'bg-primary text-white hover:bg-primary/90 active:scale-95'
-                          : 'bg-background/50 text-textMuted cursor-not-allowed'
+                          : theme === 'dark'
+                            ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                            : 'bg-background/50 text-textMuted cursor-not-allowed'
                       }`}
                     >
                       Post

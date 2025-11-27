@@ -2,56 +2,86 @@ import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'fi
 import { db } from '../firebase';
 // Get posts about a specific topic within a time window
 export async function getPostsByTopic(topic, hours = 4, limitCount = 100) {
-    try {
-        const hoursAgo = Date.now() - (hours * 60 * 60 * 1000);
-        const timestamp = Timestamp.fromMillis(hoursAgo);
-        const q = query(collection(db, 'chirps'), where('topic', '==', topic), where('createdAt', '>=', timestamp), orderBy('createdAt', 'desc'), limit(limitCount));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map((doc) => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                authorId: data.authorId,
-                text: data.text,
-                topic: data.topic,
-                reachMode: data.reachMode,
-                tunedAudience: data.tunedAudience,
-                createdAt: data.createdAt?.toDate() || new Date(),
-                rechirpOfId: data.rechirpOfId,
-                commentCount: data.commentCount || 0,
-            };
-        });
+    const normalizedTopic = topic.trim().toLowerCase();
+    if (!normalizedTopic) {
+        return [];
     }
-    catch (error) {
-        console.error(`Error fetching posts for topic ${topic}:`, error);
-        // Fallback: try without orderBy if index doesn't exist
+    const hoursAgo = Date.now() - hours * 60 * 60 * 1000;
+    const timestamp = Timestamp.fromMillis(hoursAgo);
+    const mapDocToChirp = (doc) => {
+        const data = doc.data();
+        const createdAt = data.createdAt?.toDate() || new Date();
+        return {
+            id: doc.id,
+            authorId: data.authorId,
+            text: data.text,
+            topic: data.topic,
+            semanticTopics: data.semanticTopics || [],
+            entities: data.entities || [],
+            intent: data.intent,
+            analyzedAt: data.analyzedAt?.toDate(),
+            reachMode: data.reachMode,
+            tunedAudience: data.tunedAudience,
+            createdAt: createdAt,
+            rechirpOfId: data.rechirpOfId,
+            commentCount: data.commentCount || 0,
+            countryCode: data.countryCode,
+            imageUrl: data.imageUrl,
+            scheduledAt: data.scheduledAt?.toDate(),
+            formattedText: data.formattedText,
+            contentEmbedding: data.contentEmbedding,
+        };
+    };
+    const fetchChirps = async (constraints) => {
+        const collectionRef = collection(db, 'chirps');
         try {
-            const hoursAgo = Date.now() - (hours * 60 * 60 * 1000);
-            const timestamp = Timestamp.fromMillis(hoursAgo);
-            const q2 = query(collection(db, 'chirps'), where('topic', '==', topic), where('createdAt', '>=', timestamp), limit(limitCount));
-            const snapshot = await getDocs(q2);
-            const posts = snapshot.docs.map((doc) => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    authorId: data.authorId,
-                    text: data.text,
-                    topic: data.topic,
-                    reachMode: data.reachMode,
-                    tunedAudience: data.tunedAudience,
-                    createdAt: data.createdAt?.toDate() || new Date(),
-                    rechirpOfId: data.rechirpOfId,
-                    commentCount: data.commentCount || 0,
-                };
-            });
-            // Sort by createdAt desc manually
-            return posts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+            const q = query(collectionRef, ...constraints, orderBy('createdAt', 'desc'), limit(limitCount));
+            const snapshot = await getDocs(q);
+            const posts = snapshot.docs.map(mapDocToChirp);
+            console.log(`[postAggregationService] Query succeeded: found ${posts.length} posts`);
+            return posts;
         }
-        catch (fallbackError) {
-            console.error('Error in fallback post fetch:', fallbackError);
-            return [];
+        catch (error) {
+            console.warn('[postAggregationService] Ordered query failed (may need index):', error.message);
+            try {
+                const q = query(collectionRef, ...constraints, limit(limitCount));
+                const fallbackSnapshot = await getDocs(q);
+                const posts = fallbackSnapshot.docs.map(mapDocToChirp);
+                const sorted = posts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+                console.log(`[postAggregationService] Fallback query succeeded: found ${sorted.length} posts`);
+                return sorted;
+            }
+            catch (fallbackError) {
+                console.error('[postAggregationService] Fallback query also failed:', fallbackError.message);
+                return [];
+            }
         }
-    }
+    };
+    const legacyConstraints = [
+        where('topic', '==', normalizedTopic),
+        where('createdAt', '>=', timestamp),
+    ];
+    const semanticConstraints = [
+        where('semanticTopics', 'array-contains', normalizedTopic),
+        where('createdAt', '>=', timestamp),
+    ];
+    const [legacyPosts, semanticPosts] = await Promise.all([
+        fetchChirps(legacyConstraints),
+        fetchChirps(semanticConstraints),
+    ]);
+    console.log(`[postAggregationService] Found ${legacyPosts.length} legacy posts and ${semanticPosts.length} semantic posts for topic "${normalizedTopic}" in last ${hours} hours`);
+    const combined = [...legacyPosts, ...semanticPosts];
+    const deduped = Array.from(combined.reduce((acc, chirp) => {
+        if (!acc.has(chirp.id)) {
+            acc.set(chirp.id, chirp);
+        }
+        return acc;
+    }, new Map())
+        .values());
+    deduped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const result = deduped.slice(0, limitCount);
+    console.log(`[postAggregationService] Returning ${result.length} unique posts for topic "${normalizedTopic}"`);
+    return result;
 }
 // Aggregate posts with engagement metrics for news generation
 export async function aggregatePostsForNews(topic, hours = 4) {

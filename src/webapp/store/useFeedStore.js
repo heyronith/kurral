@@ -24,9 +24,17 @@ export const useFeedStore = create((set, get) => ({
             // Create chirp in Firestore
             const newChirp = await chirpService.createChirp(chirpData);
             // Increment topic engagement (async, don't wait)
-            topicService.incrementTopicEngagement(chirpData.topic).catch(error => {
-                console.error('Error incrementing topic engagement:', error);
-            });
+            const engagementTopics = new Set([
+                chirpData.topic,
+                ...(chirpData.semanticTopics || []),
+            ]
+                .map((topic) => topic?.trim().toLowerCase())
+                .filter((topic) => Boolean(topic)));
+            if (engagementTopics.size > 0) {
+                topicService.incrementTopicEngagement(Array.from(engagementTopics)).catch((error) => {
+                    console.error('Error incrementing topic engagement:', error);
+                });
+            }
             // Update local state
             set((state) => ({
                 chirps: [newChirp, ...state.chirps],
@@ -115,9 +123,9 @@ export const useFeedStore = create((set, get) => ({
         const currentUser = useUserStore.getState().currentUser;
         if (!currentUser)
             return [];
-        // Filter to followed users only, sort by createdAt DESC
+        // Filter to followed users only (excluding own posts), sort by createdAt DESC
         return chirps
-            .filter((chirp) => currentUser.following.includes(chirp.authorId))
+            .filter((chirp) => chirp.authorId !== currentUser.id && currentUser.following.includes(chirp.authorId))
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     },
     getForYouFeed: () => {

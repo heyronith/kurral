@@ -10,18 +10,20 @@ import {
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
 import { useTopicStore } from '../store/useTopicStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { getReachAgent } from '../lib/agents/reachAgent';
 import { topicService } from '../lib/firestore';
 import { BaseAgent } from '../lib/agents/baseAgent';
 import type { ReachSuggestion } from '../lib/agents/reachAgent';
 import TopicSuggestionBox from './TopicSuggestionBox';
-import AnalyzingModal from './AnalyzingModal';
 import { ImageIcon, EmojiIcon, CalendarIcon } from './Icon';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { uploadImage } from '../lib/storage';
 import { useComposer } from '../context/ComposerContext';
+import { sanitizeHTML } from '../lib/utils/sanitize';
+import { tryGenerateEmbedding } from '../lib/services/embeddingService';
 
 const extractSemanticKeywords = (text: string, limit: number = 6): string[] => {
   const tokens = text.toLowerCase().match(/[a-z0-9#]{3,}/g) || [];
@@ -112,6 +114,7 @@ const Composer = () => {
   const { currentUser } = useUserStore();
   const { loadTopicsForUser, allTopics, isLoading: topicsLoading } = useTopicStore();
   const { hideComposer } = useComposer();
+  const { theme } = useThemeStore();
 
   // Get topics from user's profile, fallback to empty array
   const userTopics = useMemo(() => {
@@ -222,7 +225,11 @@ const Composer = () => {
               // Auto-select the first (highest confidence) suggested topic
               if (suggestionResult.suggestedTopics.length > 0) {
                 setSelectedTopic(suggestionResult.suggestedTopics[0].topic);
-                setTunedAudience(suggestionResult.tunedAudience);
+                setTunedAudience({
+                  ...suggestionResult.tunedAudience,
+                  targetAudienceDescription: suggestionResult.targetAudienceDescription,
+                  targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
+                });
               }
             } else if (response.fallback) {
               console.warn('[Composer] AI failed, using fallback:', response.error);
@@ -242,7 +249,11 @@ const Composer = () => {
               // Auto-select fallback topic if available
               if (suggestionResult.suggestedTopics.length > 0) {
                 setSelectedTopic(suggestionResult.suggestedTopics[0].topic);
-                setTunedAudience(suggestionResult.tunedAudience);
+                setTunedAudience({
+                  ...suggestionResult.tunedAudience,
+                  targetAudienceDescription: suggestionResult.targetAudienceDescription,
+                  targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
+                });
               }
             }
           }
@@ -264,9 +275,15 @@ const Composer = () => {
               },
               explanation: 'Using default settings.',
               overallExplanation: 'AI suggestions not available. Using most active topic with default settings.',
+              targetAudienceDescription: 'Default reach settings for topic audience.',
+              targetAudienceEmbedding: undefined,
             };
             setSelectedTopic(fallbackTopic);
-            setTunedAudience(suggestionResult.tunedAudience);
+            setTunedAudience({
+              ...suggestionResult.tunedAudience,
+              targetAudienceDescription: suggestionResult.targetAudienceDescription,
+              targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
+            });
           }
 
           if (suggestionResult) {
@@ -282,6 +299,8 @@ const Composer = () => {
             setTunedAudience({
               allowFollowers: true,
               allowNonFollowers: true,
+              targetAudienceDescription: undefined,
+              targetAudienceEmbedding: undefined,
             });
           }
         } finally {
@@ -558,7 +577,9 @@ const Composer = () => {
     try {
       // Get formatted HTML and plain text
       const formattedHTML = getFormattedText();
+      const sanitizedHTML = formattedHTML ? sanitizeHTML(formattedHTML) : '';
       const plainTextContent = getPlainText();
+      const trimmedContent = plainTextContent.trim();
 
       const reachAgent = getReachAgent();
       let availableTopicsForAnalysis = availableTopicsRef.current;
@@ -631,12 +652,15 @@ const Composer = () => {
         'dev';
 
       // Create new chirp (will be persisted to Firestore)
+      const contentEmbedding = trimmedContent ? await tryGenerateEmbedding(trimmedContent) : undefined;
+
       const chirpData: Omit<Chirp, 'id' | 'createdAt' | 'commentCount'> = {
         authorId: currentUser.id,
-        text: plainTextContent.trim(),
+        text: trimmedContent,
         topic: resolvedTopic,
         reachMode,
         tunedAudience: reachMode === 'tuned' ? tunedAudience : undefined,
+        contentEmbedding: contentEmbedding,
       };
 
       if (semanticTopics.length > 0) {
@@ -660,8 +684,8 @@ const Composer = () => {
         chirpData.scheduledAt = scheduledAt;
       }
       // Store formatted HTML
-      if (formattedHTML.trim()) {
-        chirpData.formattedText = formattedHTML.trim();
+      if (sanitizedHTML.trim()) {
+        chirpData.formattedText = sanitizedHTML.trim();
       }
 
       await addChirp(chirpData);
@@ -717,29 +741,45 @@ const Composer = () => {
       style={{ position: 'fixed' }}
     >
       {/* Always visible: Full composer */}
-      <div className="bg-gradient-to-br from-blue-50 via-blue-100/80 to-primary/20 rounded-2xl border-2 border-primary/40 shadow-2xl overflow-hidden">
+      <div className={`${theme === 'dark' ? 'bg-black/90 border-white/20' : 'bg-gradient-to-br from-blue-50 via-blue-100/80 to-primary/20 border-primary/40'} rounded-3xl border-2 ${theme === 'dark' ? '' : 'shadow-2xl'} overflow-hidden relative`}>
+        {/* Inline Analyzing Overlay - Embedded in Composer */}
+        {isGeneratingSuggestion && (
+          <div className={`absolute inset-0 z-50 ${theme === 'dark' ? 'bg-black/80' : 'bg-white/80'} backdrop-blur-sm rounded-3xl flex items-center justify-center`}>
+            <div className="flex flex-col items-center gap-3">
+              {/* Simple Spinner */}
+              <div className="relative w-8 h-8">
+                <div className={`absolute inset-0 border-2 ${theme === 'dark' ? 'border-white/20' : 'border-primary/20'} rounded-full`}></div>
+                <div className={`absolute inset-0 border-2 border-transparent ${theme === 'dark' ? 'border-t-white' : 'border-t-primary'} rounded-full animate-spin`}></div>
+              </div>
+              {/* Simple Message */}
+              <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
+                {isPosting ? 'Analyzing post...' : 'Analyzing content...'}
+              </p>
+            </div>
+          </div>
+        )}
         {/* Compact Header with Profile */}
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b-2 border-primary/20">
+        <div className={`flex items-center gap-3 px-4 pt-4 pb-3 border-b-2 ${theme === 'dark' ? 'border-white/10' : 'border-primary/20'}`}>
           {currentUser?.profilePictureUrl ? (
             <img
               src={currentUser.profilePictureUrl}
               alt={currentUser.name}
-              className="w-10 h-10 rounded-full object-cover border-2 border-border/40"
+              className={`w-10 h-10 rounded-full object-cover ${theme === 'dark' ? '' : 'border-2 border-border/40'}`}
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center border-2 border-border/40">
+            <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center ${theme === 'dark' ? '' : 'border-2 border-border/40'}`}>
               <span className="text-white font-semibold text-sm">
                 {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
               </span>
             </div>
           )}
           <div className="flex-1">
-            <div className="font-medium text-sm text-textPrimary">{currentUser?.name || 'User'}</div>
-            <div className="text-xs text-textMuted">@{currentUser?.handle || 'username'}</div>
+            <div className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>{currentUser?.name || 'User'}</div>
+            <div className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>@{currentUser?.handle || 'username'}</div>
           </div>
           <button
             onClick={hideComposer}
-            className="p-1.5 rounded-lg text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary transition-colors"
+            className={`p-1.5 rounded-lg ${theme === 'dark' ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'} transition-colors`}
             aria-label="Close composer"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -794,7 +834,7 @@ const Composer = () => {
             handleContentChange();
           }}
                 data-placeholder="Share something..."
-                className="w-full bg-white/80 backdrop-blur-sm border-2 border-primary/30 text-textPrimary resize-none outline-none text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary/60 rounded-xl px-4 py-3 transition-all duration-200 min-h-[60px] max-h-[200px] overflow-y-auto"
+                className={`w-full ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-accent/60 focus:ring-accent/20' : 'bg-white/80 border-primary/30 text-textPrimary focus:ring-primary/30 focus:border-primary/60'} backdrop-blur-sm border-2 resize-none outline-none text-sm focus:ring-2 rounded-xl px-4 py-3 transition-all duration-200 min-h-[60px] max-h-[200px] overflow-y-auto`}
           style={{
             whiteSpace: 'pre-wrap',
             wordWrap: 'break-word',
@@ -818,7 +858,7 @@ const Composer = () => {
         <style>{`
           [contenteditable][data-placeholder]:empty:before {
             content: attr(data-placeholder);
-            color: rgb(107 114 128 / 0.6);
+            color: ${theme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgb(107 114 128 / 0.6)'};
             pointer-events: none;
           }
           [contenteditable] strong,
@@ -958,14 +998,18 @@ const Composer = () => {
             </div>
         
             {/* Compact Action Bar - Inline with input */}
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
+            <div className={`flex items-center justify-between mt-3 pt-3 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/30'}`}>
               <div className="flex items-center gap-2">
                 {/* Formatting toolbar - Compact */}
                 <div className="formatting-toolbar flex items-center gap-1">
           <button
             onMouseDown={handleBold}
                     className={`p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${
-                      isBoldActive ? 'bg-accent/20 text-accent' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
+                      isBoldActive 
+                        ? 'bg-accent/20 text-accent' 
+                        : theme === 'dark' 
+                          ? 'text-white/70 hover:bg-white/10 hover:text-white' 
+                          : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
             }`}
             title="Bold"
             type="button"
@@ -975,21 +1019,25 @@ const Composer = () => {
           <button
             onMouseDown={handleItalic}
                     className={`p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${
-                      isItalicActive ? 'bg-accent/20 text-accent' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
+                      isItalicActive 
+                        ? 'bg-accent/20 text-accent' 
+                        : theme === 'dark' 
+                          ? 'text-white/70 hover:bg-white/10 hover:text-white' 
+                          : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
             }`}
             title="Italic"
             type="button"
           >
                     <span className="text-xs italic">I</span>
           </button>
-                  <div className="w-px h-4 bg-border/60 mx-1" />
+                  <div className={`w-px h-4 ${theme === 'dark' ? 'bg-white/10' : 'bg-border/60'} mx-1`} />
           <div className="relative">
             <button
               onClick={() => {
                 setShowEmojiPicker(!showEmojiPicker);
                 setShowSchedulePicker(false);
               }}
-                      className="p-1.5 rounded-lg text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary transition-all duration-200 active:scale-95"
+                      className={`p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${theme === 'dark' ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`}
               title="Emoji"
               type="button"
             >
@@ -1014,7 +1062,7 @@ const Composer = () => {
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 rounded-lg text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary transition-all duration-200 active:scale-95"
+                    className={`p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${theme === 'dark' ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`}
             title="Add Image"
             type="button"
             disabled={isUploadingImage}
@@ -1034,7 +1082,11 @@ const Composer = () => {
               setShowEmojiPicker(false);
             }}
                     className={`p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${
-                      isScheduled ? 'text-primary bg-primary/10' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
+                      isScheduled 
+                        ? 'text-primary bg-primary/10' 
+                        : theme === 'dark' 
+                          ? 'text-white/70 hover:bg-white/10 hover:text-white' 
+                          : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
             }`}
             title={isScheduled ? `Scheduled: ${formatScheduleTime(scheduledAt!)}` : 'Schedule Post'}
             type="button"
@@ -1048,7 +1100,7 @@ const Composer = () => {
               <div className="flex items-center gap-3">
                 <span
                   className={`text-xs font-medium ${
-                    remaining < 20 ? 'text-warning' : 'text-textMuted'
+                    remaining < 20 ? 'text-warning' : theme === 'dark' ? 'text-white/70' : 'text-textMuted'
                   }`}
                 >
                   {remaining}
@@ -1056,19 +1108,19 @@ const Composer = () => {
                 
                 {/* Compact Post button with Reach selector */}
                 <div ref={reachMenuRef} className="relative flex items-center">
-                  <div className="flex items-center rounded-full overflow-hidden border border-border/40 shadow-sm">
+                  <div className={`flex items-center rounded-full overflow-hidden border ${theme === 'dark' ? 'border-white/20' : 'border-border/40'} shadow-sm`}>
                     {/* Reach mode selector */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowReachMenu(!showReachMenu);
                       }}
-                      className={`px-2.5 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-1 border-r border-border/40 ${
+                      className={`px-2.5 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-1 border-r ${theme === 'dark' ? 'border-white/20' : 'border-border/40'} ${
                         canPost && !isUploadingImage
                           ? reachMode === 'tuned'
                             ? 'bg-primary/10 text-primary hover:bg-primary/20'
                             : 'bg-accent/10 text-accent hover:bg-accent/20'
-                          : 'bg-backgroundElevated/30 text-textMuted'
+                          : theme === 'dark' ? 'bg-white/5 text-white/50' : 'bg-backgroundElevated/30 text-textMuted'
                       }`}
                       type="button"
                       disabled={!canPost || isUploadingImage}
@@ -1093,7 +1145,7 @@ const Composer = () => {
                           ? reachMode === 'tuned'
                             ? 'bg-gradient-to-r from-primary to-accent text-white hover:from-primaryHover hover:to-accentHover active:scale-[0.98]'
                             : 'bg-accent text-white hover:bg-accentHover active:scale-[0.98]'
-                          : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'
+                          : theme === 'dark' ? 'bg-white/10 text-white/50 cursor-not-allowed' : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'
                       }`}
                     >
                       {isPosting ? (
@@ -1114,7 +1166,7 @@ const Composer = () => {
 
                   {/* Reach mode dropdown menu */}
                   {showReachMenu && (
-                    <div className="absolute bottom-full right-0 mb-2 bg-backgroundElevated border border-border/60 rounded-xl shadow-2xl z-30 min-w-[160px] overflow-hidden">
+                    <div className={`absolute bottom-full right-0 mb-2 ${theme === 'dark' ? 'bg-black/95 border-white/20' : 'bg-backgroundElevated border-border/60'} rounded-xl border shadow-2xl z-30 min-w-[160px] overflow-hidden`}>
                       <button
                         onClick={() => {
                           setReachMode('forAll');
@@ -1123,13 +1175,13 @@ const Composer = () => {
                         className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors flex items-center gap-2 ${
                           reachMode === 'forAll'
                             ? 'bg-accent/10 text-accent'
-                            : 'text-textPrimary hover:bg-backgroundElevated/70'
+                            : theme === 'dark' ? 'text-white hover:bg-white/10' : 'text-textPrimary hover:bg-backgroundElevated/70'
                         }`}
                         type="button"
                       >
                         <div className="flex-1">
-                          <div className="font-semibold">For All</div>
-                          <div className="text-xs text-textMuted">Public post</div>
+                          <div className={`font-semibold ${theme === 'dark' ? 'text-white' : ''}`}>For All</div>
+                          <div className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>Public post</div>
                         </div>
                         {reachMode === 'forAll' && (
                           <svg className="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
@@ -1142,16 +1194,16 @@ const Composer = () => {
                           setReachMode('tuned');
                           setShowReachMenu(false);
                         }}
-                        className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors flex items-center gap-2 border-t border-border/40 ${
+                        className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors flex items-center gap-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/40'} ${
                           reachMode === 'tuned'
                             ? 'bg-primary/10 text-primary'
-                            : 'text-textPrimary hover:bg-backgroundElevated/70'
+                            : theme === 'dark' ? 'text-white hover:bg-white/10' : 'text-textPrimary hover:bg-backgroundElevated/70'
                         }`}
                         type="button"
                       >
                         <div className="flex-1">
-                          <div className="font-semibold">Tuned</div>
-                          <div className="text-xs text-textMuted">AI-optimized</div>
+                          <div className={`font-semibold ${theme === 'dark' ? 'text-white' : ''}`}>Tuned</div>
+                          <div className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>AI-optimized</div>
                         </div>
                         {reachMode === 'tuned' && (
                           <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
@@ -1177,18 +1229,18 @@ const Composer = () => {
             {/* Modal */}
             <div className="fixed inset-0 flex items-center justify-center z-40 p-4">
               <div 
-                className="bg-backgroundElevated border border-border/60 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+                className={`${theme === 'dark' ? 'bg-black/95 border-white/20' : 'bg-backgroundElevated border-border/60'} rounded-2xl border shadow-2xl w-full max-w-2xl overflow-hidden`}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-border/40">
-                  <h3 className="text-lg font-semibold text-textPrimary">Pick date & time</h3>
+                <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/40'}`}>
+                  <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Pick date & time</h3>
                 </div>
                 
                 {/* Content: Calendar + Date/Time Inputs */}
                 <div className="flex flex-col md:flex-row">
                   {/* Calendar (Left Side) */}
-                  <div className="flex-1 p-4 border-b md:border-b-0 md:border-r border-border/40">
+                  <div className={`flex-1 p-4 border-b md:border-b-0 md:border-r ${theme === 'dark' ? 'border-white/10' : 'border-border/40'}`}>
                     <DatePicker
                       selected={scheduledAt ?? null}
                       onChange={(date: Date | null) => {
@@ -1224,7 +1276,7 @@ const Composer = () => {
                   <div className="flex-1 p-6 flex flex-col gap-4">
                     {/* Time Input */}
                     <div>
-                      <label className="block text-xs font-medium text-textMuted mb-2">
+                      <label className={`block text-xs font-medium ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-2`}>
                         Time
                       </label>
                       <DatePicker
@@ -1253,16 +1305,16 @@ const Composer = () => {
                         timeIntervals={15}
                         timeCaption="Time"
                         dateFormat="h:mm aa"
-                        className="w-full px-3 py-2 bg-card/40 border border-border/60 rounded-lg text-textPrimary text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent/60 outline-none"
+                        className={`w-full px-3 py-2 ${theme === 'dark' ? 'bg-white/5 border-white/20 text-white' : 'bg-card/40 border-border/60 text-textPrimary'} rounded-lg text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent/60 outline-none`}
                         calendarClassName="schedule-calendar"
                       />
                     </div>
                     
                     {/* Selected Date/Time Display */}
                     {isScheduled && scheduledAt && (
-                      <div className="mt-2 px-3 py-2 rounded-lg bg-accent/10 text-xs text-textPrimary border border-accent/20">
-                        <div className="font-medium mb-1">Scheduled for:</div>
-                        <div className="text-textMuted">
+                      <div className={`mt-2 px-3 py-2 rounded-lg bg-accent/10 ${theme === 'dark' ? 'text-white border-accent/20' : 'text-textPrimary border-accent/20'} border`}>
+                        <div className={`font-medium mb-1 ${theme === 'dark' ? 'text-white' : ''}`}>Scheduled for:</div>
+                        <div className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>
                           {scheduledAt.toLocaleString(undefined, { 
                             weekday: 'long', 
                             month: 'long', 
@@ -1278,13 +1330,13 @@ const Composer = () => {
                 </div>
                 
                 {/* Footer with Action Buttons */}
-                <div className="px-6 py-4 border-t border-border/40 flex items-center justify-end gap-3">
+                <div className={`px-6 py-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/40'} flex items-center justify-end gap-3`}>
                   <button
                     onClick={() => {
                       setScheduledAt(null);
                       setShowSchedulePicker(false);
                     }}
-                    className="px-4 py-2 text-sm font-medium text-textMuted hover:text-textPrimary transition-colors"
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'}`}
                     type="button"
                   >
                     Cancel
@@ -1299,7 +1351,7 @@ const Composer = () => {
                     className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
                       scheduledAt && scheduledAt > new Date()
                         ? 'bg-accent text-white hover:bg-accentHover active:scale-95'
-                        : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'
+                        : theme === 'dark' ? 'bg-white/10 text-white/50 cursor-not-allowed' : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'
                     }`}
                     type="button"
                   >
@@ -1314,7 +1366,7 @@ const Composer = () => {
         {/* Image Preview */}
         {(imagePreview || imageUrl) && (
           <div className="mt-3 px-4 pb-3 relative">
-                <div className="rounded-xl overflow-hidden border border-border/40 relative group">
+                <div className={`rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-white/20' : 'border-border/40'} relative group`}>
               <img
                 src={imagePreview || imageUrl}
                 alt="Post attachment"
@@ -1371,9 +1423,9 @@ const Composer = () => {
 
         {/* Manual reach settings - only show if not using AI suggestions */}
         {reachMode === 'tuned' && !showSuggestion && selectedTopic && (
-          <div className="px-4 pb-3 pt-2 border-t border-border/30">
+          <div className={`px-4 pb-3 pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/30'}`}>
                 <div className="flex items-center gap-4 text-xs">
-                  <label className="flex items-center gap-1.5 text-textMuted">
+                  <label className={`flex items-center gap-1.5 ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
               <input
                 type="checkbox"
                 checked={tunedAudience.allowFollowers}
@@ -1384,7 +1436,7 @@ const Composer = () => {
               />
               Followers
             </label>
-                  <label className="flex items-center gap-1.5 text-textMuted">
+                  <label className={`flex items-center gap-1.5 ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
               <input
                 type="checkbox"
                 checked={tunedAudience.allowNonFollowers}
@@ -1399,12 +1451,6 @@ const Composer = () => {
           </div>
         )}
             </div>
-
-      {/* AI Analysis Modal - Show during posting or generating suggestions */}
-      <AnalyzingModal 
-        open={isGeneratingSuggestion} 
-        mode={isPosting ? 'posting' : 'suggestion'} 
-      />
     </div>
   );
 };

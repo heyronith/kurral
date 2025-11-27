@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Chirp } from '../types';
 import { useUserStore } from '../store/useUserStore';
 import { useFeedStore } from '../store/useFeedStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { tuningService } from '../lib/services/tuningService';
 import CommentSection from './CommentSection';
 import FactCheckStatusPopup from './FactCheckStatusPopup';
 import { ReplyIcon, RepeatIcon, BookmarkIcon, BookmarkFilledIcon, TrashIcon } from './Icon';
 import ConfirmDialog from './ConfirmDialog';
+import { sanitizeHTML } from '../lib/utils/sanitize';
 
 interface ChirpCardProps {
   chirp: Chirp;
@@ -17,7 +19,15 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
   const navigate = useNavigate();
   const { getUser, currentUser, followUser, unfollowUser, isFollowing, bookmarkChirp, unbookmarkChirp, isBookmarked } = useUserStore();
   const { addChirp, deleteChirp } = useFeedStore();
-  const author = getUser(chirp.authorId);
+  const { theme } = useThemeStore();
+  const author =
+    getUser(chirp.authorId) ?? {
+      id: chirp.authorId,
+      name: 'Deleted User',
+      handle: 'deleted',
+      createdAt: new Date(0),
+      following: [],
+    };
   const isCurrentUser = currentUser?.id === chirp.authorId;
   const following = isFollowing(chirp.authorId);
   const bookmarked = isBookmarked(chirp.id);
@@ -50,14 +60,20 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
   };
 
 
+  const sanitizedFormattedText = useMemo(() => {
+    if (!chirp.formattedText) {
+      return null;
+    }
+    return sanitizeHTML(chirp.formattedText);
+  }, [chirp.formattedText]);
+
   // Render formatted HTML or plain text
   const renderFormattedText = (): React.ReactNode => {
-    if (chirp.formattedText) {
-      // Render HTML from contentEditable (sanitized by browser)
+    if (sanitizedFormattedText) {
       return (
         <div
           className="text-textPrimary mb-2 leading-relaxed whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: chirp.formattedText }}
+          dangerouslySetInnerHTML={{ __html: sanitizedFormattedText }}
         />
       );
     }
@@ -80,6 +96,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
         topic: chirp.topic,
         reachMode: 'forAll',
         rechirpOfId: chirp.id,
+        semanticTopics: chirp.semanticTopics?.length ? chirp.semanticTopics : undefined,
       });
     } catch (error) {
       console.error('Error rechirping:', error);
@@ -144,13 +161,25 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
     }
   };
 
-  if (!author) return null;
-
   // Determine card styling based on fact check status
   const getCardStyling = () => {
+    if (theme === 'dark') {
+      // Dark theme: no background, no border (or very subtle for fact-checked posts)
+      if (!chirp.factCheckStatus) {
+        return 'bg-transparent border-0';
+      }
+      switch (chirp.factCheckStatus) {
+        case 'clean':
+          return 'bg-transparent border-0';
+        case 'needs_review':
+          return 'bg-transparent border-0';
+        default:
+          return 'bg-transparent border-0';
+      }
+    }
+    
+    // Light theme: keep original styling
     if (!chirp.factCheckStatus) {
-      // Normal posts: subtle blue-gray tint to match background theme, maintaining readability
-      // Posts use border-2 (2px) for more definition
       return 'bg-blue-50/30 border-2 border-blue-100/60 shadow-card hover:shadow-cardHover';
     }
     
@@ -166,7 +195,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
 
   return (
     <div 
-      className={`mb-4 rounded-2xl ${getCardStyling()} p-6 shadow-card hover:shadow-cardHover transition-all duration-300 group cursor-pointer relative`}
+      className={`mb-4 rounded-2xl ${getCardStyling()} p-6 ${theme === 'dark' ? '' : 'shadow-card hover:shadow-cardHover'} transition-all duration-300 group cursor-pointer relative ${theme === 'dark' ? 'text-white' : ''}`}
       onClick={handleCardClick}
     >
       {/* Fact-check status icon - top right */}
@@ -197,7 +226,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
           {chirp.rechirpOfId && (
             <div className="text-xs text-textMuted mb-1.5 flex items-center gap-1.5">
               <span className="text-textMuted">↻</span>
-              <span>Rechirped by {author.name}</span>
+              <span>Reposted by {author.name}</span>
             </div>
           )}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -211,10 +240,10 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
                 <img
                   src={author.profilePictureUrl}
                   alt={author.name}
-                  className="w-8 h-8 rounded-full object-cover border border-border/50"
+                  className={`w-8 h-8 rounded-full object-cover ${theme === 'dark' ? 'border border-white/10' : 'border border-border/50'}`}
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-border/50">
+                <div className={`w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center ${theme === 'dark' ? 'border border-white/10' : 'border border-border/50'}`}>
                   <span className="text-primary font-semibold text-xs">
                     {author.name.charAt(0).toUpperCase()}
                   </span>
@@ -223,23 +252,23 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
             </Link>
             <Link
               to={`/profile/${author.id}`}
-              className="font-semibold text-sm text-textPrimary hover:text-accent transition-colors duration-200"
+              className={`font-semibold text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} hover:text-accent transition-colors duration-200`}
               onClick={(e) => e.stopPropagation()}
             >
               {author.name}
             </Link>
             <Link
               to={`/profile/${author.id}`}
-              className="text-textMuted text-xs hover:text-accent transition-colors duration-200"
+              className={`${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} text-xs hover:text-accent transition-colors duration-200`}
               onClick={(e) => e.stopPropagation()}
             >
               @{author.handle}
             </Link>
-            <span className="text-textLabel text-xs">·</span>
-            <span className="text-textMuted text-xs">{formatTime(chirp.createdAt)}</span>
+            <span className={`${theme === 'dark' ? 'text-white/50' : 'text-textLabel'} text-xs`}>·</span>
+            <span className={`${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} text-xs`}>{formatTime(chirp.createdAt)}</span>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <div className="px-2 py-0.5 bg-backgroundElevated/60 rounded border border-border/50 flex items-center gap-1.5">
-                <span className="text-xs text-textPrimary font-semibold">
+              <div className={`px-2 py-0.5 ${theme === 'dark' ? 'bg-transparent border-0' : 'bg-backgroundElevated/60 border-border/50'} rounded ${theme === 'dark' ? '' : 'border'} flex items-center gap-1.5`}>
+                <span className={`text-xs ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} font-semibold`}>
                   #{chirp.topic}
                 </span>
                 {chirp.semanticTopics && chirp.semanticTopics.length > 0 && (
@@ -249,7 +278,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
                         {chirp.semanticTopics.map((tag, idx) => (
                           <span 
                             key={idx}
-                            className="text-xs text-textPrimary"
+                            className={`text-xs ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}
                           >
                             #{tag}
                           </span>
@@ -260,7 +289,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
                               e.stopPropagation();
                               setShowAllTags(false);
                             }}
-                            className="text-xs text-textMuted hover:text-textPrimary transition-colors"
+                            className={`text-xs ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'} transition-colors`}
                           >
                             −
                           </button>
@@ -272,7 +301,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
                           e.stopPropagation();
                           setShowAllTags(true);
                         }}
-                        className="text-xs text-textMuted hover:text-textPrimary transition-colors"
+                        className={`text-xs ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'} transition-colors`}
                       >
                         +{chirp.semanticTopics.length}
                       </button>
@@ -281,16 +310,18 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
                 )}
               </div>
             </div>
-            <span className="text-xs text-textMuted px-2 py-0.5 bg-backgroundElevated/60 rounded border border-border/50">
+            <span className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} px-2 py-0.5 ${theme === 'dark' ? 'bg-transparent border-0' : 'bg-backgroundElevated/60 border-border/50'} rounded ${theme === 'dark' ? '' : 'border'}`}>
               {getReachLabel()}
             </span>
           </div>
           
+          <div className={theme === 'dark' ? 'text-white' : ''}>
           {renderFormattedText()}
+          </div>
           
           {/* Image display */}
           {chirp.imageUrl && (
-            <div className="mb-4 rounded-xl overflow-hidden border border-border/40 shadow-subtle">
+            <div className={`mb-4 rounded-xl overflow-hidden ${theme === 'dark' ? 'border-0' : 'border border-border/40 shadow-subtle'}`}>
               <img
                 src={chirp.imageUrl}
                 alt="Post attachment"
@@ -304,7 +335,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
           
           {/* Scheduled indicator */}
           {chirp.scheduledAt && chirp.scheduledAt > new Date() && (
-            <div className="mb-2 text-xs text-textMuted flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 rounded border border-primary/20">
+            <div className={`mb-2 text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} flex items-center gap-1.5 px-2 py-0.5 ${theme === 'dark' ? 'bg-primary/10 rounded border-0' : 'bg-primary/10 rounded border border-primary/20'}`}>
               <span>📅</span>
               <span>Scheduled for {chirp.scheduledAt.toLocaleString()}</span>
             </div>
@@ -314,14 +345,14 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
           {(chirp.valueScore || chirp.factCheckStatus || (chirp.claims && chirp.claims.length > 0)) && (
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
               {chirp.valueScore && isCurrentUser && (
-                <div className="px-2 py-1 bg-accent/10 text-accent rounded border border-accent/20 flex items-center gap-1">
+                <div className={`px-2 py-1 bg-accent/10 text-accent rounded ${theme === 'dark' ? 'border-0' : 'border border-accent/20'} flex items-center gap-1`}>
                   <span>⭐</span>
                   <span className="font-semibold">{(chirp.valueScore.total * 100).toFixed(0)}</span>
                   <span className="text-accent/80">value</span>
                 </div>
               )}
               {chirp.claims && chirp.claims.length > 0 && (
-                <div className="px-2 py-1 bg-backgroundElevated/60 text-textMuted rounded border border-border/50 flex items-center gap-1">
+                <div className={`px-2 py-1 ${theme === 'dark' ? 'bg-transparent text-white/70 border-0' : 'bg-backgroundElevated/60 text-textMuted border border-border/50'} rounded flex items-center gap-1`}>
                   <span>📋</span>
                   <span>{chirp.claims.length} claim{chirp.claims.length !== 1 ? 's' : ''}</span>
                 </div>
@@ -329,7 +360,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
             </div>
           )}
           
-          <div className="flex flex-wrap items-center gap-4 text-xs relative pt-4 mt-4 border-t border-border/40">
+          <div className={`flex flex-wrap items-center gap-4 text-xs relative pt-4 mt-4 ${theme === 'dark' ? 'border-t border-white/10' : 'border-t border-border/40'}`}>
             {!isCurrentUser && (
               <button
                 onClick={(e) => {
@@ -338,7 +369,9 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
                 }}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   following
-                    ? 'bg-backgroundElevated/80 text-textMuted hover:bg-backgroundHover hover:text-textSecondary border border-border/60 shadow-subtle'
+                    ? theme === 'dark' 
+                      ? 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border-0'
+                      : 'bg-backgroundElevated/80 text-textMuted hover:bg-backgroundHover hover:text-textSecondary border border-border/60 shadow-subtle'
                     : 'bg-accent text-white hover:bg-accentHover active:scale-95 border border-accent/30 shadow-button hover:shadow-buttonHover'
                 }`}
                 aria-label={following ? `Unfollow ${author.name}` : `Follow ${author.name}`}
@@ -348,7 +381,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
             )}
             <button
               onClick={handleReplyClick}
-              className="flex items-center gap-2 px-3 py-2 text-textMuted hover:text-accent hover:bg-backgroundElevated/60 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95"
+              className={`flex items-center gap-2 px-3 py-2 ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-accent hover:bg-backgroundElevated/60'} rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95`}
               aria-label={`Reply to ${author.name}'s chirp`}
             >
               <ReplyIcon size={16} />
@@ -358,8 +391,8 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
             </button>
             <button
               onClick={handleRechirp}
-              className="flex items-center gap-2 px-3 py-2 text-textMuted hover:text-accent hover:bg-backgroundElevated/60 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95"
-              aria-label={`Rechirp ${author.name}'s post`}
+              className={`flex items-center gap-2 px-3 py-2 ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-accent hover:bg-backgroundElevated/60'} rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95`}
+              aria-label={`Repost ${author.name}'s post`}
             >
               <RepeatIcon size={16} />
             </button>
@@ -367,7 +400,11 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
               <button
                 onClick={handleBookmark}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95 ${
-                  bookmarked
+                  theme === 'dark'
+                    ? bookmarked
+                      ? 'text-accent hover:text-accent/80 hover:bg-white/10'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                    : bookmarked
                     ? 'text-accent hover:text-accent/80 hover:bg-backgroundElevated/60'
                     : 'text-textMuted hover:text-accent hover:bg-backgroundElevated/60'
                 }`}
@@ -379,7 +416,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
             {isCurrentUser && (
               <button
                 onClick={handleDeleteClick}
-                className="flex items-center gap-2 px-3 py-2 text-textMuted hover:text-red-500 hover:bg-backgroundElevated/60 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/30 active:scale-95"
+                className={`flex items-center gap-2 px-3 py-2 ${theme === 'dark' ? 'text-white/70 hover:text-red-400 hover:bg-white/10' : 'text-textMuted hover:text-red-500 hover:bg-backgroundElevated/60'} rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/30 active:scale-95`}
                 aria-label="Delete your post"
               >
                 <TrashIcon size={16} />

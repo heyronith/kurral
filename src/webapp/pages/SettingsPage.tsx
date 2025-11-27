@@ -2,22 +2,24 @@ import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import ForYouControls from '../components/ForYouControls';
 import NotificationPreferences from '../components/NotificationPreferences';
+import { useThemeStore } from '../store/useThemeStore';
 
 const SettingsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') || 'feed';
+  const { theme } = useThemeStore();
 
   return (
     <AppLayout pageTitle="Settings">
       <div className="p-6">
         {/* Tabs */}
-        <div className="flex gap-4 mb-6 border-b border-border/60">
+        <div className={`flex gap-4 mb-6 border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
           <button
             onClick={() => setSearchParams({ tab: 'feed' })}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
               tab === 'feed'
                 ? 'border-accent text-accent'
-                : 'border-transparent text-textMuted hover:text-textPrimary'
+                : theme === 'dark' ? 'border-transparent text-white/70 hover:text-white' : 'border-transparent text-textMuted hover:text-textPrimary'
             }`}
           >
             For You Feed
@@ -27,7 +29,7 @@ const SettingsPage = () => {
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
               tab === 'notifications'
                 ? 'border-accent text-accent'
-                : 'border-transparent text-textMuted hover:text-textPrimary'
+                : theme === 'dark' ? 'border-transparent text-white/70 hover:text-white' : 'border-transparent text-textMuted hover:text-textPrimary'
             }`}
           >
             Notifications
@@ -37,14 +39,14 @@ const SettingsPage = () => {
         {/* Content */}
         {tab === 'feed' && (
           <>
-            <h2 className="text-xl font-semibold text-textPrimary mb-6">For You Settings</h2>
+            <h2 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-6`}>For You Settings</h2>
             <ForYouControls />
           </>
         )}
 
         {tab === 'notifications' && (
           <>
-            <h2 className="text-xl font-semibold text-textPrimary mb-6">Notification Preferences</h2>
+            <h2 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-6`}>Notification Preferences</h2>
             <NotificationPreferences />
           </>
         )}

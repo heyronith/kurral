@@ -49,13 +49,11 @@ const fetchCountryCode = async () => {
             },
         });
         window.clearTimeout(timeout);
-        
         // Handle 204 No Content (no country code available)
         if (response.status === 204) {
             console.log('[LocationService] No country code available (204)');
             return null;
         }
-        
         if (!response.ok) {
             throw new Error(`Unexpected response (${response.status})`);
         }

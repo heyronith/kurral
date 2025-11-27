@@ -256,8 +256,30 @@ export const newsService = {
             const existingNewsWithSignature = await this.checkExistingNewsBySignature(storySignature, scopedUserId);
             if (existingNewsWithSignature) {
                 console.log('[NewsService] Story already covered, skipping generation. Signature:', storySignature);
-                // Return existing news plus cached news
-                const combined = [existingNewsWithSignature, ...cachedNews.filter(n => n.id !== existingNewsWithSignature.id)];
+                // Return existing news plus cached news, ensuring no duplicates by both ID and signature
+                const seenIds = new Set();
+                const seenSignatures = new Set();
+                const combined = [];
+                // Add existing news first if not already in cache
+                if (existingNewsWithSignature.id && !seenIds.has(existingNewsWithSignature.id)) {
+                    combined.push(existingNewsWithSignature);
+                    seenIds.add(existingNewsWithSignature.id);
+                    if (existingNewsWithSignature.storySignature) {
+                        seenSignatures.add(existingNewsWithSignature.storySignature);
+                    }
+                }
+                // Add cached news, avoiding duplicates by ID or signature
+                for (const news of cachedNews) {
+                    const isDuplicateById = news.id && seenIds.has(news.id);
+                    const isDuplicateBySignature = news.storySignature && seenSignatures.has(news.storySignature);
+                    if (!isDuplicateById && !isDuplicateBySignature) {
+                        combined.push(news);
+                        if (news.id)
+                            seenIds.add(news.id);
+                        if (news.storySignature)
+                            seenSignatures.add(news.storySignature);
+                    }
+                }
                 return combined.slice(0, 3);
             }
             const newsId = `ai_news_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -322,7 +344,28 @@ export const newsService = {
             }
             await this.cleanupOldNews(scopedUserId);
             cachedNews = await this.getCachedNews(scopedUserId);
-            const combined = [news, ...cachedNews.filter((existing) => existing.id !== news.id)];
+            // Combine new news with cached news, ensuring no duplicates by both ID and signature
+            const seenIds = new Set();
+            const seenSignatures = new Set();
+            const combined = [];
+            // Add new news first
+            combined.push(news);
+            seenIds.add(news.id);
+            if (news.storySignature) {
+                seenSignatures.add(news.storySignature);
+            }
+            // Add cached news, avoiding duplicates by ID or signature
+            for (const existing of cachedNews) {
+                const isDuplicateById = existing.id && seenIds.has(existing.id);
+                const isDuplicateBySignature = existing.storySignature && seenSignatures.has(existing.storySignature);
+                if (!isDuplicateById && !isDuplicateBySignature) {
+                    combined.push(existing);
+                    if (existing.id)
+                        seenIds.add(existing.id);
+                    if (existing.storySignature)
+                        seenSignatures.add(existing.storySignature);
+                }
+            }
             return combined.slice(0, 3);
         }
         catch (error) {

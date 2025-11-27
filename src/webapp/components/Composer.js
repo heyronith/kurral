@@ -4,16 +4,18 @@ import { ALL_TOPICS, } from '../types';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
 import { useTopicStore } from '../store/useTopicStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { getReachAgent } from '../lib/agents/reachAgent';
 import { topicService } from '../lib/firestore';
 import TopicSuggestionBox from './TopicSuggestionBox';
-import AnalyzingModal from './AnalyzingModal';
 import { ImageIcon, EmojiIcon, CalendarIcon } from './Icon';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { uploadImage } from '../lib/storage';
 import { useComposer } from '../context/ComposerContext';
+import { sanitizeHTML } from '../lib/utils/sanitize';
+import { tryGenerateEmbedding } from '../lib/services/embeddingService';
 const extractSemanticKeywords = (text, limit = 6) => {
     const tokens = text.toLowerCase().match(/[a-z0-9#]{3,}/g) || [];
     const unique = Array.from(new Set(tokens));
@@ -89,6 +91,7 @@ const Composer = () => {
     const { currentUser } = useUserStore();
     const { loadTopicsForUser, allTopics, isLoading: topicsLoading } = useTopicStore();
     const { hideComposer } = useComposer();
+    const { theme } = useThemeStore();
     // Get topics from user's profile, fallback to empty array
     const userTopics = useMemo(() => {
         return currentUser?.topics || [];
@@ -179,7 +182,11 @@ const Composer = () => {
                             // Auto-select the first (highest confidence) suggested topic
                             if (suggestionResult.suggestedTopics.length > 0) {
                                 setSelectedTopic(suggestionResult.suggestedTopics[0].topic);
-                                setTunedAudience(suggestionResult.tunedAudience);
+                                setTunedAudience({
+                                    ...suggestionResult.tunedAudience,
+                                    targetAudienceDescription: suggestionResult.targetAudienceDescription,
+                                    targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
+                                });
                             }
                         }
                         else if (response.fallback) {
@@ -198,7 +205,11 @@ const Composer = () => {
                             // Auto-select fallback topic if available
                             if (suggestionResult.suggestedTopics.length > 0) {
                                 setSelectedTopic(suggestionResult.suggestedTopics[0].topic);
-                                setTunedAudience(suggestionResult.tunedAudience);
+                                setTunedAudience({
+                                    ...suggestionResult.tunedAudience,
+                                    targetAudienceDescription: suggestionResult.targetAudienceDescription,
+                                    targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
+                                });
                             }
                         }
                     }
@@ -219,9 +230,15 @@ const Composer = () => {
                             },
                             explanation: 'Using default settings.',
                             overallExplanation: 'AI suggestions not available. Using most active topic with default settings.',
+                            targetAudienceDescription: 'Default reach settings for topic audience.',
+                            targetAudienceEmbedding: undefined,
                         };
                         setSelectedTopic(fallbackTopic);
-                        setTunedAudience(suggestionResult.tunedAudience);
+                        setTunedAudience({
+                            ...suggestionResult.tunedAudience,
+                            targetAudienceDescription: suggestionResult.targetAudienceDescription,
+                            targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
+                        });
                     }
                     if (suggestionResult) {
                         setSuggestion(suggestionResult);
@@ -237,6 +254,8 @@ const Composer = () => {
                         setTunedAudience({
                             allowFollowers: true,
                             allowNonFollowers: true,
+                            targetAudienceDescription: undefined,
+                            targetAudienceEmbedding: undefined,
                         });
                     }
                 }
@@ -495,7 +514,9 @@ const Composer = () => {
         try {
             // Get formatted HTML and plain text
             const formattedHTML = getFormattedText();
+            const sanitizedHTML = formattedHTML ? sanitizeHTML(formattedHTML) : '';
             const plainTextContent = getPlainText();
+            const trimmedContent = plainTextContent.trim();
             const reachAgent = getReachAgent();
             let availableTopicsForAnalysis = availableTopicsRef.current;
             if (availableTopicsForAnalysis.length === 0) {
@@ -559,12 +580,14 @@ const Composer = () => {
                 userTopics.find((topic) => isLegacyTopic(topic)) ||
                 'dev';
             // Create new chirp (will be persisted to Firestore)
+            const contentEmbedding = trimmedContent ? await tryGenerateEmbedding(trimmedContent) : undefined;
             const chirpData = {
                 authorId: currentUser.id,
-                text: plainTextContent.trim(),
+                text: trimmedContent,
                 topic: resolvedTopic,
                 reachMode,
                 tunedAudience: reachMode === 'tuned' ? tunedAudience : undefined,
+                contentEmbedding: contentEmbedding,
             };
             if (semanticTopics.length > 0) {
                 chirpData.semanticTopics = semanticTopics;
@@ -586,8 +609,8 @@ const Composer = () => {
                 chirpData.scheduledAt = scheduledAt;
             }
             // Store formatted HTML
-            if (formattedHTML.trim()) {
-                chirpData.formattedText = formattedHTML.trim();
+            if (sanitizedHTML.trim()) {
+                chirpData.formattedText = sanitizedHTML.trim();
             }
             await addChirp(chirpData);
             // Reset form
@@ -633,57 +656,57 @@ const Composer = () => {
         }
         return reachMode === 'tuned' ? 'Post Tuned' : 'Post';
     };
-    return (_jsxs("div", { ref: composerRef, className: "fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-3rem)] max-w-2xl", style: { position: 'fixed' }, children: [_jsxs("div", { className: "bg-gradient-to-br from-blue-50 via-blue-100/80 to-primary/20 rounded-2xl border-2 border-primary/40 shadow-2xl overflow-hidden", children: [_jsxs("div", { className: "flex items-center gap-3 px-4 pt-4 pb-3 border-b-2 border-primary/20", children: [currentUser?.profilePictureUrl ? (_jsx("img", { src: currentUser.profilePictureUrl, alt: currentUser.name, className: "w-10 h-10 rounded-full object-cover border-2 border-border/40" })) : (_jsx("div", { className: "w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center border-2 border-border/40", children: _jsx("span", { className: "text-white font-semibold text-sm", children: currentUser?.name?.charAt(0).toUpperCase() || 'U' }) })), _jsxs("div", { className: "flex-1", children: [_jsx("div", { className: "font-medium text-sm text-textPrimary", children: currentUser?.name || 'User' }), _jsxs("div", { className: "text-xs text-textMuted", children: ["@", currentUser?.handle || 'username'] })] }), _jsx("button", { onClick: hideComposer, className: "p-1.5 rounded-lg text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary transition-colors", "aria-label": "Close composer", children: _jsx("svg", { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" }) }) })] }), _jsxs("div", { className: "px-4 py-3", children: [_jsxs("div", { className: "relative", children: [_jsx("div", { ref: contentEditableRef, id: "composer-input", contentEditable: true, onInput: (e) => {
-                                            // Clean up zero-width spaces after typing
-                                            if (contentEditableRef.current) {
-                                                const zwspElements = contentEditableRef.current.querySelectorAll('strong:only-child, em:only-child');
-                                                zwspElements.forEach((el) => {
-                                                    if (el.textContent === '\u200B' && el.children.length === 0) {
-                                                        // Remove empty formatting markers
-                                                        const parent = el.parentNode;
-                                                        if (parent) {
-                                                            parent.removeChild(el);
-                                                        }
+    return (_jsx("div", { ref: composerRef, className: "fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-3rem)] max-w-2xl", style: { position: 'fixed' }, children: _jsxs("div", { className: `${theme === 'dark' ? 'bg-black/90 border-white/20' : 'bg-gradient-to-br from-blue-50 via-blue-100/80 to-primary/20 border-primary/40'} rounded-3xl border-2 ${theme === 'dark' ? '' : 'shadow-2xl'} overflow-hidden relative`, children: [isGeneratingSuggestion && (_jsx("div", { className: `absolute inset-0 z-50 ${theme === 'dark' ? 'bg-black/80' : 'bg-white/80'} backdrop-blur-sm rounded-3xl flex items-center justify-center`, children: _jsxs("div", { className: "flex flex-col items-center gap-3", children: [_jsxs("div", { className: "relative w-8 h-8", children: [_jsx("div", { className: `absolute inset-0 border-2 ${theme === 'dark' ? 'border-white/20' : 'border-primary/20'} rounded-full` }), _jsx("div", { className: `absolute inset-0 border-2 border-transparent ${theme === 'dark' ? 'border-t-white' : 'border-t-primary'} rounded-full animate-spin` })] }), _jsx("p", { className: `text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: isPosting ? 'Analyzing post...' : 'Analyzing content...' })] }) })), _jsxs("div", { className: `flex items-center gap-3 px-4 pt-4 pb-3 border-b-2 ${theme === 'dark' ? 'border-white/10' : 'border-primary/20'}`, children: [currentUser?.profilePictureUrl ? (_jsx("img", { src: currentUser.profilePictureUrl, alt: currentUser.name, className: `w-10 h-10 rounded-full object-cover ${theme === 'dark' ? '' : 'border-2 border-border/40'}` })) : (_jsx("div", { className: `w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center ${theme === 'dark' ? '' : 'border-2 border-border/40'}`, children: _jsx("span", { className: "text-white font-semibold text-sm", children: currentUser?.name?.charAt(0).toUpperCase() || 'U' }) })), _jsxs("div", { className: "flex-1", children: [_jsx("div", { className: `font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: currentUser?.name || 'User' }), _jsxs("div", { className: `text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: ["@", currentUser?.handle || 'username'] })] }), _jsx("button", { onClick: hideComposer, className: `p-1.5 rounded-lg ${theme === 'dark' ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'} transition-colors`, "aria-label": "Close composer", children: _jsx("svg", { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" }) }) })] }), _jsxs("div", { className: "px-4 py-3", children: [_jsxs("div", { className: "relative", children: [_jsx("div", { ref: contentEditableRef, id: "composer-input", contentEditable: true, onInput: (e) => {
+                                        // Clean up zero-width spaces after typing
+                                        if (contentEditableRef.current) {
+                                            const zwspElements = contentEditableRef.current.querySelectorAll('strong:only-child, em:only-child');
+                                            zwspElements.forEach((el) => {
+                                                if (el.textContent === '\u200B' && el.children.length === 0) {
+                                                    // Remove empty formatting markers
+                                                    const parent = el.parentNode;
+                                                    if (parent) {
+                                                        parent.removeChild(el);
                                                     }
-                                                });
-                                            }
-                                            handleContentChange();
-                                            // Maintain formatting state when typing
-                                            if (contentEditableRef.current) {
-                                                setIsBoldActive(document.queryCommandState('bold'));
-                                                setIsItalicActive(document.queryCommandState('italic'));
-                                            }
-                                        }, onPaste: (e) => {
-                                            // Handle paste - strip formatting from pasted text to keep it simple
+                                                }
+                                            });
+                                        }
+                                        handleContentChange();
+                                        // Maintain formatting state when typing
+                                        if (contentEditableRef.current) {
+                                            setIsBoldActive(document.queryCommandState('bold'));
+                                            setIsItalicActive(document.queryCommandState('italic'));
+                                        }
+                                    }, onPaste: (e) => {
+                                        // Handle paste - strip formatting from pasted text to keep it simple
+                                        e.preventDefault();
+                                        const text = e.clipboardData.getData('text/plain');
+                                        // Apply current formatting if active
+                                        if (isBoldActive) {
+                                            document.execCommand('bold', false);
+                                        }
+                                        if (isItalicActive) {
+                                            document.execCommand('italic', false);
+                                        }
+                                        document.execCommand('insertText', false, text);
+                                        handleContentChange();
+                                    }, "data-placeholder": "Share something...", className: `w-full ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-accent/60 focus:ring-accent/20' : 'bg-white/80 border-primary/30 text-textPrimary focus:ring-primary/30 focus:border-primary/60'} backdrop-blur-sm border-2 resize-none outline-none text-sm focus:ring-2 rounded-xl px-4 py-3 transition-all duration-200 min-h-[60px] max-h-[200px] overflow-y-auto`, style: {
+                                        whiteSpace: 'pre-wrap',
+                                        wordWrap: 'break-word',
+                                    }, onMouseDown: (e) => {
+                                        // Prevent toolbar buttons from losing focus
+                                        if (e.target.closest('.formatting-toolbar')) {
                                             e.preventDefault();
-                                            const text = e.clipboardData.getData('text/plain');
-                                            // Apply current formatting if active
-                                            if (isBoldActive) {
-                                                document.execCommand('bold', false);
-                                            }
-                                            if (isItalicActive) {
-                                                document.execCommand('italic', false);
-                                            }
-                                            document.execCommand('insertText', false, text);
-                                            handleContentChange();
-                                        }, "data-placeholder": "Share something...", className: "w-full bg-white/80 backdrop-blur-sm border-2 border-primary/30 text-textPrimary resize-none outline-none text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary/60 rounded-xl px-4 py-3 transition-all duration-200 min-h-[60px] max-h-[200px] overflow-y-auto", style: {
-                                            whiteSpace: 'pre-wrap',
-                                            wordWrap: 'break-word',
-                                        }, onMouseDown: (e) => {
-                                            // Prevent toolbar buttons from losing focus
-                                            if (e.target.closest('.formatting-toolbar')) {
-                                                e.preventDefault();
-                                            }
-                                        }, onMouseUp: () => {
-                                            // Update formatting state when selection changes
-                                            if (contentEditableRef.current) {
-                                                setIsBoldActive(document.queryCommandState('bold'));
-                                                setIsItalicActive(document.queryCommandState('italic'));
-                                            }
-                                        } }), _jsx("style", { children: `
+                                        }
+                                    }, onMouseUp: () => {
+                                        // Update formatting state when selection changes
+                                        if (contentEditableRef.current) {
+                                            setIsBoldActive(document.queryCommandState('bold'));
+                                            setIsItalicActive(document.queryCommandState('italic'));
+                                        }
+                                    } }), _jsx("style", { children: `
           [contenteditable][data-placeholder]:empty:before {
             content: attr(data-placeholder);
-            color: rgb(107 114 128 / 0.6);
+            color: ${theme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgb(107 114 128 / 0.6)'};
             pointer-events: none;
           }
           [contenteditable] strong,
@@ -819,92 +842,104 @@ const Composer = () => {
             border-color: #6366f1;
             box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
           }
-        ` })] }), _jsxs("div", { className: "flex items-center justify-between mt-3 pt-3 border-t border-border/30", children: [_jsx("div", { className: "flex items-center gap-2", children: _jsxs("div", { className: "formatting-toolbar flex items-center gap-1", children: [_jsx("button", { onMouseDown: handleBold, className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${isBoldActive ? 'bg-accent/20 text-accent' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: "Bold", type: "button", children: _jsx("span", { className: "text-xs font-bold", children: "B" }) }), _jsx("button", { onMouseDown: handleItalic, className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${isItalicActive ? 'bg-accent/20 text-accent' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: "Italic", type: "button", children: _jsx("span", { className: "text-xs italic", children: "I" }) }), _jsx("div", { className: "w-px h-4 bg-border/60 mx-1" }), _jsxs("div", { className: "relative", children: [_jsx("button", { onClick: () => {
-                                                                setShowEmojiPicker(!showEmojiPicker);
-                                                                setShowSchedulePicker(false);
-                                                            }, className: "p-1.5 rounded-lg text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary transition-all duration-200 active:scale-95", title: "Emoji", type: "button", children: _jsx(EmojiIcon, { size: 16 }) }), showEmojiPicker && (_jsx("div", { className: "absolute top-full left-0 mt-1 z-20 shadow-2xl", children: _jsx(EmojiPicker, { onEmojiClick: handleEmojiClick, width: 400, height: 500, previewConfig: { showPreview: true }, skinTonesDisabled: true, theme: Theme.DARK, searchPlaceHolder: "Search emojis", autoFocusSearch: false, lazyLoadEmojis: true }) }))] }), _jsx("button", { onClick: () => fileInputRef.current?.click(), className: "p-1.5 rounded-lg text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary transition-all duration-200 active:scale-95", title: "Add Image", type: "button", disabled: isUploadingImage, children: _jsx(ImageIcon, { size: 16 }) }), _jsx("input", { ref: fileInputRef, type: "file", accept: "image/*", onChange: handleImageSelect, className: "hidden" }), _jsx("button", { onClick: () => {
-                                                        setShowSchedulePicker(!showSchedulePicker);
-                                                        setShowEmojiPicker(false);
-                                                    }, className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${isScheduled ? 'text-primary bg-primary/10' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: isScheduled ? `Scheduled: ${formatScheduleTime(scheduledAt)}` : 'Schedule Post', type: "button", children: _jsx(CalendarIcon, { size: 16 }) })] }) }), _jsxs("div", { className: "flex items-center gap-3", children: [_jsx("span", { className: `text-xs font-medium ${remaining < 20 ? 'text-warning' : 'text-textMuted'}`, children: remaining }), _jsxs("div", { ref: reachMenuRef, className: "relative flex items-center", children: [_jsxs("div", { className: "flex items-center rounded-full overflow-hidden border border-border/40 shadow-sm", children: [_jsxs("button", { onClick: (e) => {
-                                                                    e.stopPropagation();
-                                                                    setShowReachMenu(!showReachMenu);
-                                                                }, className: `px-2.5 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-1 border-r border-border/40 ${canPost && !isUploadingImage
-                                                                    ? reachMode === 'tuned'
-                                                                        ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                                                                        : 'bg-accent/10 text-accent hover:bg-accent/20'
-                                                                    : 'bg-backgroundElevated/30 text-textMuted'}`, type: "button", disabled: !canPost || isUploadingImage, children: [_jsx("span", { className: "text-[10px]", children: reachMode === 'tuned' ? 'Tuned' : 'All' }), _jsx("svg", { className: `w-2.5 h-2.5 transition-transform ${showReachMenu ? 'rotate-180' : ''}`, fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" }) })] }), _jsx("button", { onClick: handlePost, disabled: !canPost || isUploadingImage, className: `px-4 py-1.5 text-sm font-semibold transition-all duration-200 ${canPost && !isUploadingImage
-                                                                    ? reachMode === 'tuned'
-                                                                        ? 'bg-gradient-to-r from-primary to-accent text-white hover:from-primaryHover hover:to-accentHover active:scale-[0.98]'
-                                                                        : 'bg-accent text-white hover:bg-accentHover active:scale-[0.98]'
-                                                                    : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'}`, children: isPosting ? (_jsxs("svg", { className: "animate-spin h-4 w-4", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", children: [_jsx("circle", { className: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "4" }), _jsx("path", { className: "opacity-75", fill: "currentColor", d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" })] })) : isUploadingImage ? (_jsxs("svg", { className: "animate-spin h-4 w-4", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", children: [_jsx("circle", { className: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "4" }), _jsx("path", { className: "opacity-75", fill: "currentColor", d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" })] })) : ('Post') })] }), showReachMenu && (_jsxs("div", { className: "absolute bottom-full right-0 mb-2 bg-backgroundElevated border border-border/60 rounded-xl shadow-2xl z-30 min-w-[160px] overflow-hidden", children: [_jsxs("button", { onClick: () => {
-                                                                    setReachMode('forAll');
-                                                                    setShowReachMenu(false);
-                                                                }, className: `w-full px-4 py-3 text-left text-sm font-medium transition-colors flex items-center gap-2 ${reachMode === 'forAll'
-                                                                    ? 'bg-accent/10 text-accent'
-                                                                    : 'text-textPrimary hover:bg-backgroundElevated/70'}`, type: "button", children: [_jsxs("div", { className: "flex-1", children: [_jsx("div", { className: "font-semibold", children: "For All" }), _jsx("div", { className: "text-xs text-textMuted", children: "Public post" })] }), reachMode === 'forAll' && (_jsx("svg", { className: "w-4 h-4 text-accent", fill: "currentColor", viewBox: "0 0 20 20", children: _jsx("path", { fillRule: "evenodd", d: "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z", clipRule: "evenodd" }) }))] }), _jsxs("button", { onClick: () => {
-                                                                    setReachMode('tuned');
-                                                                    setShowReachMenu(false);
-                                                                }, className: `w-full px-4 py-3 text-left text-sm font-medium transition-colors flex items-center gap-2 border-t border-border/40 ${reachMode === 'tuned'
-                                                                    ? 'bg-primary/10 text-primary'
-                                                                    : 'text-textPrimary hover:bg-backgroundElevated/70'}`, type: "button", children: [_jsxs("div", { className: "flex-1", children: [_jsx("div", { className: "font-semibold", children: "Tuned" }), _jsx("div", { className: "text-xs text-textMuted", children: "AI-optimized" })] }), reachMode === 'tuned' && (_jsx("svg", { className: "w-4 h-4 text-primary", fill: "currentColor", viewBox: "0 0 20 20", children: _jsx("path", { fillRule: "evenodd", d: "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z", clipRule: "evenodd" }) }))] })] }))] })] })] })] }), showSchedulePicker && (_jsxs(_Fragment, { children: [_jsx("div", { className: "fixed inset-0 bg-black/50 backdrop-blur-sm z-30", onClick: () => setShowSchedulePicker(false) }), _jsx("div", { className: "fixed inset-0 flex items-center justify-center z-40 p-4", children: _jsxs("div", { className: "bg-backgroundElevated border border-border/60 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden", onClick: (e) => e.stopPropagation(), children: [_jsx("div", { className: "px-6 py-4 border-b border-border/40", children: _jsx("h3", { className: "text-lg font-semibold text-textPrimary", children: "Pick date & time" }) }), _jsxs("div", { className: "flex flex-col md:flex-row", children: [_jsx("div", { className: "flex-1 p-4 border-b md:border-b-0 md:border-r border-border/40", children: _jsx(DatePicker, { selected: scheduledAt ?? null, onChange: (date) => {
-                                                            if (date) {
-                                                                // Preserve time if already set, otherwise use current time
-                                                                if (scheduledAt) {
-                                                                    const newDate = new Date(date);
-                                                                    newDate.setHours(scheduledAt.getHours());
-                                                                    newDate.setMinutes(scheduledAt.getMinutes());
-                                                                    setScheduledAt(newDate);
-                                                                }
-                                                                else {
-                                                                    // Use current time if no time set yet
-                                                                    const now = new Date();
-                                                                    const newDate = new Date(date);
-                                                                    newDate.setHours(now.getHours());
-                                                                    newDate.setMinutes(Math.ceil(now.getMinutes() / 15) * 15); // Round to nearest 15 min
-                                                                    setScheduledAt(newDate);
-                                                                }
+        ` })] }), _jsxs("div", { className: `flex items-center justify-between mt-3 pt-3 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/30'}`, children: [_jsx("div", { className: "flex items-center gap-2", children: _jsxs("div", { className: "formatting-toolbar flex items-center gap-1", children: [_jsx("button", { onMouseDown: handleBold, className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${isBoldActive
+                                                    ? 'bg-accent/20 text-accent'
+                                                    : theme === 'dark'
+                                                        ? 'text-white/70 hover:bg-white/10 hover:text-white'
+                                                        : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: "Bold", type: "button", children: _jsx("span", { className: "text-xs font-bold", children: "B" }) }), _jsx("button", { onMouseDown: handleItalic, className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${isItalicActive
+                                                    ? 'bg-accent/20 text-accent'
+                                                    : theme === 'dark'
+                                                        ? 'text-white/70 hover:bg-white/10 hover:text-white'
+                                                        : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: "Italic", type: "button", children: _jsx("span", { className: "text-xs italic", children: "I" }) }), _jsx("div", { className: `w-px h-4 ${theme === 'dark' ? 'bg-white/10' : 'bg-border/60'} mx-1` }), _jsxs("div", { className: "relative", children: [_jsx("button", { onClick: () => {
+                                                            setShowEmojiPicker(!showEmojiPicker);
+                                                            setShowSchedulePicker(false);
+                                                        }, className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${theme === 'dark' ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: "Emoji", type: "button", children: _jsx(EmojiIcon, { size: 16 }) }), showEmojiPicker && (_jsx("div", { className: "absolute top-full left-0 mt-1 z-20 shadow-2xl", children: _jsx(EmojiPicker, { onEmojiClick: handleEmojiClick, width: 400, height: 500, previewConfig: { showPreview: true }, skinTonesDisabled: true, theme: Theme.DARK, searchPlaceHolder: "Search emojis", autoFocusSearch: false, lazyLoadEmojis: true }) }))] }), _jsx("button", { onClick: () => fileInputRef.current?.click(), className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${theme === 'dark' ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: "Add Image", type: "button", disabled: isUploadingImage, children: _jsx(ImageIcon, { size: 16 }) }), _jsx("input", { ref: fileInputRef, type: "file", accept: "image/*", onChange: handleImageSelect, className: "hidden" }), _jsx("button", { onClick: () => {
+                                                    setShowSchedulePicker(!showSchedulePicker);
+                                                    setShowEmojiPicker(false);
+                                                }, className: `p-1.5 rounded-lg transition-all duration-200 active:scale-95 ${isScheduled
+                                                    ? 'text-primary bg-primary/10'
+                                                    : theme === 'dark'
+                                                        ? 'text-white/70 hover:bg-white/10 hover:text-white'
+                                                        : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'}`, title: isScheduled ? `Scheduled: ${formatScheduleTime(scheduledAt)}` : 'Schedule Post', type: "button", children: _jsx(CalendarIcon, { size: 16 }) })] }) }), _jsxs("div", { className: "flex items-center gap-3", children: [_jsx("span", { className: `text-xs font-medium ${remaining < 20 ? 'text-warning' : theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: remaining }), _jsxs("div", { ref: reachMenuRef, className: "relative flex items-center", children: [_jsxs("div", { className: `flex items-center rounded-full overflow-hidden border ${theme === 'dark' ? 'border-white/20' : 'border-border/40'} shadow-sm`, children: [_jsxs("button", { onClick: (e) => {
+                                                                e.stopPropagation();
+                                                                setShowReachMenu(!showReachMenu);
+                                                            }, className: `px-2.5 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-1 border-r ${theme === 'dark' ? 'border-white/20' : 'border-border/40'} ${canPost && !isUploadingImage
+                                                                ? reachMode === 'tuned'
+                                                                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                                                                    : 'bg-accent/10 text-accent hover:bg-accent/20'
+                                                                : theme === 'dark' ? 'bg-white/5 text-white/50' : 'bg-backgroundElevated/30 text-textMuted'}`, type: "button", disabled: !canPost || isUploadingImage, children: [_jsx("span", { className: "text-[10px]", children: reachMode === 'tuned' ? 'Tuned' : 'All' }), _jsx("svg", { className: `w-2.5 h-2.5 transition-transform ${showReachMenu ? 'rotate-180' : ''}`, fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" }) })] }), _jsx("button", { onClick: handlePost, disabled: !canPost || isUploadingImage, className: `px-4 py-1.5 text-sm font-semibold transition-all duration-200 ${canPost && !isUploadingImage
+                                                                ? reachMode === 'tuned'
+                                                                    ? 'bg-gradient-to-r from-primary to-accent text-white hover:from-primaryHover hover:to-accentHover active:scale-[0.98]'
+                                                                    : 'bg-accent text-white hover:bg-accentHover active:scale-[0.98]'
+                                                                : theme === 'dark' ? 'bg-white/10 text-white/50 cursor-not-allowed' : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'}`, children: isPosting ? (_jsxs("svg", { className: "animate-spin h-4 w-4", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", children: [_jsx("circle", { className: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "4" }), _jsx("path", { className: "opacity-75", fill: "currentColor", d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" })] })) : isUploadingImage ? (_jsxs("svg", { className: "animate-spin h-4 w-4", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", children: [_jsx("circle", { className: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "4" }), _jsx("path", { className: "opacity-75", fill: "currentColor", d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" })] })) : ('Post') })] }), showReachMenu && (_jsxs("div", { className: `absolute bottom-full right-0 mb-2 ${theme === 'dark' ? 'bg-black/95 border-white/20' : 'bg-backgroundElevated border-border/60'} rounded-xl border shadow-2xl z-30 min-w-[160px] overflow-hidden`, children: [_jsxs("button", { onClick: () => {
+                                                                setReachMode('forAll');
+                                                                setShowReachMenu(false);
+                                                            }, className: `w-full px-4 py-3 text-left text-sm font-medium transition-colors flex items-center gap-2 ${reachMode === 'forAll'
+                                                                ? 'bg-accent/10 text-accent'
+                                                                : theme === 'dark' ? 'text-white hover:bg-white/10' : 'text-textPrimary hover:bg-backgroundElevated/70'}`, type: "button", children: [_jsxs("div", { className: "flex-1", children: [_jsx("div", { className: `font-semibold ${theme === 'dark' ? 'text-white' : ''}`, children: "For All" }), _jsx("div", { className: `text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: "Public post" })] }), reachMode === 'forAll' && (_jsx("svg", { className: "w-4 h-4 text-accent", fill: "currentColor", viewBox: "0 0 20 20", children: _jsx("path", { fillRule: "evenodd", d: "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z", clipRule: "evenodd" }) }))] }), _jsxs("button", { onClick: () => {
+                                                                setReachMode('tuned');
+                                                                setShowReachMenu(false);
+                                                            }, className: `w-full px-4 py-3 text-left text-sm font-medium transition-colors flex items-center gap-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/40'} ${reachMode === 'tuned'
+                                                                ? 'bg-primary/10 text-primary'
+                                                                : theme === 'dark' ? 'text-white hover:bg-white/10' : 'text-textPrimary hover:bg-backgroundElevated/70'}`, type: "button", children: [_jsxs("div", { className: "flex-1", children: [_jsx("div", { className: `font-semibold ${theme === 'dark' ? 'text-white' : ''}`, children: "Tuned" }), _jsx("div", { className: `text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: "AI-optimized" })] }), reachMode === 'tuned' && (_jsx("svg", { className: "w-4 h-4 text-primary", fill: "currentColor", viewBox: "0 0 20 20", children: _jsx("path", { fillRule: "evenodd", d: "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z", clipRule: "evenodd" }) }))] })] }))] })] })] })] }), showSchedulePicker && (_jsxs(_Fragment, { children: [_jsx("div", { className: "fixed inset-0 bg-black/50 backdrop-blur-sm z-30", onClick: () => setShowSchedulePicker(false) }), _jsx("div", { className: "fixed inset-0 flex items-center justify-center z-40 p-4", children: _jsxs("div", { className: `${theme === 'dark' ? 'bg-black/95 border-white/20' : 'bg-backgroundElevated border-border/60'} rounded-2xl border shadow-2xl w-full max-w-2xl overflow-hidden`, onClick: (e) => e.stopPropagation(), children: [_jsx("div", { className: `px-6 py-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/40'}`, children: _jsx("h3", { className: `text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: "Pick date & time" }) }), _jsxs("div", { className: "flex flex-col md:flex-row", children: [_jsx("div", { className: `flex-1 p-4 border-b md:border-b-0 md:border-r ${theme === 'dark' ? 'border-white/10' : 'border-border/40'}`, children: _jsx(DatePicker, { selected: scheduledAt ?? null, onChange: (date) => {
+                                                        if (date) {
+                                                            // Preserve time if already set, otherwise use current time
+                                                            if (scheduledAt) {
+                                                                const newDate = new Date(date);
+                                                                newDate.setHours(scheduledAt.getHours());
+                                                                newDate.setMinutes(scheduledAt.getMinutes());
+                                                                setScheduledAt(newDate);
                                                             }
                                                             else {
-                                                                setScheduledAt(null);
+                                                                // Use current time if no time set yet
+                                                                const now = new Date();
+                                                                const newDate = new Date(date);
+                                                                newDate.setHours(now.getHours());
+                                                                newDate.setMinutes(Math.ceil(now.getMinutes() / 15) * 15); // Round to nearest 15 min
+                                                                setScheduledAt(newDate);
                                                             }
-                                                        }, inline: true, minDate: new Date(), calendarStartDay: 1, className: "text-sm w-full", calendarClassName: "schedule-calendar", wrapperClassName: "w-full" }) }), _jsxs("div", { className: "flex-1 p-6 flex flex-col gap-4", children: [_jsxs("div", { children: [_jsx("label", { className: "block text-xs font-medium text-textMuted mb-2", children: "Time" }), _jsx(DatePicker, { selected: scheduledAt ?? null, onChange: (date) => {
-                                                                        if (date) {
-                                                                            // If we have a date from calendar, preserve it
-                                                                            if (scheduledAt) {
-                                                                                const newDate = new Date(scheduledAt);
-                                                                                newDate.setHours(date.getHours());
-                                                                                newDate.setMinutes(date.getMinutes());
-                                                                                setScheduledAt(newDate);
-                                                                            }
-                                                                            else {
-                                                                                // If no date selected yet, use today with selected time
-                                                                                const today = new Date();
-                                                                                today.setHours(date.getHours());
-                                                                                today.setMinutes(date.getMinutes());
-                                                                                setScheduledAt(today);
-                                                                            }
+                                                        }
+                                                        else {
+                                                            setScheduledAt(null);
+                                                        }
+                                                    }, inline: true, minDate: new Date(), calendarStartDay: 1, className: "text-sm w-full", calendarClassName: "schedule-calendar", wrapperClassName: "w-full" }) }), _jsxs("div", { className: "flex-1 p-6 flex flex-col gap-4", children: [_jsxs("div", { children: [_jsx("label", { className: `block text-xs font-medium ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-2`, children: "Time" }), _jsx(DatePicker, { selected: scheduledAt ?? null, onChange: (date) => {
+                                                                    if (date) {
+                                                                        // If we have a date from calendar, preserve it
+                                                                        if (scheduledAt) {
+                                                                            const newDate = new Date(scheduledAt);
+                                                                            newDate.setHours(date.getHours());
+                                                                            newDate.setMinutes(date.getMinutes());
+                                                                            setScheduledAt(newDate);
                                                                         }
                                                                         else {
-                                                                            setScheduledAt(null);
+                                                                            // If no date selected yet, use today with selected time
+                                                                            const today = new Date();
+                                                                            today.setHours(date.getHours());
+                                                                            today.setMinutes(date.getMinutes());
+                                                                            setScheduledAt(today);
                                                                         }
-                                                                    }, showTimeSelect: true, showTimeSelectOnly: true, timeIntervals: 15, timeCaption: "Time", dateFormat: "h:mm aa", className: "w-full px-3 py-2 bg-card/40 border border-border/60 rounded-lg text-textPrimary text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent/60 outline-none", calendarClassName: "schedule-calendar" })] }), isScheduled && scheduledAt && (_jsxs("div", { className: "mt-2 px-3 py-2 rounded-lg bg-accent/10 text-xs text-textPrimary border border-accent/20", children: [_jsx("div", { className: "font-medium mb-1", children: "Scheduled for:" }), _jsx("div", { className: "text-textMuted", children: scheduledAt.toLocaleString(undefined, {
-                                                                        weekday: 'long',
-                                                                        month: 'long',
-                                                                        day: 'numeric',
-                                                                        year: 'numeric',
-                                                                        hour: 'numeric',
-                                                                        minute: '2-digit'
-                                                                    }) })] }))] })] }), _jsxs("div", { className: "px-6 py-4 border-t border-border/40 flex items-center justify-end gap-3", children: [_jsx("button", { onClick: () => {
-                                                        setScheduledAt(null);
+                                                                    }
+                                                                    else {
+                                                                        setScheduledAt(null);
+                                                                    }
+                                                                }, showTimeSelect: true, showTimeSelectOnly: true, timeIntervals: 15, timeCaption: "Time", dateFormat: "h:mm aa", className: `w-full px-3 py-2 ${theme === 'dark' ? 'bg-white/5 border-white/20 text-white' : 'bg-card/40 border-border/60 text-textPrimary'} rounded-lg text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent/60 outline-none`, calendarClassName: "schedule-calendar" })] }), isScheduled && scheduledAt && (_jsxs("div", { className: `mt-2 px-3 py-2 rounded-lg bg-accent/10 ${theme === 'dark' ? 'text-white border-accent/20' : 'text-textPrimary border-accent/20'} border`, children: [_jsx("div", { className: `font-medium mb-1 ${theme === 'dark' ? 'text-white' : ''}`, children: "Scheduled for:" }), _jsx("div", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: scheduledAt.toLocaleString(undefined, {
+                                                                    weekday: 'long',
+                                                                    month: 'long',
+                                                                    day: 'numeric',
+                                                                    year: 'numeric',
+                                                                    hour: 'numeric',
+                                                                    minute: '2-digit'
+                                                                }) })] }))] })] }), _jsxs("div", { className: `px-6 py-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/40'} flex items-center justify-end gap-3`, children: [_jsx("button", { onClick: () => {
+                                                    setScheduledAt(null);
+                                                    setShowSchedulePicker(false);
+                                                }, className: `px-4 py-2 text-sm font-medium transition-colors ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'}`, type: "button", children: "Cancel" }), _jsx("button", { onClick: () => {
+                                                    if (scheduledAt && scheduledAt > new Date()) {
                                                         setShowSchedulePicker(false);
-                                                    }, className: "px-4 py-2 text-sm font-medium text-textMuted hover:text-textPrimary transition-colors", type: "button", children: "Cancel" }), _jsx("button", { onClick: () => {
-                                                        if (scheduledAt && scheduledAt > new Date()) {
-                                                            setShowSchedulePicker(false);
-                                                        }
-                                                    }, disabled: !scheduledAt || scheduledAt <= new Date(), className: `px-4 py-2 text-sm font-semibold rounded-lg transition-all ${scheduledAt && scheduledAt > new Date()
-                                                        ? 'bg-accent text-white hover:bg-accentHover active:scale-95'
-                                                        : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'}`, type: "button", children: "Schedule Post" })] })] }) })] })), (imagePreview || imageUrl) && (_jsx("div", { className: "mt-3 px-4 pb-3 relative", children: _jsxs("div", { className: "rounded-xl overflow-hidden border border-border/40 relative group", children: [_jsx("img", { src: imagePreview || imageUrl, alt: "Post attachment", className: "w-full max-h-64 object-cover", onError: (e) => {
-                                        e.currentTarget.style.display = 'none';
-                                    } }), _jsx("button", { onClick: handleRemoveImage, className: "absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity", type: "button", children: "\u2715" }), isUploadingImage && (_jsx("div", { className: "absolute inset-0 bg-black/20 flex items-center justify-center", children: _jsx("div", { className: "text-white text-sm", children: "Uploading..." }) }))] }) })), reachMode === 'tuned' && plainText.trim() && plainText.trim().length > 10 && (_jsxs(_Fragment, { children: [aiError && (_jsx("div", { className: "px-4 pb-3", children: _jsx("div", { className: "p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning text-xs font-medium", children: aiError }) })), showSuggestion && suggestion && suggestion.suggestedTopics.length > 0 && (_jsx("div", { className: "px-4 pb-3", children: _jsx(TopicSuggestionBox, { suggestedTopics: suggestion.suggestedTopics, selectedTopic: selectedTopic, onTopicSelect: handleTopicSelect, tunedAudience: tunedAudience, onAudienceChange: handleAudienceChange, overallExplanation: suggestion.overallExplanation || suggestion.explanation, onApply: handleApplySuggestion, onIgnore: handleIgnoreSuggestion, allTopics: allTopicNames }) }))] })), reachMode === 'tuned' && !showSuggestion && selectedTopic && (_jsx("div", { className: "px-4 pb-3 pt-2 border-t border-border/30", children: _jsxs("div", { className: "flex items-center gap-4 text-xs", children: [_jsxs("label", { className: "flex items-center gap-1.5 text-textMuted", children: [_jsx("input", { type: "checkbox", checked: tunedAudience.allowFollowers, onChange: (e) => setTunedAudience({ ...tunedAudience, allowFollowers: e.target.checked }), className: "rounded" }), "Followers"] }), _jsxs("label", { className: "flex items-center gap-1.5 text-textMuted", children: [_jsx("input", { type: "checkbox", checked: tunedAudience.allowNonFollowers, onChange: (e) => setTunedAudience({ ...tunedAudience, allowNonFollowers: e.target.checked }), className: "rounded" }), "Non-followers"] })] }) }))] }), _jsx(AnalyzingModal, { open: isGeneratingSuggestion, mode: isPosting ? 'posting' : 'suggestion' })] }));
+                                                    }
+                                                }, disabled: !scheduledAt || scheduledAt <= new Date(), className: `px-4 py-2 text-sm font-semibold rounded-lg transition-all ${scheduledAt && scheduledAt > new Date()
+                                                    ? 'bg-accent text-white hover:bg-accentHover active:scale-95'
+                                                    : theme === 'dark' ? 'bg-white/10 text-white/50 cursor-not-allowed' : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'}`, type: "button", children: "Schedule Post" })] })] }) })] })), (imagePreview || imageUrl) && (_jsx("div", { className: "mt-3 px-4 pb-3 relative", children: _jsxs("div", { className: `rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-white/20' : 'border-border/40'} relative group`, children: [_jsx("img", { src: imagePreview || imageUrl, alt: "Post attachment", className: "w-full max-h-64 object-cover", onError: (e) => {
+                                    e.currentTarget.style.display = 'none';
+                                } }), _jsx("button", { onClick: handleRemoveImage, className: "absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity", type: "button", children: "\u2715" }), isUploadingImage && (_jsx("div", { className: "absolute inset-0 bg-black/20 flex items-center justify-center", children: _jsx("div", { className: "text-white text-sm", children: "Uploading..." }) }))] }) })), reachMode === 'tuned' && plainText.trim() && plainText.trim().length > 10 && (_jsxs(_Fragment, { children: [aiError && (_jsx("div", { className: "px-4 pb-3", children: _jsx("div", { className: "p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning text-xs font-medium", children: aiError }) })), showSuggestion && suggestion && suggestion.suggestedTopics.length > 0 && (_jsx("div", { className: "px-4 pb-3", children: _jsx(TopicSuggestionBox, { suggestedTopics: suggestion.suggestedTopics, selectedTopic: selectedTopic, onTopicSelect: handleTopicSelect, tunedAudience: tunedAudience, onAudienceChange: handleAudienceChange, overallExplanation: suggestion.overallExplanation || suggestion.explanation, onApply: handleApplySuggestion, onIgnore: handleIgnoreSuggestion, allTopics: allTopicNames }) }))] })), reachMode === 'tuned' && !showSuggestion && selectedTopic && (_jsx("div", { className: `px-4 pb-3 pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/30'}`, children: _jsxs("div", { className: "flex items-center gap-4 text-xs", children: [_jsxs("label", { className: `flex items-center gap-1.5 ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: [_jsx("input", { type: "checkbox", checked: tunedAudience.allowFollowers, onChange: (e) => setTunedAudience({ ...tunedAudience, allowFollowers: e.target.checked }), className: "rounded" }), "Followers"] }), _jsxs("label", { className: `flex items-center gap-1.5 ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: [_jsx("input", { type: "checkbox", checked: tunedAudience.allowNonFollowers, onChange: (e) => setTunedAudience({ ...tunedAudience, allowNonFollowers: e.target.checked }), className: "rounded" }), "Non-followers"] })] }) }))] }) }));
 };
 export default Composer;

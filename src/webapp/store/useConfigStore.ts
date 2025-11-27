@@ -1,119 +1,220 @@
 import { create } from 'zustand';
-import type { ForYouConfig, FollowingWeight, Topic } from '../types';
+import { userService } from '../lib/firestore';
+import { useUserStore } from './useUserStore';
+import type { ForYouConfig, FollowingWeight, TopicName, User } from '../types';
+import { DEFAULT_FOR_YOU_CONFIG } from '../types';
+
+const STORAGE_PREFIX = 'dumbfeed:forYouConfig';
+const MAX_TIME_WINDOW_DAYS = 30;
+
+const clampTimeWindow = (value?: number): number => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return DEFAULT_FOR_YOU_CONFIG.timeWindowDays ?? 7;
+  }
+  const floored = Math.max(1, Math.floor(value));
+  return Math.min(floored, MAX_TIME_WINDOW_DAYS);
+};
+
+const normalizeTopicName = (value?: TopicName): string | null => {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+};
+
+const normalizeTopicList = (topics?: TopicName[]): string[] => {
+  if (!topics || topics.length === 0) return [];
+  const normalizedSet = new Set<string>();
+  topics.forEach((topic) => {
+    const normalized = normalizeTopicName(topic);
+    if (normalized) {
+      normalizedSet.add(normalized);
+    }
+  });
+  return Array.from(normalizedSet);
+};
+
+const removeTopic = (list: string[], topic?: string): string[] => {
+  if (!topic) return list;
+  return list.filter((t) => t !== topic);
+};
+
+const normalizeConfig = (config?: Partial<ForYouConfig>): ForYouConfig => {
+  const base = {
+    ...DEFAULT_FOR_YOU_CONFIG,
+    ...config,
+  };
+
+  return {
+    followingWeight: base.followingWeight,
+    boostActiveConversations: base.boostActiveConversations,
+  likedTopics: normalizeTopicList(base.likedTopics),
+  mutedTopics: normalizeTopicList(base.mutedTopics),
+    timeWindowDays: clampTimeWindow(base.timeWindowDays),
+  };
+};
+
+const storageKeyForUser = (userId?: string | null) => `${STORAGE_PREFIX}:${userId ?? 'guest'}`;
+
+const readConfigFromStorage = (userId?: string | null): ForYouConfig | undefined => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(storageKeyForUser(userId));
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw);
+    return normalizeConfig(parsed);
+  } catch (error) {
+    console.warn('[ForYouConfig] Unable to read stored config', error);
+    return undefined;
+  }
+};
+
+const persistConfig = (config: ForYouConfig) => {
+  const currentUser = useUserStore.getState().currentUser;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(storageKeyForUser(currentUser?.id), JSON.stringify(config));
+    } catch (error) {
+      console.warn('[ForYouConfig] Failed to write to localStorage', error);
+    }
+  }
+
+  if (currentUser?.id) {
+    userService.updateUser(currentUser.id, { forYouConfig: config }).catch((error) => {
+      console.error('[ForYouConfig] Failed to persist config to Firestore:', error);
+    });
+  }
+};
 
 interface ConfigState {
   forYouConfig: ForYouConfig;
   setFollowingWeight: (weight: FollowingWeight) => void;
   setBoostActiveConversations: (boost: boolean) => void;
-  addLikedTopic: (topic: Topic) => void;
-  removeLikedTopic: (topic: Topic) => void;
-  addMutedTopic: (topic: Topic) => void;
-  removeMutedTopic: (topic: Topic) => void;
+  addLikedTopic: (topic: TopicName) => void;
+  removeLikedTopic: (topic: TopicName) => void;
+  addMutedTopic: (topic: TopicName) => void;
+  removeMutedTopic: (topic: TopicName) => void;
   resetConfig: () => void;
   setForYouConfig: (config: ForYouConfig) => void;
+  initializeConfig: (user: User | null) => void;
 }
 
-const defaultConfig: ForYouConfig = {
-  followingWeight: 'medium',
-  boostActiveConversations: true,
-  likedTopics: [],
-  mutedTopics: [],
-};
+export const useConfigStore = create<ConfigState>((set, get) => {
+  const applyConfigUpdate = (updater: (current: ForYouConfig) => ForYouConfig) => {
+    const updated = normalizeConfig(updater(get().forYouConfig));
+    get().setForYouConfig(updated);
+  };
 
-export const useConfigStore = create<ConfigState>((set, get) => ({
-  forYouConfig: defaultConfig,
+  return {
+    forYouConfig: DEFAULT_FOR_YOU_CONFIG,
 
   setFollowingWeight: (weight) =>
-    set((state) => ({
-      forYouConfig: { ...state.forYouConfig, followingWeight: weight },
-    })),
+      applyConfigUpdate((current) => ({ ...current, followingWeight: weight })),
 
   setBoostActiveConversations: (boost) =>
-    set((state) => ({
-      forYouConfig: { ...state.forYouConfig, boostActiveConversations: boost },
-    })),
+      applyConfigUpdate((current) => ({ ...current, boostActiveConversations: boost })),
 
   addLikedTopic: (topic) =>
-    set((state) => {
-      const { mutedTopics, likedTopics } = state.forYouConfig;
-      // Remove from muted if present
-      const newMuted = mutedTopics.filter((t) => t !== topic);
-      // Add to liked if not present
-      const newLiked = likedTopics.includes(topic)
-        ? likedTopics
-        : [...likedTopics, topic];
-      
+      applyConfigUpdate((current) => {
+        const normalized = normalizeTopicName(topic);
+        if (!normalized) {
+          return current;
+        }
+        const newLiked = current.likedTopics.includes(normalized)
+          ? current.likedTopics
+          : [...current.likedTopics, normalized];
+        const filteredMuted = removeTopic(current.mutedTopics, normalized);
       return {
-        forYouConfig: {
-          ...state.forYouConfig,
+          ...current,
           likedTopics: newLiked,
-          mutedTopics: newMuted,
-        },
+          mutedTopics: filteredMuted,
       };
     }),
 
   removeLikedTopic: (topic) =>
-    set((state) => ({
-      forYouConfig: {
-        ...state.forYouConfig,
-        likedTopics: state.forYouConfig.likedTopics.filter((t) => t !== topic),
-      },
-    })),
+      applyConfigUpdate((current) => {
+        const normalized = normalizeTopicName(topic);
+        if (!normalized) {
+          return current;
+        }
+        return {
+        ...current,
+          likedTopics: current.likedTopics.filter((t) => t !== normalized),
+        };
+    }),
 
   addMutedTopic: (topic) =>
-    set((state) => {
-      const { mutedTopics, likedTopics } = state.forYouConfig;
-      // Remove from liked if present
-      const newLiked = likedTopics.filter((t) => t !== topic);
-      // Add to muted if not present
-      const newMuted = mutedTopics.includes(topic)
-        ? mutedTopics
-        : [...mutedTopics, topic];
-      
+      applyConfigUpdate((current) => {
+        const normalized = normalizeTopicName(topic);
+        if (!normalized) {
+          return current;
+        }
+        const newMuted = current.mutedTopics.includes(normalized)
+          ? current.mutedTopics
+          : [...current.mutedTopics, normalized];
+        const filteredLiked = removeTopic(current.likedTopics, normalized);
       return {
-        forYouConfig: {
-          ...state.forYouConfig,
-          likedTopics: newLiked,
+          ...current,
+          likedTopics: filteredLiked,
           mutedTopics: newMuted,
-        },
       };
     }),
 
   removeMutedTopic: (topic) =>
-    set((state) => ({
-      forYouConfig: {
-        ...state.forYouConfig,
-        mutedTopics: state.forYouConfig.mutedTopics.filter((t) => t !== topic),
-      },
-    })),
+      applyConfigUpdate((current) => {
+        const normalized = normalizeTopicName(topic);
+        if (!normalized) {
+          return current;
+        }
+        return {
+        ...current,
+          mutedTopics: current.mutedTopics.filter((t) => t !== normalized),
+        };
+    }),
 
   setForYouConfig: (config) => {
+      const normalized = normalizeConfig(config);
     const oldConfig = get().forYouConfig;
-    set({ forYouConfig: config });
+      set({ forYouConfig: normalized });
     
-    // Log config changes for verification
     console.log('[ForYouConfig] Config updated:', {
       previous: oldConfig,
-      new: config,
+        new: normalized,
       changes: {
-        followingWeight: oldConfig.followingWeight !== config.followingWeight 
-          ? `${oldConfig.followingWeight} → ${config.followingWeight}` 
+          followingWeight: oldConfig.followingWeight !== normalized.followingWeight
+            ? `${oldConfig.followingWeight} → ${normalized.followingWeight}`
           : null,
-        boostActiveConversations: oldConfig.boostActiveConversations !== config.boostActiveConversations
-          ? `${oldConfig.boostActiveConversations} → ${config.boostActiveConversations}`
+          boostActiveConversations: oldConfig.boostActiveConversations !== normalized.boostActiveConversations
+            ? `${oldConfig.boostActiveConversations} → ${normalized.boostActiveConversations}`
           : null,
         likedTopics: {
-          added: config.likedTopics.filter(t => !oldConfig.likedTopics.includes(t)),
-          removed: oldConfig.likedTopics.filter(t => !config.likedTopics.includes(t)),
+            added: normalized.likedTopics.filter((t) => !oldConfig.likedTopics.includes(t)),
+            removed: oldConfig.likedTopics.filter((t) => !normalized.likedTopics.includes(t)),
         },
         mutedTopics: {
-          added: config.mutedTopics.filter(t => !oldConfig.mutedTopics.includes(t)),
-          removed: oldConfig.mutedTopics.filter(t => !config.mutedTopics.includes(t)),
+            added: normalized.mutedTopics.filter((t) => !oldConfig.mutedTopics.includes(t)),
+            removed: oldConfig.mutedTopics.filter((t) => !normalized.mutedTopics.includes(t)),
         },
+          timeWindowDays: oldConfig.timeWindowDays !== normalized.timeWindowDays
+            ? `${oldConfig.timeWindowDays} → ${normalized.timeWindowDays}`
+            : null,
       },
     });
-  },
 
-  resetConfig: () => set({ forYouConfig: defaultConfig }),
-}));
+      persistConfig(normalized);
+    },
+
+    initializeConfig: (user) => {
+      const stored = user?.forYouConfig ? normalizeConfig(user.forYouConfig) : readConfigFromStorage(user?.id);
+      const finalConfig = stored ?? DEFAULT_FOR_YOU_CONFIG;
+      set({ forYouConfig: finalConfig });
+    },
+
+    resetConfig: () => {
+      get().setForYouConfig(DEFAULT_FOR_YOU_CONFIG);
+    },
+  };
+});
 

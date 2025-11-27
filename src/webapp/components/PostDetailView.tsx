@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import type { Chirp } from '../types';
 import { useUserStore } from '../store/useUserStore';
 import { useFeedStore } from '../store/useFeedStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { tuningService } from '../lib/services/tuningService';
 import { chirpService, commentService, realtimeService } from '../lib/firestore';
 import CommentSection from './CommentSection';
@@ -17,6 +18,7 @@ const PostDetailView = () => {
   const navigate = useNavigate();
   const { getUser, currentUser, followUser, unfollowUser, isFollowing, loadUser, bookmarkChirp, unbookmarkChirp, isBookmarked } = useUserStore();
   const { chirps, addChirp, loadChirps, loadComments } = useFeedStore();
+  const { theme } = useThemeStore();
   const [chirp, setChirp] = useState<Chirp | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showReply, setShowReply] = useState(false);
@@ -149,13 +151,13 @@ const PostDetailView = () => {
     if (chirp.formattedText) {
       return (
         <div
-          className="text-textPrimary mb-2 leading-relaxed whitespace-pre-wrap text-[15px]"
+          className={`${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 leading-relaxed whitespace-pre-wrap text-[15px]`}
           dangerouslySetInnerHTML={{ __html: chirp.formattedText }}
         />
       );
     }
     return (
-      <p className="text-textPrimary mb-2 leading-relaxed whitespace-pre-wrap text-[15px]">
+      <p className={`${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 leading-relaxed whitespace-pre-wrap text-[15px]`}>
         {chirp.text}
       </p>
     );
@@ -231,13 +233,13 @@ const PostDetailView = () => {
 
   return (
     <AppLayout wrapContent={false}>
-      <div className="min-h-screen bg-background border-x border-border/60">
+      <div className={`min-h-screen ${theme === 'dark' ? 'bg-black border-x border-white/10' : 'bg-background border-x border-border/60'}`}>
         {/* Header - X-style */}
-        <header className="sticky top-0 z-30 border-b border-border/60 bg-background/95 backdrop-blur-lg px-4 py-3">
+        <header className={`sticky top-0 z-30 ${theme === 'dark' ? 'border-b border-white/10 bg-black/95' : 'border-b border-border/60 bg-background/95'} backdrop-blur-lg px-4 py-3`}>
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate(-1)}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-backgroundElevated/60 transition-colors"
+              className={`w-9 h-9 flex items-center justify-center rounded-full ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'} transition-colors`}
               aria-label="Back"
             >
               <svg
@@ -245,23 +247,23 @@ const PostDetailView = () => {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                className="w-5 h-5 text-textPrimary"
+                className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}
               >
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-lg font-bold text-textPrimary">Post</h1>
+            <h1 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Post</h1>
             <div className="w-9 h-9" /> {/* Spacer for centering */}
           </div>
         </header>
 
         {/* Main Post */}
-        <div className="border-b border-border/60">
+        <div className={`border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
           {chirp.rechirpOfId && (
             <div className="px-4 pt-3 pb-1">
-              <div className="text-xs text-textMuted flex items-center gap-1.5">
+              <div className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} flex items-center gap-1.5`}>
                 <span className="text-accent">↻</span>
-                <span>Rechirped by {author.name}</span>
+                <span>Reposted by {author.name}</span>
               </div>
             </div>
           )}
@@ -275,10 +277,10 @@ const PostDetailView = () => {
                     <img
                       src={author.profilePictureUrl}
                       alt={author.name}
-                      className="w-12 h-12 rounded-full object-cover border border-border/50"
+                      className={`w-12 h-12 rounded-full object-cover ${theme === 'dark' ? '' : 'border border-border/50'}`}
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center border border-border/50">
+                    <div className={`w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center ${theme === 'dark' ? '' : 'border border-border/50'}`}>
                       <span className="text-primary font-semibold text-base">
                         {author.name.charAt(0).toUpperCase()}
                       </span>
@@ -289,13 +291,13 @@ const PostDetailView = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link
                       to={`/profile/${author.id}`}
-                      className="font-bold text-[15px] text-textPrimary hover:underline"
+                      className={`font-bold text-[15px] ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} hover:underline`}
                     >
                       {author.name}
                     </Link>
                     <Link
                       to={`/profile/${author.id}`}
-                      className="text-[15px] text-textMuted hover:underline"
+                      className={`text-[15px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} hover:underline`}
                     >
                       @{author.handle}
                     </Link>
@@ -332,7 +334,7 @@ const PostDetailView = () => {
 
             {/* Image */}
             {chirp.imageUrl && (
-              <div className="mb-4 rounded-2xl overflow-hidden border border-border/40">
+              <div className={`mb-4 rounded-2xl overflow-hidden ${theme === 'dark' ? 'border-0' : 'border border-border/40'}`}>
                 <img
                   src={chirp.imageUrl}
                   alt="Post attachment"
@@ -345,13 +347,13 @@ const PostDetailView = () => {
             )}
 
             {/* Timestamp and topic */}
-            <div className="mb-4 pb-4 border-b border-border/60">
-              <div className="text-[15px] text-textMuted mb-3">
+            <div className={`mb-4 pb-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
+              <div className={`text-[15px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-3`}>
                 {formatFullTimestamp(chirp.createdAt)}
               </div>
               <div className="flex items-center gap-2 flex-wrap text-sm mb-3">
-                <div className="px-2 py-1 bg-backgroundElevated/60 rounded border border-border/50 flex items-center gap-1.5">
-                  <span className="text-textPrimary font-semibold">
+                <div className={`px-2 py-1 ${theme === 'dark' ? 'bg-transparent border-0' : 'bg-backgroundElevated/60 border-border/50'} rounded ${theme === 'dark' ? '' : 'border'} flex items-center gap-1.5`}>
+                  <span className={`${theme === 'dark' ? 'text-white' : 'text-textPrimary'} font-semibold`}>
                     #{chirp.topic}
                   </span>
                   {chirp.semanticTopics && chirp.semanticTopics.length > 0 && (
@@ -361,7 +363,7 @@ const PostDetailView = () => {
                           {chirp.semanticTopics.map((tag, idx) => (
                             <span 
                               key={idx}
-                              className="text-textPrimary"
+                              className={theme === 'dark' ? 'text-white' : 'text-textPrimary'}
                             >
                               #{tag}
                             </span>
@@ -369,7 +371,7 @@ const PostDetailView = () => {
                           {chirp.semanticTopics.length > 1 && (
                             <button
                               onClick={() => setShowAllTags(false)}
-                              className="text-textMuted hover:text-textPrimary transition-colors"
+                              className={`${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'} transition-colors`}
                             >
                               −
                             </button>
@@ -378,7 +380,7 @@ const PostDetailView = () => {
                       ) : (
                         <button
                           onClick={() => setShowAllTags(true)}
-                          className="text-textMuted hover:text-textPrimary transition-colors"
+                          className={`${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'} transition-colors`}
                         >
                           +{chirp.semanticTopics.length}
                         </button>
@@ -386,7 +388,7 @@ const PostDetailView = () => {
                     </>
                   )}
                 </div>
-                <span className="px-2 py-1 bg-backgroundElevated/60 text-textMuted rounded border border-border/50">
+                <span className={`px-2 py-1 ${theme === 'dark' ? 'bg-transparent text-white/70 border-0' : 'bg-backgroundElevated/60 text-textMuted border-border/50'} rounded ${theme === 'dark' ? '' : 'border'}`}>
                   {getReachLabel()}
                 </span>
               </div>
@@ -395,7 +397,7 @@ const PostDetailView = () => {
               {(chirp.valueScore || chirp.factCheckStatus) && (
                 <div className="flex flex-wrap items-center gap-2 text-sm mb-3">
                   {chirp.valueScore && currentUser?.id === chirp.authorId && (
-                    <div className="px-3 py-1.5 bg-accent/10 text-accent rounded-lg border border-accent/20 flex items-center gap-2">
+                    <div className={`px-3 py-1.5 bg-accent/10 text-accent rounded-lg ${theme === 'dark' ? 'border-0' : 'border border-accent/20'} flex items-center gap-2`}>
                       <span className="text-base">⭐</span>
                       <span className="font-semibold">Value: {(chirp.valueScore.total * 100).toFixed(0)}</span>
                       {chirp.valueExplanation && (
@@ -409,27 +411,27 @@ const PostDetailView = () => {
               {/* Claims & Fact Checks */}
               {chirp.claims && chirp.claims.length > 0 && (
                 <div className="mt-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-textPrimary mb-2">Claims & Verification</h3>
+                  <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`}>Claims & Verification</h3>
                   {chirp.claims.map((claim) => {
                     const factCheck = chirp.factChecks?.find((fc) => fc.claimId === claim.id);
                     return (
                       <div
                         key={claim.id}
-                        className="p-3 bg-backgroundElevated/40 rounded-lg border border-border/50"
+                        className={`p-3 ${theme === 'dark' ? 'bg-transparent border-white/10' : 'bg-backgroundElevated/40 border-border/50'} rounded-lg border`}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <p className="text-sm text-textPrimary flex-1">{claim.text}</p>
+                          <p className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} flex-1`}>{claim.text}</p>
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="text-xs px-2 py-0.5 bg-backgroundElevated/60 text-textMuted rounded border border-border/50">
+                            <span className={`text-xs px-2 py-0.5 ${theme === 'dark' ? 'bg-transparent text-white/70 border-white/10' : 'bg-backgroundElevated/60 text-textMuted border-border/50'} rounded border`}>
                               {claim.type}
                             </span>
-                            <span className="text-xs px-2 py-0.5 bg-backgroundElevated/60 text-textMuted rounded border border-border/50">
+                            <span className={`text-xs px-2 py-0.5 ${theme === 'dark' ? 'bg-transparent text-white/70 border-white/10' : 'bg-backgroundElevated/60 text-textMuted border-border/50'} rounded border`}>
                               {claim.domain}
                             </span>
                           </div>
                         </div>
                         {factCheck && (
-                          <div className="mt-2 pt-2 border-t border-border/50">
+                          <div className={`mt-2 pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/50'}`}>
                             <div className="flex items-center gap-2 mb-1">
                               <span
                                 className={`text-xs font-semibold ${
@@ -451,9 +453,9 @@ const PostDetailView = () => {
                             {factCheck.evidence && factCheck.evidence.length > 0 && (
                               <div className="mt-2 space-y-1">
                                 {factCheck.evidence.slice(0, 2).map((evidence, idx) => (
-                                  <div key={idx} className="text-xs text-textMuted bg-background/50 p-2 rounded border border-border/30">
-                                    <div className="font-medium text-textSecondary mb-0.5">{evidence.source}</div>
-                                    <div className="text-textMuted">{evidence.snippet.substring(0, 100)}...</div>
+                                  <div key={idx} className={`text-xs ${theme === 'dark' ? 'text-white/70 bg-transparent border-white/10' : 'text-textMuted bg-background/50 border-border/30'} p-2 rounded border`}>
+                                    <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-textSecondary'} mb-0.5`}>{evidence.source}</div>
+                                    <div className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>{evidence.snippet.substring(0, 100)}...</div>
                                     {evidence.url && (
                                       <a
                                         href={evidence.url}
@@ -469,7 +471,7 @@ const PostDetailView = () => {
                               </div>
                             )}
                             {factCheck.caveats && factCheck.caveats.length > 0 && (
-                              <div className="mt-2 text-xs text-yellow-600 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+                              <div className={`mt-2 text-xs ${theme === 'dark' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' : 'text-yellow-600 bg-yellow-500/10 border-yellow-500/20'} p-2 rounded border`}>
                                 <strong>Note:</strong> {factCheck.caveats.join(' ')}
                               </div>
                             )}
@@ -483,43 +485,43 @@ const PostDetailView = () => {
 
               {/* Discussion Quality - Only visible to poster */}
               {chirp.discussionQuality && currentUser?.id === chirp.authorId && (
-                <div className="mt-4 p-3 bg-backgroundElevated/40 rounded-lg border border-border/50">
-                  <h3 className="text-sm font-semibold text-textPrimary mb-2">Discussion Quality</h3>
+                <div className={`mt-4 p-3 ${theme === 'dark' ? 'bg-transparent border-white/10' : 'bg-backgroundElevated/40 border-border/50'} rounded-lg border`}>
+                  <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`}>Discussion Quality</h3>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-textMuted">Informativeness:</span>
-                      <span className="ml-2 font-semibold text-textPrimary">
+                      <span className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Informativeness:</span>
+                      <span className={`ml-2 font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
                         {(chirp.discussionQuality.informativeness * 100).toFixed(0)}%
                       </span>
                     </div>
                     <div>
-                      <span className="text-textMuted">Civility:</span>
-                      <span className="ml-2 font-semibold text-textPrimary">
+                      <span className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Civility:</span>
+                      <span className={`ml-2 font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
                         {(chirp.discussionQuality.civility * 100).toFixed(0)}%
                       </span>
                     </div>
                     <div>
-                      <span className="text-textMuted">Reasoning:</span>
-                      <span className="ml-2 font-semibold text-textPrimary">
+                      <span className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Reasoning:</span>
+                      <span className={`ml-2 font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
                         {(chirp.discussionQuality.reasoningDepth * 100).toFixed(0)}%
                       </span>
                     </div>
                     <div>
-                      <span className="text-textMuted">Cross-Perspective:</span>
-                      <span className="ml-2 font-semibold text-textPrimary">
+                      <span className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}>Cross-Perspective:</span>
+                      <span className={`ml-2 font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
                         {(chirp.discussionQuality.crossPerspective * 100).toFixed(0)}%
                       </span>
                     </div>
                   </div>
                   {chirp.discussionQuality.summary && (
-                    <p className="mt-2 text-xs text-textMuted">{chirp.discussionQuality.summary}</p>
+                    <p className={`mt-2 text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>{chirp.discussionQuality.summary}</p>
                   )}
                 </div>
               )}
             </div>
 
             {/* Engagement metrics */}
-            <div className="flex items-center gap-4 text-[15px] text-textMuted border-b border-border/60 pb-4">
+            <div className={`flex items-center gap-4 text-[15px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'} pb-4`}>
               <button
                 onClick={handleReplyClick}
                 className="hover:text-accent transition-colors"
@@ -529,7 +531,7 @@ const PostDetailView = () => {
               </button>
               <div>
                 <span className="font-semibold">0</span>
-                <span className="ml-1">rechirps</span>
+                <span className="ml-1">reposts</span>
               </div>
               <div>
                 <span className="font-semibold">0</span>
@@ -544,7 +546,9 @@ const PostDetailView = () => {
                   onClick={handleFollow}
                   className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                     following
-                      ? 'bg-backgroundElevated/80 text-textPrimary hover:bg-backgroundHover border border-border/60'
+                      ? theme === 'dark' 
+                        ? 'bg-white/10 text-white hover:bg-white/20 border-0'
+                        : 'bg-backgroundElevated/80 text-textPrimary hover:bg-backgroundHover border border-border/60'
                       : 'bg-primary text-white hover:bg-primary/90 active:scale-95'
                   }`}
                 >
@@ -553,13 +557,13 @@ const PostDetailView = () => {
               )}
               <button
                 onClick={handleReplyClick}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-[15px] text-textMuted hover:text-primary hover:bg-backgroundElevated/60 transition-all duration-200"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-[15px] ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-primary hover:bg-backgroundElevated/60'} transition-all duration-200`}
               >
                 <ReplyIcon size={18} />
               </button>
               <button
                 onClick={handleRechirp}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-[15px] text-textMuted hover:text-primary hover:bg-backgroundElevated/60 transition-all duration-200"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-[15px] ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-primary hover:bg-backgroundElevated/60'} transition-all duration-200`}
               >
                 <RepeatIcon size={18} />
               </button>
@@ -567,7 +571,11 @@ const PostDetailView = () => {
                 <button
                   onClick={handleBookmark}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full text-[15px] transition-all duration-200 ${
-                    bookmarked
+                    theme === 'dark'
+                      ? bookmarked
+                        ? 'text-accent hover:text-accent/80 hover:bg-white/10'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                      : bookmarked
                       ? 'text-accent hover:text-accent/80 hover:bg-backgroundElevated/60'
                       : 'text-textMuted hover:text-primary hover:bg-backgroundElevated/60'
                   }`}

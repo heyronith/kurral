@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useNotificationStore } from '../store/useNotificationStore';
 import NotificationItem from './NotificationItem';
 import { Link } from 'react-router-dom';
+import { useThemeStore } from '../store/useThemeStore';
 
 const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, markAllAsRead } = useNotificationStore();
+  const { theme } = useThemeStore();
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -37,7 +39,7 @@ const NotificationBell = () => {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg text-textMuted hover:text-accent hover:bg-backgroundElevated/60 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95"
+        className={`relative p-2 rounded-lg text-textMuted hover:text-accent transition-all duration-200 ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'} focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95`}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
       >
         <svg

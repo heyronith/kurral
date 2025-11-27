@@ -1,10 +1,12 @@
 import { useLocation } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { HomeIcon, ProfileIcon, SettingsIcon, ComposeIcon, BookmarkIcon } from './Icon';
 
 const SidebarNav = () => {
   const { currentUser } = useUserStore();
+  const { theme } = useThemeStore();
   const location = useLocation();
 
   const handleComposeFocus = () => {
@@ -27,7 +29,7 @@ const SidebarNav = () => {
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
           isActive('/app')
             ? 'bg-primary/20 text-primary shadow-subtle'
-            : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
+            : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
         aria-label="Home"
       >
@@ -40,7 +42,7 @@ const SidebarNav = () => {
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
           isActive('/profile')
             ? 'bg-primary/20 text-primary shadow-subtle'
-            : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
+            : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
         aria-label="Profile"
       >
@@ -53,7 +55,7 @@ const SidebarNav = () => {
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
           isActive('/bookmarks')
             ? 'bg-primary/20 text-primary shadow-subtle'
-            : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
+            : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
         aria-label="Bookmarks"
       >
@@ -66,7 +68,7 @@ const SidebarNav = () => {
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
           isActive('/settings')
             ? 'bg-primary/20 text-primary shadow-subtle'
-            : 'text-textMuted hover:bg-backgroundElevated/60 hover:text-textPrimary'
+            : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
         aria-label="Settings"
       >

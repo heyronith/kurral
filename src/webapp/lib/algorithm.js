@@ -1,9 +1,111 @@
+import { DEFAULT_FOR_YOU_CONFIG } from '../types';
+import { cosineSimilarity } from './utils/similarity';
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DEFAULT_TIE_THRESHOLD = 2;
+const TIE_PERCENTAGE = 0.05;
+const AUTHOR_TOP_WINDOW_COUNT = 20;
+const AUTHOR_TOP_WINDOW_LIMIT = 3;
+const AUTHOR_TOTAL_LIMIT = 5;
+const MAX_TIME_WINDOW_DAYS = 30;
+const clampTimeWindowDays = (value) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+        return DEFAULT_FOR_YOU_CONFIG.timeWindowDays ?? 7;
+    }
+    const floored = Math.max(1, Math.floor(value));
+    return Math.min(floored, MAX_TIME_WINDOW_DAYS);
+};
+const buildWindowSequence = (baseDays) => {
+    const windows = [];
+    const pushWindow = (days) => {
+        const clamped = clampTimeWindowDays(days);
+        if (!windows.includes(clamped)) {
+            windows.push(clamped);
+        }
+    };
+    [0, 3, 7, 14, 21, 28].forEach((increment) => pushWindow(baseDays + increment));
+    pushWindow(MAX_TIME_WINDOW_DAYS);
+    return windows;
+};
+const getSimilarityThreshold = (config) => {
+    return config.semanticSimilarityThreshold ?? DEFAULT_FOR_YOU_CONFIG.semanticSimilarityThreshold ?? 0.7;
+};
+const normalizeTopicValue = (value) => {
+    return value ? value.toLowerCase().trim() : '';
+};
+const topicsOverlap = (topicA, topicB) => {
+    return (topicA === topicB ||
+        topicA.includes(topicB) ||
+        topicB.includes(topicA));
+};
+const findMatchingTopic = (chirp, topics) => {
+    if (!topics || topics.length === 0) {
+        return undefined;
+    }
+    const normalizedChirpTopic = normalizeTopicValue(chirp.topic);
+    const normalizedSemanticTopics = chirp.semanticTopics
+        ? chirp.semanticTopics.map((topic) => normalizeTopicValue(topic)).filter(Boolean)
+        : [];
+    for (const configTopic of topics) {
+        const normalizedConfig = normalizeTopicValue(configTopic);
+        if (!normalizedConfig) {
+            continue;
+        }
+        if (normalizedChirpTopic && normalizedChirpTopic === normalizedConfig) {
+            return configTopic;
+        }
+        for (const semanticTopic of normalizedSemanticTopics) {
+            if (topicsOverlap(semanticTopic, normalizedConfig)) {
+                return configTopic;
+            }
+        }
+    }
+    return undefined;
+};
+const matchesTopic = (chirp, topics) => {
+    return Boolean(findMatchingTopic(chirp, topics));
+};
+const sortByScoreThenRecency = (a, b) => {
+    const scoreDiff = Math.abs(a.score - b.score);
+    const maxScore = Math.max(Math.abs(a.score), Math.abs(b.score));
+    const threshold = Math.max(DEFAULT_TIE_THRESHOLD, maxScore * TIE_PERCENTAGE);
+    if (scoreDiff < threshold) {
+        return b.chirp.createdAt.getTime() - a.chirp.createdAt.getTime();
+    }
+    return b.score - a.score;
+};
+const applyDiversityLimits = (scoredChirps, limit) => {
+    if (scoredChirps.length === 0) {
+        return [];
+    }
+    const results = [];
+    const authorCounters = new Map();
+    for (const scored of scoredChirps) {
+        if (results.length >= limit) {
+            break;
+        }
+        const authorId = scored.chirp.authorId;
+        const currentCount = authorCounters.get(authorId) || 0;
+        const maxPerAuthor = results.length < AUTHOR_TOP_WINDOW_COUNT
+            ? AUTHOR_TOP_WINDOW_LIMIT
+            : AUTHOR_TOTAL_LIMIT;
+        if (currentCount >= maxPerAuthor) {
+            continue;
+        }
+        results.push(scored);
+        authorCounters.set(authorId, currentCount + 1);
+    }
+    return results;
+};
 /**
  * Check if a chirp is eligible to be shown to the viewer
  */
-export const isChirpEligibleForViewer = (chirp, viewer, config) => {
-    // Check muted topics
-    if (config.mutedTopics.includes(chirp.topic)) {
+export const isChirpEligibleForViewer = (chirp, viewer, config, options) => {
+    // Exclude viewer's own posts
+    if (viewer.id === chirp.authorId) {
+        return false;
+    }
+    // Check muted topics (legacy topic field and semantic topics)
+    if (!options?.ignoreMuted && matchesTopic(chirp, config.mutedTopics)) {
         return false;
     }
     // Check reach settings
@@ -11,12 +113,12 @@ export const isChirpEligibleForViewer = (chirp, viewer, config) => {
         return true;
     }
     // Tuned mode - check audience settings
-    if (chirp.reachMode === 'tuned' && chirp.tunedAudience) {
+    if (chirp.reachMode === 'tuned') {
+        if (!chirp.tunedAudience) {
+            console.warn(`[ForYouFeed] Chirp ${chirp.id} uses tuned reach without audience settings`);
+            return false;
+        }
         const isFollowing = viewer.following.includes(chirp.authorId);
-        const isSelf = viewer.id === chirp.authorId;
-        // If it's the viewer's own chirp, always show
-        if (isSelf)
-            return true;
         // Check if followers are allowed and viewer is following
         if (chirp.tunedAudience.allowFollowers && isFollowing) {
             return true;
@@ -25,6 +127,17 @@ export const isChirpEligibleForViewer = (chirp, viewer, config) => {
         if (chirp.tunedAudience.allowNonFollowers && !isFollowing) {
             return true;
         }
+        const similarityThreshold = getSimilarityThreshold(config);
+        if (chirp.tunedAudience.targetAudienceEmbedding && viewer.profileEmbedding) {
+            const similarity = cosineSimilarity(chirp.tunedAudience.targetAudienceEmbedding, viewer.profileEmbedding);
+            if (similarity >= similarityThreshold) {
+                return true;
+            }
+        }
+        const similarityHint = chirp.tunedAudience.targetAudienceEmbedding && viewer.profileEmbedding
+            ? 'profile summary mismatch'
+            : 'audience explicitly hides this viewer';
+        console.warn(`[ForYouFeed] Chirp ${chirp.id} tuned audience ${similarityHint}`);
         return false;
     }
     return true;
@@ -36,10 +149,9 @@ export const scoreChirpForViewer = (chirp, viewer, config, allChirps, getAuthor)
     let score = 0;
     const reasons = [];
     const isFollowing = viewer.following.includes(chirp.authorId);
-    const isSelf = viewer.id === chirp.authorId;
     const author = getAuthor(chirp.authorId);
     // Following weight (4 levels: none, light, medium, heavy)
-    if (isFollowing || isSelf) {
+    if (isFollowing) {
         const weightMap = {
             none: 0,
             light: 10,
@@ -66,12 +178,22 @@ export const scoreChirpForViewer = (chirp, viewer, config, allChirps, getAuthor)
             reasons.push(`matches your interest "${semanticMatches[0]}"`);
         }
     }
-    // Topic preferences
-    if (config.likedTopics.includes(chirp.topic)) {
-        score += 25;
-        reasons.push(`topic #${chirp.topic} you like`);
+    // Profile summary matching (enhanced personalization)
+    if (viewer.profileEmbedding && chirp.tunedAudience?.targetAudienceEmbedding) {
+        const similarity = cosineSimilarity(chirp.tunedAudience.targetAudienceEmbedding, viewer.profileEmbedding);
+        if (similarity > 0) {
+            const similarityBoost = Math.min(35, Math.round(similarity * 35));
+            score += similarityBoost;
+            reasons.push(`aligns with your profile (${Math.round(similarity * 100)}% similarity)`);
+        }
     }
-    if (config.mutedTopics.includes(chirp.topic)) {
+    // Topic preferences (legacy topic field and semantic topics)
+    const matchedLikedTopic = findMatchingTopic(chirp, config.likedTopics);
+    if (matchedLikedTopic) {
+        score += 25;
+        reasons.push(`topic #${matchedLikedTopic} you like`);
+    }
+    if (matchesTopic(chirp, config.mutedTopics)) {
         score -= 100; // Heavy penalty, but should be filtered out by eligibility anyway
     }
     // Active conversations boost
@@ -105,21 +227,42 @@ export const scoreChirpForViewer = (chirp, viewer, config, allChirps, getAuthor)
  * Generate For You feed with scoring and explanations
  */
 export const generateForYouFeed = (allChirps, viewer, config, getAuthor, limit = 50) => {
-    // Get recent chirps (last 7 days)
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const recentChirps = allChirps.filter((chirp) => chirp.createdAt.getTime() > sevenDaysAgo);
-    // Filter by eligibility
-    const eligibleChirps = recentChirps.filter((chirp) => isChirpEligibleForViewer(chirp, viewer, config));
-    // Score all eligible chirps
-    const scoredChirps = eligibleChirps.map((chirp) => scoreChirpForViewer(chirp, viewer, config, allChirps, getAuthor));
-    // Sort by score DESC, then createdAt DESC
-    scoredChirps.sort((a, b) => {
-        if (Math.abs(a.score - b.score) < 0.1) {
-            // If scores are very close, sort by recency
-            return b.chirp.createdAt.getTime() - a.chirp.createdAt.getTime();
+    if (!viewer) {
+        return [];
+    }
+    // Exclude viewer's own posts
+    const otherChirps = allChirps.filter((chirp) => chirp.authorId !== viewer.id);
+    const baseWindowDays = clampTimeWindowDays(config.timeWindowDays ?? DEFAULT_FOR_YOU_CONFIG.timeWindowDays);
+    const windowSequence = buildWindowSequence(baseWindowDays);
+    const attemptFeed = (days, ignoreMuted = false) => {
+        const cutoff = Date.now() - days * MS_PER_DAY;
+        const recent = otherChirps.filter((chirp) => chirp.createdAt.getTime() > cutoff);
+        const eligible = recent.filter((chirp) => isChirpEligibleForViewer(chirp, viewer, config, ignoreMuted ? { ignoreMuted: true } : undefined));
+        if (eligible.length === 0) {
+            return [];
         }
-        return b.score - a.score;
-    });
-    // Return top N
-    return scoredChirps.slice(0, limit);
+        const scored = eligible
+            .map((chirp) => scoreChirpForViewer(chirp, viewer, config, allChirps, getAuthor))
+            .sort(sortByScoreThenRecency);
+        return applyDiversityLimits(scored, limit);
+    };
+    for (const days of windowSequence) {
+        const scored = attemptFeed(days);
+        if (scored.length > 0) {
+            return scored;
+        }
+        const relaxed = attemptFeed(days, true);
+        if (relaxed.length > 0) {
+            return relaxed;
+        }
+    }
+    const fallback = otherChirps
+        .slice()
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map((chirp) => ({
+        chirp,
+        score: 0,
+        explanation: 'Recent post (fallback)',
+    }));
+    return applyDiversityLimits(fallback, limit);
 };

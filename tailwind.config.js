@@ -2,6 +2,7 @@ const defaultTheme = require('tailwindcss/defaultTheme');
 
 module.exports = {
   content: ['./index.html', './src/**/*.{js,tsx,ts,jsx}'],
+  darkMode: 'class', // Enable dark mode using class strategy
   theme: {
     extend: {
       fontFamily: {
@@ -21,14 +22,14 @@ module.exports = {
         cardHover: '#FAFBFC',
         cardSubtle: '#F9FAFB',
         
-        // Trust-focused accent - Deep Professional Blue
-        // Psychology: Blue is #1 color for trust, credibility, and professionalism
-        // Research: Used by Facebook, LinkedIn, Twitter, news platforms for trust
-        // Deep blue (blue-600/700) conveys maximum trustworthiness vs lighter cyan
-        accent: '#2563EB', // Blue-600 - deep trustworthy blue (research-backed for trust)
-        accentHover: '#1D4ED8', // Blue-700 - deeper for hover (maintains trust)
-        accentLight: '#3B82F6', // Blue-500 - lighter variant for subtle highlights
-        accentDark: '#1E40AF', // Blue-700 - darker variant for emphasis
+        // Trust-focused accent - Cyan for better visibility on dark backgrounds
+        // Psychology: Cyan provides excellent contrast on dark backgrounds while maintaining trust
+        // Research: Cyan is highly visible and accessible, works well for interactive elements
+        // Updated for better dark mode visibility and accessibility
+        accent: '#06B6D4', // Cyan-500 - bright cyan for excellent visibility on dark backgrounds
+        accentHover: '#0891B2', // Cyan-600 - slightly deeper for hover (maintains visibility)
+        accentLight: '#22D3EE', // Cyan-400 - lighter variant for subtle highlights
+        accentDark: '#0891B2', // Cyan-600 - darker variant for emphasis
         accentSecondary: '#0891B2', // Cyan-600 - blue-teal for verification/fact-checking
         accentSecondaryHover: '#0E7490', // Cyan-700 - deeper teal
         

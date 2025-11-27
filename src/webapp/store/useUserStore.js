@@ -1,32 +1,41 @@
 import { create } from 'zustand';
 import { userService } from '../lib/firestore';
 import { notificationService } from '../lib/services/notificationService';
+const USER_CACHE_TTL_MS = 5 * 60 * 1000;
 export const useUserStore = create((set, get) => ({
     currentUser: null,
     users: {},
+    userFetchTimestamps: {},
     isLoading: false,
     setCurrentUser: (user) => {
-        set({ currentUser: user });
-        if (user) {
-            // Add to cache
-            set((state) => ({
-                users: { ...state.users, [user.id]: user },
-            }));
+        if (!user) {
+            set({ currentUser: null });
+            return;
         }
+        set((state) => ({
+            currentUser: user,
+            users: { ...state.users, [user.id]: user },
+            userFetchTimestamps: { ...state.userFetchTimestamps, [user.id]: Date.now() },
+        }));
     },
     addUser: (user) => set((state) => ({
         users: { ...state.users, [user.id]: user },
+        userFetchTimestamps: { ...state.userFetchTimestamps, [user.id]: Date.now() },
     })),
     getUser: (userId) => get().users[userId],
     loadUser: async (userId) => {
-        const cached = get().users[userId];
-        if (cached)
+        const { users, userFetchTimestamps } = get();
+        const cachedUser = users[userId];
+        const lastFetched = userFetchTimestamps[userId];
+        if (cachedUser && lastFetched && Date.now() - lastFetched < USER_CACHE_TTL_MS) {
             return;
+        }
         try {
             const user = await userService.getUser(userId);
             if (user) {
                 set((state) => ({
                     users: { ...state.users, [userId]: user },
+                    userFetchTimestamps: { ...state.userFetchTimestamps, [userId]: Date.now() },
                 }));
             }
         }
@@ -131,6 +140,7 @@ export const useUserStore = create((set, get) => ({
                             bookmarks: newBookmarks,
                         },
                     },
+                    userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
                 }));
             }
             catch (error) {
@@ -170,6 +180,7 @@ export const useUserStore = create((set, get) => ({
                         bookmarks: newBookmarks,
                     },
                 },
+                userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
             }));
         }
         catch (error) {
@@ -205,6 +216,7 @@ export const useUserStore = create((set, get) => ({
                 ...state.users,
                 [currentUser.id]: updatedUser,
             },
+            userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
         }));
         try {
             await userService.updateUser(currentUser.id, { interests: normalized });
@@ -217,6 +229,7 @@ export const useUserStore = create((set, get) => ({
                     ...state.users,
                     [previousUser.id]: previousUser,
                 },
+                userFetchTimestamps: { ...state.userFetchTimestamps, [previousUser.id]: Date.now() },
             }));
         }
     },

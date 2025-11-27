@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNewsStore } from '../store/useNewsStore';
 import { useFeedStore } from '../store/useFeedStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { chirpService } from '../lib/firestore';
 import ChirpCard from './ChirpCard';
 import Composer from './Composer';
@@ -10,6 +11,7 @@ import type { Chirp } from '../types';
 const NewsDetailView = () => {
   const { selectedNews, clearSelection } = useNewsStore();
   const { chirps } = useFeedStore();
+  const { theme } = useThemeStore();
   const [activeTab, setActiveTab] = useState<'top' | 'latest'>('top');
   const [fetchedStoryPosts, setFetchedStoryPosts] = useState<Chirp[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -119,9 +121,9 @@ const NewsDetailView = () => {
 
   if (!selectedNews) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className={`min-h-screen ${theme === 'dark' ? 'bg-black' : 'bg-background'} flex items-center justify-center`}>
         <div className="text-center">
-          <p className="text-textMuted mb-4">No news selected</p>
+          <p className={theme === 'dark' ? 'text-white/70' : 'text-textMuted mb-4'}>No news selected</p>
           <button
             onClick={clearSelection}
             className="text-primary hover:text-primaryHover transition-colors"
@@ -134,13 +136,13 @@ const NewsDetailView = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-black' : 'bg-background'}`}>
       {/* Header with navigation */}
-      <header className="sticky top-0 z-40 border-b-2 border-border/60 bg-background/98 backdrop-blur-md py-3 px-4 shadow-elevated">
+      <header className={`sticky top-0 z-40 border-b-2 ${theme === 'dark' ? 'border-white/10 bg-black/98' : 'border-border/60 bg-background/98'} backdrop-blur-md py-3 px-4 shadow-elevated`}>
         <div className="flex items-center justify-between">
           <button
             onClick={clearSelection}
-            className="p-2 rounded-lg hover:bg-backgroundElevated/50 transition-colors"
+            className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/50'} transition-colors`}
             aria-label="Go back"
           >
             <svg
@@ -152,14 +154,14 @@ const NewsDetailView = () => {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-textPrimary"
+              className={theme === 'dark' ? 'text-white' : 'text-textPrimary'}
             >
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
           <div className="flex items-center gap-2">
             <button
-              className="p-2 rounded-lg hover:bg-backgroundElevated/50 transition-colors"
+              className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/50'} transition-colors`}
               aria-label="Bookmark"
             >
               <svg
@@ -171,13 +173,13 @@ const NewsDetailView = () => {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-textMuted"
+                className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}
               >
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
               </svg>
             </button>
             <button
-              className="p-2 rounded-lg hover:bg-backgroundElevated/50 transition-colors"
+              className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/50'} transition-colors`}
               aria-label="Share"
             >
               <svg
@@ -189,7 +191,7 @@ const NewsDetailView = () => {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-textMuted"
+                className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}
               >
                 <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
                 <polyline points="16 6 12 2 8 6" />
@@ -197,7 +199,7 @@ const NewsDetailView = () => {
               </svg>
             </button>
             <button
-              className="p-2 rounded-lg hover:bg-backgroundElevated/50 transition-colors"
+              className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/50'} transition-colors`}
               aria-label="More options"
             >
               <svg
@@ -209,7 +211,7 @@ const NewsDetailView = () => {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-textMuted"
+                className={theme === 'dark' ? 'text-white/70' : 'text-textMuted'}
               >
                 <circle cx="12" cy="12" r="1" />
                 <circle cx="12" cy="5" r="1" />
@@ -223,25 +225,25 @@ const NewsDetailView = () => {
       {/* News Content */}
       <div className="max-w-3xl mx-auto px-4 py-6">
         {/* Title */}
-        <h1 className="text-2xl md:text-3xl font-bold text-textPrimary mb-3 leading-tight">
+        <h1 className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-3 leading-tight`}>
           {selectedNews.title}
         </h1>
 
         {/* Timestamp */}
-        <p className="text-sm text-textMuted mb-6">
+        <p className={`text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-6`}>
           Last updated {formatTimeAgo(selectedNews.lastUpdated)}
         </p>
 
         {/* Description */}
         <div className="prose prose-invert max-w-none mb-6">
-          <p className="text-base text-textSecondary leading-relaxed whitespace-pre-line">
+          <p className={`text-base ${theme === 'dark' ? 'text-white/90' : 'text-textSecondary'} leading-relaxed whitespace-pre-line`}>
             {selectedNews.description}
           </p>
         </div>
 
         {/* Disclaimer */}
-        <div className="mb-6 p-3 bg-backgroundElevated/30 border border-border/50 rounded-lg">
-          <p className="text-xs text-textMuted leading-relaxed">
+        <div className={`mb-6 p-3 ${theme === 'dark' ? 'bg-transparent border-white/10' : 'bg-backgroundElevated/30 border-border/50'} border rounded-lg`}>
+          <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} leading-relaxed`}>
             This story is a summary of posts on X and may evolve over time. Grok can make mistakes, verify its outputs.
           </p>
         </div>
@@ -252,13 +254,13 @@ const NewsDetailView = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 mb-4 border-b border-border">
+        <div className={`flex items-center gap-1 mb-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-border'}`}>
           <button
             onClick={() => setActiveTab('top')}
             className={`px-4 py-2 text-sm font-medium transition-colors relative ${
               activeTab === 'top'
-                ? 'text-textPrimary'
-                : 'text-textMuted hover:text-textPrimary'
+                ? theme === 'dark' ? 'text-white' : 'text-textPrimary'
+                : theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'
             }`}
           >
             Top
@@ -270,8 +272,8 @@ const NewsDetailView = () => {
             onClick={() => setActiveTab('latest')}
             className={`px-4 py-2 text-sm font-medium transition-colors relative ${
               activeTab === 'latest'
-                ? 'text-textPrimary'
-                : 'text-textMuted hover:text-textPrimary'
+                ? theme === 'dark' ? 'text-white' : 'text-textPrimary'
+                : theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-textMuted hover:text-textPrimary'
             }`}
           >
             Latest
@@ -289,14 +291,14 @@ const NewsDetailView = () => {
             </div>
           )}
           {relatedPosts.length === 0 ? (
-            <div className="p-8 text-center text-textMuted border-t border-border">
+            <div className={`p-8 text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} border-t ${theme === 'dark' ? 'border-white/10' : 'border-border'}`}>
               <p className="text-sm">No related posts found for this news story.</p>
               <p className="text-xs mt-2">Be the first to post about it!</p>
             </div>
           ) : (
             relatedPosts.map((chirp) => (
               <div key={chirp.id}>
-                <div className="px-4 py-2 text-xs text-textMuted border-b border-border bg-backgroundElevated/30">
+                <div className={`px-4 py-2 text-xs ${theme === 'dark' ? 'text-white/70 bg-transparent border-white/10' : 'text-textMuted bg-backgroundElevated/30 border-border'} border-b`}>
                   {activeTab === 'top' ? 'Top post' : 'Latest post'} about this story
                 </div>
                 <ChirpCard chirp={chirp} />

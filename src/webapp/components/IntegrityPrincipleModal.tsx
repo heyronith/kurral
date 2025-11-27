@@ -1,3 +1,5 @@
+import { useThemeStore } from '../store/useThemeStore';
+
 interface IntegrityPrincipleModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,38 +21,22 @@ const XIcon = ({ size = 20 }: { size?: number }) => (
 );
 
 const IntegrityPrincipleModal = ({ isOpen, onClose }: IntegrityPrincipleModalProps) => {
+  const { theme } = useThemeStore();
+  
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-background rounded-2xl border border-border/60 shadow-elevated">
+      <div className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto ${theme === 'dark' ? 'bg-black border-white/20' : 'bg-background border-border/60'} rounded-2xl border shadow-elevated`}>
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b border-border/60 bg-background/95 backdrop-blur-lg">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center border border-accent/20">
-              <svg
-                viewBox="0 0 24 24"
-                width={24}
-                height={24}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-accent"
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <path d="M9 12l2 2 4-4" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-textPrimary">Our Integrity Principle</h2>
-              <p className="text-sm text-textMuted">Truth over clicks. Quality over quantity.</p>
-            </div>
+        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${theme === 'dark' ? 'border-white/10 bg-black/95' : 'border-border/60 bg-background/95'} backdrop-blur-lg`}>
+          <div>
+            <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Our Integrity Principle</h2>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>How we ensure quality and truth on the platform</p>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-textMuted hover:text-textPrimary hover:bg-backgroundElevated/60 transition-colors"
+            className={`w-8 h-8 flex items-center justify-center rounded-lg ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-textPrimary hover:bg-backgroundElevated/60'} transition-colors`}
             aria-label="Close"
           >
             <XIcon size={20} />
@@ -59,94 +45,48 @@ const IntegrityPrincipleModal = ({ isOpen, onClose }: IntegrityPrincipleModalPro
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Simple Statement */}
+          {/* Real-Time Fact Checking */}
           <section className="space-y-3">
-            <p className="text-base text-textPrimary leading-relaxed">
-              We reward <strong>valuable content</strong>, not viral content. Every post is fact-checked, scored for quality, and you're rewarded based on the value you contribute.
+            <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Real-Time Fact Checking</h3>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              Every post is analyzed by AI agents as soon as it's published. Claims are automatically extracted and verified against trusted web sources including government sites, academic institutions, and established news organizations. The system evaluates evidence quality, cross-references multiple sources, and provides verdicts with confidence scores.
+            </p>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              Fact-checking happens instantly in real-time. Posts with false claims are automatically blocked. High-risk claims in health, finance, or politics that cannot be verified are flagged for human review. All fact-check results are visible to users with evidence citations.
             </p>
           </section>
 
-          {/* How It Works */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-bold text-textPrimary">How It Works</h3>
-            <div className="space-y-3">
-              <div className="p-4 rounded-xl bg-backgroundElevated/40 border border-border/50">
-                <div className="flex items-start gap-3">
-                  <span className="text-xl flex-shrink-0">✓</span>
-                  <div>
-                    <h4 className="text-sm font-semibold text-textPrimary mb-1">Auto Fact-Checking</h4>
-                    <p className="text-xs text-textSecondary">
-                      Claims are verified with web sources. You see the status and evidence.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-backgroundElevated/40 border border-border/50">
-                <div className="flex items-start gap-3">
-                  <span className="text-xl flex-shrink-0">⭐</span>
-                  <div>
-                    <h4 className="text-sm font-semibold text-textPrimary mb-1">Value Scoring</h4>
-                    <p className="text-xs text-textSecondary">
-                      Posts are scored on truth, insight, usefulness, and discussion quality. Higher scores = better rewards.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-backgroundElevated/40 border border-border/50">
-                <div className="flex items-start gap-3">
-                  <span className="text-xl flex-shrink-0">💬</span>
-                  <div>
-                    <h4 className="text-sm font-semibold text-textPrimary mb-1">Quality Comments</h4>
-                    <p className="text-xs text-textSecondary">
-                      Thoughtful comments boost your reputation and the post's value score.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* Value Creation Priority */}
+          <section className={`space-y-3 pt-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
+            <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Value Creation Priority</h3>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              We prioritize value creation over engagement metrics. Every post is scored using our proprietary Kurral Score system (300-850) that evaluates content quality through AI analysis.
+            </p>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              Scores are calculated dynamically using our unique algorithm. Posts with higher value scores receive better visibility and creators earn monetization based on the value they contribute, not views or likes. The system evaluates discussion quality, fact-check results, and community trust to determine scores.
+            </p>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              Creators must maintain a Kurral Score of 650 or higher and have an account age of at least 30 days to be eligible for monetization. Scores update in real-time as new posts are published and fact-checked.
+            </p>
           </section>
 
-          {/* What You See */}
-          <section className="pt-4 border-t border-border/60">
-            <h3 className="text-sm font-bold text-textPrimary mb-4">What You'll See</h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-backgroundElevated/40 border border-border/50">
-                <div className="px-3 py-1.5 bg-accent/10 text-accent rounded-lg border border-accent/20 text-xs font-semibold flex-shrink-0">
-                  ⭐ 85
-                </div>
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-textPrimary">Value Score</div>
-                  <div className="text-[10px] text-textMuted">Post quality (0-100)</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-backgroundElevated/40 border border-border/50">
-                <div className="px-3 py-1.5 bg-green-500/10 text-green-600 rounded-lg border border-green-500/20 text-xs font-semibold flex-shrink-0">
-                  ✓ Verified
-                </div>
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-textPrimary">Fact-Check Status</div>
-                  <div className="text-[10px] text-textMuted">Verified • Needs Review • Blocked</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-backgroundElevated/40 border border-border/50">
-                <div className="px-3 py-1.5 bg-backgroundElevated/60 text-textMuted rounded-lg border border-border/50 text-xs flex-shrink-0">
-                  📋 3 claims
-                </div>
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-textPrimary">Claims Extracted</div>
-                  <div className="text-[10px] text-textMuted">Number of facts verified</div>
-                </div>
-              </div>
-            </div>
+          {/* Policy Enforcement */}
+          <section className={`space-y-3 pt-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
+            <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Policy Enforcement</h3>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              Posts are automatically evaluated by our policy engine based on fact-check results. Posts with false claims verified with high confidence are immediately blocked. High-risk claims in sensitive domains that lack verification are flagged for review. All other posts are marked as clean.
+            </p>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              Policy decisions are made algorithmically using AI analysis, not keyword matching or heuristics. The system considers claim risk levels, fact-check confidence scores, and domain context to make enforcement decisions. Users can see the policy status and reasons for each decision.
+            </p>
+            <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
+              Violations impact Kurral Scores negatively. Repeated violations or severe misinformation result in score penalties that affect monetization eligibility. The system tracks violations over time with decay, allowing users to recover through consistent quality contributions.
+            </p>
           </section>
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 p-6 border-t border-border/60 bg-background/95 backdrop-blur-lg">
+        <div className={`sticky bottom-0 p-6 border-t ${theme === 'dark' ? 'border-white/10 bg-black/95' : 'border-border/60 bg-background/95'} backdrop-blur-lg`}>
           <button
             onClick={onClose}
             className="w-full px-4 py-3 rounded-lg bg-accent text-white font-semibold hover:bg-accentHover transition-colors shadow-button active:scale-95"

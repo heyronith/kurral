@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { reviewContextService } from '../lib/firestore';
 import ReviewContextModal from './ReviewContextModal';
 import { useUserStore } from '../store/useUserStore';
+import { useThemeStore } from '../store/useThemeStore';
 import type { Chirp, PostReviewContext } from '../types';
 
 interface FactCheckStatusPopupProps {
@@ -16,6 +17,7 @@ const FactCheckStatusPopup = ({ open, onClose, chirp, onChirpUpdated }: FactChec
   const [loadingContexts, setLoadingContexts] = useState(false);
   const [showReviewContextModal, setShowReviewContextModal] = useState(false);
   const { currentUser } = useUserStore();
+  const { theme } = useThemeStore();
 
   useEffect(() => {
     if (open && chirp) {
@@ -91,7 +93,7 @@ const FactCheckStatusPopup = ({ open, onClose, chirp, onChirpUpdated }: FactChec
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-backgroundElevated/60 transition-colors text-textMuted hover:text-textPrimary"
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}
               aria-label="Close"
             >
               <svg

@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { Notification } from '../types';
 import { useUserStore } from '../store/useUserStore';
 import { useNotificationStore } from '../store/useNotificationStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { useState } from 'react';
 
 interface NotificationItemProps {
@@ -12,6 +13,7 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
   const navigate = useNavigate();
   const { getUser } = useUserStore();
   const { markAsRead, dismissNotification } = useNotificationStore();
+  const { theme } = useThemeStore();
   const [isDismissing, setIsDismissing] = useState(false);
   
   const actor = getUser(notification.actorId);
@@ -47,8 +49,8 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
             : `${actorName} and ${othersCount} others replied to your comment`;
         case 'rechirp':
           return othersCount === 1
-            ? `${actorName} and 1 other rechirped your post`
-            : `${actorName} and ${othersCount} others rechirped your post`;
+            ? `${actorName} and 1 other reposted your post`
+            : `${actorName} and ${othersCount} others reposted your post`;
         case 'follow':
           return `${count} new followers`;
         default:
@@ -61,7 +63,7 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
         case 'reply':
           return `${actorName} replied to your comment`;
         case 'rechirp':
-          return `${actorName} rechirped your post`;
+          return `${actorName} reposted your post`;
         case 'follow':
           return `${actorName} followed you`;
         case 'mention':
@@ -122,7 +124,7 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
   return (
     <div
       onClick={handleClick}
-      className={`p-3 border-b border-border/40 cursor-pointer transition-all duration-200 hover:bg-backgroundElevated/60 ${
+      className={`p-3 border-b border-border/40 cursor-pointer transition-all duration-200 ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'} ${
         !notification.read ? 'bg-accent/5' : ''
       }`}
     >
@@ -161,7 +163,7 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
             <button
               onClick={handleDismiss}
               disabled={isDismissing}
-              className="flex-shrink-0 text-textMuted hover:text-accent transition-colors p-1 rounded hover:bg-backgroundElevated/60 disabled:opacity-50"
+              className={`flex-shrink-0 text-textMuted hover:text-accent transition-colors p-1 rounded ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'} disabled:opacity-50`}
               aria-label="Dismiss notification"
             >
               <svg

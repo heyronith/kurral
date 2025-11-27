@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useUserStore } from '../store/useUserStore';
 import { useFeedStore } from '../store/useFeedStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { chirpService } from '../lib/firestore';
 import ChirpCard from '../components/ChirpCard';
 import AppLayout from '../components/AppLayout';
@@ -9,6 +10,7 @@ import type { Chirp } from '../types';
 const BookmarksPage = () => {
   const { currentUser } = useUserStore();
   const { loadChirps } = useFeedStore();
+  const { theme } = useThemeStore();
   const [bookmarkedChirps, setBookmarkedChirps] = useState<Chirp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -61,7 +63,7 @@ const BookmarksPage = () => {
   if (isLoading) {
     return (
       <AppLayout wrapContent={true}>
-        <div className="p-8 text-center text-textMuted">
+        <div className={`p-8 text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
           <p>Loading bookmarks...</p>
         </div>
       </AppLayout>
@@ -70,9 +72,9 @@ const BookmarksPage = () => {
 
   return (
     <AppLayout wrapContent={true}>
-      <div className="border-b border-border/60 px-4 py-4">
-        <h1 className="text-xl font-bold text-textPrimary">Bookmarks</h1>
-        <p className="text-sm text-textMuted mt-1">
+      <div className={`border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'} px-4 py-4`}>
+        <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Bookmarks</h1>
+        <p className={`text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mt-1`}>
           {bookmarkedChirps.length === 0
             ? 'No bookmarks yet'
             : `${bookmarkedChirps.length} ${bookmarkedChirps.length === 1 ? 'bookmark' : 'bookmarks'}`}
@@ -81,7 +83,7 @@ const BookmarksPage = () => {
 
       <div>
         {bookmarkedChirps.length === 0 ? (
-          <div className="p-8 text-center text-textMuted">
+          <div className={`p-8 text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
             <p>You haven't bookmarked any posts yet.</p>
             <p className="text-sm mt-2">Bookmark posts to save them for later.</p>
           </div>
