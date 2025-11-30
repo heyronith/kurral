@@ -187,6 +187,27 @@ service cloud.firestore {
       allow delete: if false;
     }
     
+    // Contact Submissions collection
+    // - Anyone (including unauthenticated users) can create contact submissions
+    // - Only authenticated users can read (for admin purposes)
+    // - No updates or deletes - submissions are immutable
+    match /contactSubmissions/{submissionId} {
+      allow read: if isAuthenticated();
+      allow create: if request.resource.data.keys().hasAll(['name', 'email', 'message', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 0
+        && request.resource.data.email.size() <= 200
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.createdAt is timestamp;
+      allow update: if false;
+      allow delete: if false;
+    }
+    
     // Post Reviews collection - for users to add context to posts marked "needs_review"
     // - Authenticated users can read all review contexts (for transparency)
     // - Authenticated users can create review contexts (only for posts with needs_review status)

@@ -154,7 +154,7 @@ const ForYouControls = () => {
   };
 
   return (
-    <div className={`p-6 space-y-6 ${theme === 'dark' ? 'bg-transparent border-white/10' : 'bg-backgroundElevated/20 border-border/60'} border-b`}>
+    <div className={`p-6 space-y-6 ${theme === 'dark' ? 'bg-transparent border-b border-white/10' : 'bg-backgroundElevated/20'}`}>
       {/* Header */}
       <div className="pb-2">
         <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-1.5`}>Tune Your Feed</h3>
@@ -171,7 +171,7 @@ const ForYouControls = () => {
               key={preset.id}
               onClick={() => handlePresetClick(preset)}
               disabled={instructionStatus === 'pending'}
-              className={`group relative p-3.5 rounded-lg border ${theme === 'dark' ? 'border-white/20 bg-transparent hover:bg-white/10 hover:border-white/40' : 'border-border/60 bg-card/40 hover:bg-card/60 hover:border-accent/40'} transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-left ${theme === 'dark' ? '' : 'shadow-button hover:shadow-elevated'}`}
+              className={`group relative p-3.5 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-left ${theme === 'dark' ? 'border border-white/20 bg-transparent hover:bg-white/10 hover:border-white/40' : 'bg-backgroundSubtle hover:bg-backgroundHover shadow-sm hover:shadow-md'}`}
             >
               <div className="flex items-start gap-2.5">
                 <span className="text-xl">{preset.icon}</span>
@@ -221,7 +221,7 @@ const ForYouControls = () => {
 
         <div className="relative">
           <textarea
-            className={`w-full rounded-lg border ${theme === 'dark' ? 'border-white/20 bg-white/5 text-white placeholder:text-white/50 focus:border-accent/60 focus:bg-white/10 focus:ring-accent/20' : 'border-border/60 bg-card/40 text-textPrimary placeholder:text-textMuted/50 focus:border-accent/60 focus:bg-card/60 focus:ring-accent/20'} px-4 py-3 text-sm outline-none focus:ring-2 transition-all resize-none ${theme === 'dark' ? '' : 'shadow-inner'}`}
+            className={`w-full rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 transition-all resize-none ${theme === 'dark' ? 'border border-white/20 bg-white/5 text-white placeholder:text-white/50 focus:border-accent/60 focus:bg-white/10 focus:ring-accent/20' : 'bg-backgroundSubtle text-textPrimary placeholder:text-textMuted/50 focus:border-accent/60 focus:border focus:ring-accent/20'}`}
             placeholder="Tell the AI what you want... e.g. 'Show me react tutorials and AI research', 'More design content, less politics', 'Prioritize startup funding posts'"
             value={instructionInput}
             onChange={(e) => setInstructionInput(e.target.value)}

@@ -14,7 +14,7 @@ const LandingPage = () => {
       <Navbar />
       <main className="flex flex-col">
         <Hero />
-        <ValuePropositionSection onShowDemo={() => setDemoOpen(true)} />
+        <ValuePropositionSection />
         <FAQ />
       </main>
       <Footer />

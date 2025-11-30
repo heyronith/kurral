@@ -130,31 +130,35 @@ const RightPanel = () => {
 
   return (
     <aside className="sticky top-20 hidden xl:flex w-80 flex-col gap-5">
-      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-card/60 shadow-card backdrop-blur-md'} p-5`}>
-        <label className={`mb-3 block text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>Search Kurral</label>
+      <div className={`rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`}>
+        <label className={`mb-3 block text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>Search Kurral</label>
         <div className="relative">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search topics or people"
-            className={`input-field ${theme === 'dark' ? 'bg-white/5 border-white/20 text-white placeholder:text-white/50 focus:border-accent/60 focus:ring-accent/20' : ''}`}
+            className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-accent/20 ${
+              theme === 'dark' 
+                ? 'bg-white/5 border border-darkBorder text-darkTextPrimary placeholder:text-darkTextMuted focus:border-accent/60' 
+                : 'bg-backgroundSubtle text-textPrimary placeholder:text-textMuted focus:border-accent/60 focus:border'
+            }`}
           />
-          <span className={`absolute right-3 top-2.5 text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} font-medium`}>⌘ K</span>
+          <span className={`absolute right-3 top-2.5 text-xs font-medium ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>⌘ K</span>
         </div>
       </div>
 
       <TrendingNewsSection />
 
-      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-card/60 shadow-card backdrop-blur-md'} p-5`}>
-        <h3 className={`mb-4 text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Trending Topics</h3>
+      <div className={`rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`}>
+        <h3 className={`mb-4 text-sm font-bold ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>Trending Topics</h3>
         {topicsLoading ? (
           <div className="py-4 text-center">
-            <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>Loading trending topics...</p>
+            <p className={`text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>Loading trending topics...</p>
           </div>
         ) : displayTrendingTopics.length === 0 ? (
           <div className="py-4 text-center">
-            <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>No trending topics yet</p>
+            <p className={`text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>No trending topics yet</p>
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -162,10 +166,12 @@ const RightPanel = () => {
               <button
                 key={item.topic}
                 onClick={() => selectTopic(item.topic)}
-                className={`inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} border transition-all duration-200 active:scale-95 cursor-pointer ${
+                className={`inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 active:scale-95 cursor-pointer ${
                   item.matchesInterest
-                    ? theme === 'dark' ? 'border-accent/40 bg-accent/20 hover:bg-accent/30' : 'border-accent/40 bg-accent/10 hover:bg-accent/15'
-                    : theme === 'dark' ? 'border-white/20 bg-transparent hover:border-white/40 hover:bg-white/10' : 'border-border/60 bg-transparent hover:border-border/80 hover:bg-backgroundElevated/40'
+                    ? 'bg-accent/10 hover:bg-accent/20 text-accent'
+                    : theme === 'dark' 
+                      ? 'bg-white/5 hover:bg-white/10 text-darkTextPrimary' 
+                      : 'bg-backgroundSubtle hover:bg-backgroundHover text-textPrimary'
                 }`}
               >
                 {item.topic}
@@ -175,19 +181,19 @@ const RightPanel = () => {
         )}
       </div>
 
-      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-card/60 shadow-card backdrop-blur-md'} p-5`}>
-        <h3 className={`mb-4 text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
+      <div className={`rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`}>
+        <h3 className={`mb-4 text-sm font-bold ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>
           {currentUser?.interests && currentUser.interests.length > 0
             ? 'People with similar interests'
             : 'People to follow'}
         </h3>
         {isLoadingSuggestions ? (
           <div className="py-4 text-center">
-            <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>Loading suggestions...</p>
+            <p className={`text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>Loading suggestions...</p>
           </div>
         ) : peopleToFollow.length === 0 ? (
           <div className="py-4 text-center">
-            <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>No suggestions yet</p>
+            <p className={`text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>No suggestions yet</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -205,12 +211,12 @@ const RightPanel = () => {
                 .slice(0, 2);
               
               return (
-                <div key={person.id} className={`rounded-xl px-3.5 py-3.5 border ${theme === 'dark' ? 'border-white/20 hover:bg-white/10 hover:border-white/40' : 'border-border/50 hover:bg-backgroundElevated/60 hover:border-border/70'} transition-all duration-200`}>
+                <div key={person.id} className={`rounded-xl px-3.5 py-3.5 transition-all duration-200 ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-backgroundSubtle hover:bg-backgroundHover'}`}>
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <Link
                         to={`/profile/${person.id}`}
-                        className={`flex-shrink-0 w-10 h-10 rounded-full overflow-hidden ${theme === 'dark' ? '' : 'border-2 border-border'} bg-primary/20 flex items-center justify-center ${theme === 'dark' ? '' : 'hover:border-accent'} transition-colors`}
+                        className={`flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-primary/20 flex items-center justify-center transition-colors ${theme === 'dark' ? '' : ''}`}
                       >
                         {person.profilePictureUrl ? (
                           <img
@@ -225,13 +231,13 @@ const RightPanel = () => {
                       <div className="flex-1 min-w-0">
                         <Link
                           to={`/profile/${person.id}`}
-                          className={`block text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} truncate hover:text-accent transition-colors`}
+                          className={`block text-sm font-bold truncate hover:text-accent transition-colors ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}
                         >
                           {person.name}
                         </Link>
                         <Link
                           to={`/profile/${person.id}`}
-                          className={`block text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} truncate hover:text-accent transition-colors`}
+                          className={`block text-xs truncate hover:text-accent transition-colors ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}
                         >
                           @{person.handle}
                         </Link>
@@ -240,13 +246,13 @@ const RightPanel = () => {
                             {matchingInterests.slice(0, 2).map((interest: string, idx: number) => (
                               <span
                                 key={idx}
-                                className="px-2 py-0.5 text-[10px] font-semibold bg-accent/20 text-accent rounded-md border border-accent/30"
+                                className={`px-2 py-0.5 text-[10px] font-semibold bg-accent/20 text-accent rounded-md ${theme === 'dark' ? 'border border-accent/30' : ''}`}
                               >
                                 {interest}
                               </span>
                             ))}
                             {matchingInterests.length > 2 && (
-                              <span className={`px-2 py-0.5 text-[10px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
+                              <span className={`px-2 py-0.5 text-[10px] ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>
                                 +{matchingInterests.length - 2} more
                               </span>
                             )}
@@ -258,15 +264,15 @@ const RightPanel = () => {
                       onClick={() => (following ? unfollowUser(person.id) : followUser(person.id))}
                       className={`ml-3 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 whitespace-nowrap active:scale-95 ${
                         following 
-                          ? theme === 'dark' ? 'bg-white/10 text-white/70 border border-white/20' : 'bg-backgroundElevated/80 text-textMuted border border-border/60 shadow-subtle'
-                          : 'bg-gradient-to-r from-primary to-accent text-white hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover'
+                          ? theme === 'dark' ? 'bg-white/10 text-darkTextMuted' : 'bg-backgroundHover text-textMuted'
+                          : 'bg-gradient-to-r from-primary to-accent text-white hover:from-primaryHover hover:to-accentHover shadow-sm hover:shadow-md'
                       }`}
                     >
                       {following ? 'Following' : 'Follow'}
                     </button>
                   </div>
                   {overlapCount > 0 && (
-                    <p className={`text-[10px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mt-1.5`}>
+                    <p className={`text-[10px] mt-1.5 ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>
                       {overlapCount} shared interest{overlapCount !== 1 ? 's' : ''}
                     </p>
                   )}

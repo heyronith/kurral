@@ -85,7 +85,7 @@ const LeftSidebar = () => {
 
   return (
     <>
-      <aside className={`fixed left-0 top-[68px] h-[calc(100vh-68px)] w-64 ${theme === 'dark' ? 'bg-transparent border-white/20' : 'bg-background border-border/60'} border-r-2 flex flex-col z-30 hidden lg:flex`}>
+      <aside className={`fixed left-0 top-[68px] h-[calc(100vh-68px)] w-64 ${theme === 'dark' ? 'bg-darkBg border-r border-darkBorder' : 'bg-backgroundElevated'} flex flex-col z-30 hidden lg:flex`}>
         {/* User Profile Section */}
         <div className="px-4 pt-[48px] pb-4">
           <Link
@@ -106,10 +106,10 @@ const LeftSidebar = () => {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className={`font-semibold text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} truncate group-hover:text-accent transition-colors`}>
+              <div className={`font-semibold text-sm truncate group-hover:text-accent transition-colors ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>
                 {currentUser?.name || 'User'}
               </div>
-              <div className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} truncate`}>
+              <div className={`text-xs truncate ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>
                 @{currentUser?.handle || 'username'}
               </div>
             </div>
@@ -128,15 +128,15 @@ const LeftSidebar = () => {
                 <>
                   <Icon
                     size={20}
-                    className={active ? 'text-white' : theme === 'dark' ? 'text-white/70 group-hover:text-white' : 'text-textMuted group-hover:text-textPrimary'}
+                    className={active ? 'text-white' : theme === 'dark' ? 'text-darkTextMuted group-hover:text-darkTextPrimary' : 'text-textMuted group-hover:text-textPrimary'}
                   />
-                  <span className={`flex-1 text-sm ${theme === 'dark' ? 'text-white' : ''}`}>{item.label}</span>
+                  <span className={`flex-1 text-sm ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>{item.label}</span>
                   {showBadge && (
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs font-semibold min-w-[20px] text-center ${
                         active
                           ? 'bg-white/20 text-white'
-                          : 'bg-black text-white'
+                          : theme === 'dark' ? 'bg-accent text-white' : 'bg-accent text-white'
                       }`}
                     >
                       {item.notificationCount}
@@ -152,8 +152,8 @@ const LeftSidebar = () => {
                       onClick={item.onClick}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative w-full text-left ${
                         active
-                          ? theme === 'dark' ? 'bg-white/20 text-white font-semibold' : 'bg-black text-white font-semibold shadow-subtle'
-                          : theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-textPrimary hover:bg-backgroundElevated/60'
+                          ? 'bg-accent text-white font-semibold shadow-subtle'
+                          : theme === 'dark' ? 'text-darkTextMuted hover:text-darkTextPrimary hover:bg-white/10' : 'text-textMuted hover:text-textPrimary hover:bg-backgroundHover'
                       }`}
                     >
                       {content}
@@ -163,8 +163,8 @@ const LeftSidebar = () => {
                       to={item.path}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative ${
                         active
-                          ? theme === 'dark' ? 'bg-white/20 text-white font-semibold' : 'bg-black text-white font-semibold shadow-subtle'
-                          : theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-textPrimary hover:bg-backgroundElevated/60'
+                          ? 'bg-accent text-white font-semibold shadow-subtle'
+                          : theme === 'dark' ? 'text-darkTextMuted hover:text-darkTextPrimary hover:bg-white/10' : 'text-textMuted hover:text-textPrimary hover:bg-backgroundHover'
                       }`}
                     >
                       {content}
@@ -176,20 +176,20 @@ const LeftSidebar = () => {
           </ul>
           
           {/* Feedback Section - Right below "Our Approach" */}
-          <div className="px-2 pt-4 mt-2 border-t-2 border-border/60">
+          <div className={`px-2 pt-4 mt-2 ${theme === 'dark' ? 'border-t border-darkBorder' : ''}`}>
             <div className="mb-2">
-              <label className={`block text-xs font-medium mb-2 ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
+              <label className={`block text-xs font-medium mb-2 ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>
                 Help us improve
               </label>
               <textarea
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
                 placeholder="Share your thoughts, suggestions, or report issues..."
-                className={`w-full min-h-[80px] px-3 py-2 rounded-lg text-sm resize-none ${
+                className={`w-full min-h-[80px] px-3 py-2 rounded-lg text-sm resize-none border-2 outline-none focus:ring-2 transition-all duration-200 ${
                   theme === 'dark'
-                    ? 'bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-accent/60 focus:ring-accent/20'
-                    : 'bg-card/40 border-border/60 text-textPrimary placeholder:text-textMuted/60 focus:border-accent/60 focus:ring-accent/20'
-                } border-2 outline-none focus:ring-2 transition-all duration-200`}
+                    ? 'bg-white/10 border-darkBorder text-darkTextPrimary placeholder:text-darkTextMuted focus:border-accent/60 focus:ring-accent/20'
+                    : 'bg-backgroundSubtle border-border text-textPrimary placeholder:text-textMuted focus:border-accent/60 focus:ring-accent/20'
+                }`}
                 disabled={isSubmittingFeedback}
               />
             </div>
@@ -198,11 +198,11 @@ const LeftSidebar = () => {
                 className={`mb-2 px-3 py-2 rounded-lg text-xs font-medium ${
                   feedbackMessage.type === 'success'
                     ? theme === 'dark'
-                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                      : 'bg-green-100 text-green-700 border border-green-300'
+                      ? 'bg-success/20 text-success border border-success/30'
+                      : 'bg-success/10 text-success border border-success/30'
                     : theme === 'dark'
-                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    : 'bg-red-100 text-red-700 border border-red-300'
+                    ? 'bg-error/20 text-error border border-error/30'
+                    : 'bg-error/10 text-error border border-error/30'
                 }`}
               >
                 {feedbackMessage.text}
@@ -211,15 +211,13 @@ const LeftSidebar = () => {
             <button
               onClick={handleSubmitFeedback}
               disabled={!feedbackText.trim() || isSubmittingFeedback}
-              className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/40 ${
                 feedbackText.trim() && !isSubmittingFeedback
-                  ? theme === 'dark'
-                    ? 'bg-black text-white hover:bg-black/80 active:scale-95'
-                    : 'bg-black text-white hover:bg-black/80 active:scale-95'
+                  ? 'bg-accent text-white hover:bg-accentHover active:scale-95'
                   : theme === 'dark'
-                  ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                  : 'bg-backgroundElevated/50 text-textMuted cursor-not-allowed'
-              } focus:outline-none focus:ring-2 focus:ring-black/40`}
+                  ? 'bg-white/10 text-darkTextMuted cursor-not-allowed'
+                  : 'bg-backgroundHover text-textMuted cursor-not-allowed'
+              }`}
             >
               {isSubmittingFeedback ? (
                 <span className="flex items-center justify-center gap-2">

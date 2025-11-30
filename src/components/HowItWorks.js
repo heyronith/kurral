@@ -3,7 +3,7 @@ const steps = [
     {
         number: '01',
         title: 'Control Your Algorithm',
-        description: 'Adjust every ranking signal in real-time. See exactly why content appears in your feed. Boost topics, mute noise, prioritize conversations—all transparent and adjustable.',
+        description: 'Adjust every ranking signal in real-time. See exactly why content appears in your feed. Boost topics, mute noise, prioritize conversations - all transparent and adjustable.',
         demo: true,
     },
     {
@@ -14,14 +14,14 @@ const steps = [
     },
     {
         number: '03',
-        title: 'Earn Based on Value',
-        description: 'Monetization isn\'t about views—it\'s about impact. See transparent metrics: quality engagement, knowledge shared, meaningful conversations started. Get rewarded for creating value.',
+        title: 'Get Recognized for Value',
+        description: 'Recognition isn\'t about views - it\'s about impact. See transparent metrics: quality engagement, knowledge shared, meaningful conversations started. Get recognized for creating value. Future monetization will be based on this system.',
         demo: true,
     },
     {
         number: '04',
         title: 'Trust Through Verification',
-        description: 'Every post is fact-checked in real-time by sophisticated AI. Authentic content rises. Misinformation is flagged. You stay informed with confidence.',
+        description: 'Every post is fact-checked in real-time by Truth intelligence. Authentic content rises. Misinformation is flagged. You stay informed with confidence.',
         demo: true,
     },
 ];

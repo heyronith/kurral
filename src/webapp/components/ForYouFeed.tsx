@@ -83,7 +83,7 @@ const ForYouFeed = () => {
     <div className="px-4 py-4">
       {scoredChirps.map((scoredChirp) => (
         <div key={scoredChirp.chirp.id} className="mb-4">
-          <div className={`mb-2 px-3 py-2 text-xs ${theme === 'dark' ? 'text-white/70 bg-transparent border-white/20' : 'text-textMuted bg-backgroundElevated/50 border-border/40'} rounded-lg border`}>
+          <div className={`mb-2 px-3 py-2 text-xs ${theme === 'dark' ? 'text-white/70 bg-transparent border border-white/20 rounded-lg' : 'text-textMuted'}`}>
             <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-textLabel'}`}>Why this post:</span>{' '}
             <span className={theme === 'dark' ? 'text-white/70' : 'text-textSecondary'}>{scoredChirp.explanation}</span>
           </div>

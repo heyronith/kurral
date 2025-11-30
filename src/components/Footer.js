@@ -1,6 +1,9 @@
-import { jsxs as _jsxs, jsx as _jsx } from "react/jsx-runtime";
+import { jsxs as _jsxs, jsx as _jsx, Fragment as _Fragment } from "react/jsx-runtime";
+import { useState } from 'react';
+import ContactModal from './ContactModal';
 const Footer = () => {
     const year = new Date().getFullYear();
-    return (_jsx("footer", { className: "section-container border-t border-border/60 py-8 text-sm text-textMuted", children: _jsxs("div", { className: "flex flex-col items-center justify-between gap-4 md:flex-row", children: [_jsxs("span", { children: ["\u00A9 ", year, " Kurral"] }), _jsxs("div", { className: "flex gap-6 text-textLabel", children: [_jsx("span", { children: "Email" }), _jsx("span", { children: "Privacy (coming soon)" }), _jsx("span", { children: "X / Bluesky (coming soon)" })] })] }) }));
+    const [contactModalOpen, setContactModalOpen] = useState(false);
+    return (_jsxs(_Fragment, { children: [_jsx("footer", { className: "section-container border-t border-border/40 py-6", children: _jsxs("div", { className: "max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-textMuted", children: [_jsxs("span", { children: ["\u00A9 ", year, " Kurral"] }), _jsx("button", { onClick: () => setContactModalOpen(true), className: "hover:text-textPrimary transition-colors", children: "Contact" })] }) }), _jsx(ContactModal, { open: contactModalOpen, onClose: () => setContactModalOpen(false) })] }));
 };
 export default Footer;

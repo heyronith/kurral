@@ -48,7 +48,7 @@ const userFromFirestoreDoc = (doc: any): User => {
       : undefined,
     kurralScore: data.kurralScore
       ? {
-          score: data.kurralScore.score || 650,
+          score: data.kurralScore.score || 0,
           lastUpdated: toDate(data.kurralScore.lastUpdated),
           components: data.kurralScore.components || {
             qualityHistory: 0,

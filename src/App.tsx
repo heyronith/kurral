@@ -1,19 +1,28 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import LandingPage from './pages/LandingPage';
-import ChirpApp from './webapp/pages/ChirpApp';
-import ProfilePage from './webapp/pages/ProfilePage';
-import SettingsPage from './webapp/pages/SettingsPage';
-import Login from './webapp/components/Login';
-import Signup from './webapp/components/Signup';
-import Onboarding from './webapp/components/Onboarding';
-import ProtectedRoute from './webapp/components/ProtectedRoute';
-import PostDetailView from './webapp/components/PostDetailView';
-import BookmarksPage from './webapp/pages/BookmarksPage';
-import NotificationsPage from './webapp/pages/NotificationsPage';
-import DashboardPage from './webapp/pages/DashboardPage';
 import { ComposerProvider } from './webapp/context/ComposerContext';
 import { useThemeStore } from './webapp/store/useThemeStore';
+
+// Lazy load heavy webapp routes to reduce landing page bundle
+const ChirpApp = lazy(() => import('./webapp/pages/ChirpApp'));
+const ProfilePage = lazy(() => import('./webapp/pages/ProfilePage'));
+const SettingsPage = lazy(() => import('./webapp/pages/SettingsPage'));
+const Login = lazy(() => import('./webapp/components/Login'));
+const Signup = lazy(() => import('./webapp/components/Signup'));
+const Onboarding = lazy(() => import('./webapp/components/Onboarding'));
+const ProtectedRoute = lazy(() => import('./webapp/components/ProtectedRoute'));
+const PostDetailView = lazy(() => import('./webapp/components/PostDetailView'));
+const BookmarksPage = lazy(() => import('./webapp/pages/BookmarksPage'));
+const NotificationsPage = lazy(() => import('./webapp/pages/NotificationsPage'));
+const DashboardPage = lazy(() => import('./webapp/pages/DashboardPage'));
+
+// Minimal loading fallback
+const PageLoader = () => (
+  <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 // Component to update document title based on current route
 const DocumentTitle = () => {
@@ -79,6 +88,7 @@ const App = () => {
       <ComposerProvider>
       <DocumentTitle />
       <FaviconUpdater />
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/lp" element={<LandingPage />} />
         <Route path="/" element={<Navigate to="/app" replace />} />
@@ -150,6 +160,7 @@ const App = () => {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
       </ComposerProvider>
     </BrowserRouter>
   );

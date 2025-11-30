@@ -1,74 +1,105 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Font loaded via preconnect in HTML for better performance */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* ===========================================
+     LIGHT MODE (Default)
+     =========================================== */
   :root {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    color: #F5F7FA; /* Soft white with warm undertone */
-    background-color: #000000; /* Pure black */
+    color: #1A1A1A;
+    background-color: #FAFAFA;
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    
+    /* CSS custom properties for light theme - Neural Violet */
+    --color-bg: #FAFAFA;
+    --color-bg-elevated: #FFFFFF;
+    --color-card: rgba(255, 255, 255, 0.9);
+    --color-border: rgba(0, 0, 0, 0.1);
+    --color-text-primary: #1A1A1A;
+    --color-text-secondary: #333333;
+    --color-text-muted: #666666;
+    --color-accent: #8B5CF6;
   }
 
   body {
     min-height: 100vh;
-    background: #000000;
+    min-height: 100dvh; /* Dynamic viewport height for mobile */
+    background: #FAFAFA;
     background-attachment: fixed;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* Enhanced scrollbar styling - updated for black background */
+  /* Light mode scrollbar styling */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    background: #0A0A0A;
+    background: #F0F0F0;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #1A1A1A;
+    background: #CCCCCC;
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
+    background: #AAAAAA;
+  }
+
+  /* Selection styling - Neural Violet accent */
+  ::selection {
+    background-color: rgba(139, 92, 246, 0.25);
+    color: #1A1A1A;
+  }
+
+  /* ===========================================
+     DARK MODE (Applied via .dark class)
+     =========================================== */
+  .dark {
+    color: #F5F7FA;
+    background-color: #000000;
+    
+    /* CSS custom properties for dark theme */
+    --color-bg: #000000;
+    --color-bg-elevated: #0A0A0A;
+    --color-card: rgba(255, 255, 255, 0.03);
+    --color-border: rgba(255, 255, 255, 0.1);
+    --color-text-primary: #F5F7FA;
+    --color-text-secondary: rgba(255, 255, 255, 0.85);
+    --color-text-muted: rgba(255, 255, 255, 0.6);
+  }
+
+  .dark body,
+  body.dark {
+    background: #000000;
+  }
+
+  /* Dark mode scrollbar */
+  .dark ::-webkit-scrollbar-track {
+    background: #0A0A0A;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #1A1A1A;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
     background: #262626;
   }
 
-  /* Selection styling - updated to cyan accent */
-  ::selection {
-    background-color: rgba(6, 182, 212, 0.25);
+  /* Dark mode selection */
+  .dark ::selection {
+    background-color: rgba(139, 92, 246, 0.25);
     color: #F5F7FA;
-  }
-
-  /* Dark theme - make all text white */
-  .dark {
-    color: #FFFFFF;
-  }
-
-  .dark * {
-    color: inherit;
-  }
-
-  /* Override specific text colors in dark mode */
-  .dark .text-textPrimary,
-  .dark .text-textSecondary,
-  .dark .text-textMuted,
-  .dark .text-textLabel,
-  .dark .text-textSubtle {
-    color: #FFFFFF;
-  }
-
-  .dark .text-textMuted {
-    color: rgba(255, 255, 255, 0.7);
-  }
-
-  .dark .text-textLabel {
-    color: rgba(255, 255, 255, 0.5);
   }
 }
 
@@ -147,8 +178,8 @@
     @apply bg-gradient-to-r from-accent via-accentLight to-accentSecondary bg-clip-text text-transparent;
   }
 
-  /* Subtle glow effect - updated to cyan */
+  /* Subtle glow effect - updated to Neural Violet */
   .glow-effect {
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.15), 0 0 40px rgba(6, 182, 212, 0.08);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 40px rgba(139, 92, 246, 0.08);
   }
 }

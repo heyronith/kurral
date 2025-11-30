@@ -1,20 +1,23 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import LandingPage from './pages/LandingPage';
-import ChirpApp from './webapp/pages/ChirpApp';
-import ProfilePage from './webapp/pages/ProfilePage';
-import SettingsPage from './webapp/pages/SettingsPage';
-import Login from './webapp/components/Login';
-import Signup from './webapp/components/Signup';
-import Onboarding from './webapp/components/Onboarding';
-import ProtectedRoute from './webapp/components/ProtectedRoute';
-import PostDetailView from './webapp/components/PostDetailView';
-import BookmarksPage from './webapp/pages/BookmarksPage';
-import NotificationsPage from './webapp/pages/NotificationsPage';
-import DashboardPage from './webapp/pages/DashboardPage';
 import { ComposerProvider } from './webapp/context/ComposerContext';
 import { useThemeStore } from './webapp/store/useThemeStore';
+// Lazy load heavy webapp routes to reduce landing page bundle
+const ChirpApp = lazy(() => import('./webapp/pages/ChirpApp'));
+const ProfilePage = lazy(() => import('./webapp/pages/ProfilePage'));
+const SettingsPage = lazy(() => import('./webapp/pages/SettingsPage'));
+const Login = lazy(() => import('./webapp/components/Login'));
+const Signup = lazy(() => import('./webapp/components/Signup'));
+const Onboarding = lazy(() => import('./webapp/components/Onboarding'));
+const ProtectedRoute = lazy(() => import('./webapp/components/ProtectedRoute'));
+const PostDetailView = lazy(() => import('./webapp/components/PostDetailView'));
+const BookmarksPage = lazy(() => import('./webapp/pages/BookmarksPage'));
+const NotificationsPage = lazy(() => import('./webapp/pages/NotificationsPage'));
+const DashboardPage = lazy(() => import('./webapp/pages/DashboardPage'));
+// Minimal loading fallback
+const PageLoader = () => (_jsx("div", { className: "min-h-screen bg-black flex items-center justify-center", children: _jsx("div", { className: "w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" }) }));
 // Component to update document title based on current route
 const DocumentTitle = () => {
     const location = useLocation();
@@ -76,6 +79,6 @@ const FaviconUpdater = () => {
     return null;
 };
 const App = () => {
-    return (_jsx(BrowserRouter, { children: _jsxs(ComposerProvider, { children: [_jsx(DocumentTitle, {}), _jsx(FaviconUpdater, {}), _jsxs(Routes, { children: [_jsx(Route, { path: "/lp", element: _jsx(LandingPage, {}) }), _jsx(Route, { path: "/", element: _jsx(Navigate, { to: "/app", replace: true }) }), _jsx(Route, { path: "/login", element: _jsx(Login, {}) }), _jsx(Route, { path: "/signup", element: _jsx(Signup, {}) }), _jsx(Route, { path: "/onboarding", element: _jsx(ProtectedRoute, { children: _jsx(Onboarding, {}) }) }), _jsx(Route, { path: "/app", element: _jsx(ProtectedRoute, { children: _jsx(ChirpApp, {}) }) }), _jsx(Route, { path: "/post/:postId", element: _jsx(ProtectedRoute, { children: _jsx(PostDetailView, {}) }) }), _jsx(Route, { path: "/profile/:userId", element: _jsx(ProtectedRoute, { children: _jsx(ProfilePage, {}) }) }), _jsx(Route, { path: "/bookmarks", element: _jsx(ProtectedRoute, { children: _jsx(BookmarksPage, {}) }) }), _jsx(Route, { path: "/settings", element: _jsx(ProtectedRoute, { children: _jsx(SettingsPage, {}) }) }), _jsx(Route, { path: "/notifications", element: _jsx(ProtectedRoute, { children: _jsx(NotificationsPage, {}) }) }), _jsx(Route, { path: "/dashboard", element: _jsx(ProtectedRoute, { children: _jsx(DashboardPage, {}) }) }), _jsx(Route, { path: "*", element: _jsx(Navigate, { to: "/", replace: true }) })] })] }) }));
+    return (_jsx(BrowserRouter, { children: _jsxs(ComposerProvider, { children: [_jsx(DocumentTitle, {}), _jsx(FaviconUpdater, {}), _jsx(Suspense, { fallback: _jsx(PageLoader, {}), children: _jsxs(Routes, { children: [_jsx(Route, { path: "/lp", element: _jsx(LandingPage, {}) }), _jsx(Route, { path: "/", element: _jsx(Navigate, { to: "/app", replace: true }) }), _jsx(Route, { path: "/login", element: _jsx(Login, {}) }), _jsx(Route, { path: "/signup", element: _jsx(Signup, {}) }), _jsx(Route, { path: "/onboarding", element: _jsx(ProtectedRoute, { children: _jsx(Onboarding, {}) }) }), _jsx(Route, { path: "/app", element: _jsx(ProtectedRoute, { children: _jsx(ChirpApp, {}) }) }), _jsx(Route, { path: "/post/:postId", element: _jsx(ProtectedRoute, { children: _jsx(PostDetailView, {}) }) }), _jsx(Route, { path: "/profile/:userId", element: _jsx(ProtectedRoute, { children: _jsx(ProfilePage, {}) }) }), _jsx(Route, { path: "/bookmarks", element: _jsx(ProtectedRoute, { children: _jsx(BookmarksPage, {}) }) }), _jsx(Route, { path: "/settings", element: _jsx(ProtectedRoute, { children: _jsx(SettingsPage, {}) }) }), _jsx(Route, { path: "/notifications", element: _jsx(ProtectedRoute, { children: _jsx(NotificationsPage, {}) }) }), _jsx(Route, { path: "/dashboard", element: _jsx(ProtectedRoute, { children: _jsx(DashboardPage, {}) }) }), _jsx(Route, { path: "*", element: _jsx(Navigate, { to: "/", replace: true }) })] }) })] }) }));
 };
 export default App;

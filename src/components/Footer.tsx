@@ -1,16 +1,25 @@
+import { useState } from 'react';
+import ContactModal from './ContactModal';
+
 const Footer = () => {
   const year = new Date().getFullYear();
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+
   return (
-    <footer className="section-container border-t border-border/60 py-8 text-sm text-textMuted">
-      <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-        <span>© {year} Kurral</span>
-        <div className="flex gap-6 text-textLabel">
-          <span>Email</span>
-          <span>Privacy (coming soon)</span>
-          <span>X / Bluesky (coming soon)</span>
+    <>
+      <footer className="section-container border-t border-border/40 py-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-textMuted">
+          <span>© {year} Kurral</span>
+          <button
+            onClick={() => setContactModalOpen(true)}
+            className="hover:text-textPrimary transition-colors"
+          >
+            Contact
+          </button>
         </div>
-      </div>
-    </footer>
+      </footer>
+      <ContactModal open={contactModalOpen} onClose={() => setContactModalOpen(false)} />
+    </>
   );
 };
 

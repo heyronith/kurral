@@ -86,7 +86,7 @@ const TrendingNewsSection = () => {
 
   if (isLoading && trendingNews.length === 0) {
     return (
-      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
+      <div className={`rounded-2xl p-4 ${theme === 'dark' ? 'border border-white/20 bg-transparent' : 'bg-backgroundElevated shadow-sm'}`}>
         <h3 className={`mb-3 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="py-4 text-center">
           <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>Loading trending news...</p>
@@ -97,7 +97,7 @@ const TrendingNewsSection = () => {
 
   if (error && trendingNews.length === 0) {
     return (
-      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
+      <div className={`rounded-2xl p-4 ${theme === 'dark' ? 'border border-white/20 bg-transparent' : 'bg-backgroundElevated shadow-sm'}`}>
         <h3 className={`mb-3 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="py-4 text-center">
           <p className="text-xs text-error mb-2">{error}</p>
@@ -114,7 +114,7 @@ const TrendingNewsSection = () => {
 
   if (trendingNews.length === 0) {
     return (
-      <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
+      <div className={`rounded-2xl p-4 ${theme === 'dark' ? 'border border-white/20 bg-transparent' : 'bg-backgroundElevated shadow-sm'}`}>
         <h3 className={`mb-3 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="py-4 text-center">
           <p className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>No trending news available</p>
@@ -124,7 +124,7 @@ const TrendingNewsSection = () => {
   }
 
   return (
-    <div className={`rounded-2xl border-2 ${theme === 'dark' ? 'border-white/20 bg-transparent' : 'border-border/60 bg-background/70'} p-4 ${theme === 'dark' ? '' : 'shadow-sm backdrop-blur'}`}>
+    <div className={`rounded-2xl p-4 ${theme === 'dark' ? 'border border-white/20 bg-transparent' : 'bg-backgroundElevated shadow-sm'}`}>
       <div className="flex items-center justify-between mb-3">
         <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Today's News</h3>
         <div className="flex items-center gap-2">

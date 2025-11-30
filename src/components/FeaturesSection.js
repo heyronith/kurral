@@ -17,15 +17,15 @@ const features = [
     },
     {
         id: 'value-system',
-        title: 'Value-Based Monetization',
-        description: 'Creators earn based on the value their content creates, not views or impressions. Transparent metrics show real impact: engagement quality, knowledge shared, conversations started.',
+        title: 'Value-Based Recognition',
+        description: 'Creators get recognized based on the value their content creates, not views or impressions. Transparent metrics show real impact: engagement quality, knowledge shared, conversations started. Future monetization will be based on this value system.',
         icon: '💎',
         demoPlaceholder: true,
     },
     {
         id: 'fact-checking',
         title: 'Real-Time Fact-Checking',
-        description: 'Sophisticated AI algorithms verify claims instantly. Authentic content rises. Misinformation is flagged before it spreads. Stay at the forefront of truth.',
+        description: 'Truth intelligence verifies claims instantly. Authentic content rises. Misinformation is flagged before it spreads. Stay at the forefront of truth.',
         icon: '✅',
         demoPlaceholder: true,
     },

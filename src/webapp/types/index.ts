@@ -85,7 +85,7 @@ export type KurralScoreHistoryEntry = {
 };
 
 export type KurralScore = {
-  score: number; // 300-850
+  score: number; // 0-100
   lastUpdated: Date;
   components: KurralScoreComponents;
   history: KurralScoreHistoryEntry[];

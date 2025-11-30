@@ -56,8 +56,8 @@ const Login = () => {
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
         
-        <div className="relative z-10">
-          <Link to="/" className="inline-flex items-center gap-2 mb-12 group">
+        <div className="relative z-10 flex flex-col h-full">
+          <Link to="/" className="inline-flex items-center gap-2 mb-16 group">
             <span className="text-xl font-bold text-textPrimary">Kurral</span>
             <img 
               src="/quotation-marks.png" 
@@ -66,61 +66,48 @@ const Login = () => {
             />
           </Link>
 
-          <div className="max-w-md space-y-8">
-            <div>
-              <h1 className="text-4xl font-bold text-textPrimary mb-4 leading-tight">
-                Your algorithm.<br />
-                <span className="text-primary">Your rules.</span>
+          <div className="flex-1 flex flex-col justify-center max-w-md">
+            <div className="mb-8">
+              <h1 className="text-6xl font-bold text-textPrimary mb-6 leading-[1.1]">
+                Welcome<br />
+                <span className="bg-gradient-to-r from-primary via-accent to-accentSecondary bg-clip-text text-transparent">back.</span>
               </h1>
-              <p className="text-lg text-textSecondary leading-relaxed">
-                Control every signal. Personalize your audience. Earn from value, not vanity metrics. All backed by real-time fact-checking.
+              <p className="text-2xl text-textSecondary leading-relaxed font-medium">
+                Your personalized feed is waiting. Every post explained. Every recommendation transparent. Your data, your rules.
               </p>
             </div>
 
-            <div className="space-y-5 pt-4">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            <div className="space-y-4 mt-10">
+              <div className="flex items-center gap-3 text-textPrimary">
+                <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-textPrimary mb-1">100% Algorithm Control</h3>
-                  <p className="text-sm text-textMuted">Tune every signal. Personalize your audience. Your feed, your rules.</p>
-                </div>
+                <span className="text-lg">Your feed tuned to your preferences</span>
               </div>
-
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <div className="flex items-center gap-3 text-textPrimary">
+                <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-textPrimary mb-1">Value-Based Monetization</h3>
-                  <p className="text-sm text-textMuted">Creators earn from value created, not views. Transparent. Fair. Future-proof.</p>
-                </div>
+                <span className="text-lg">Verified content only - no viral lies</span>
               </div>
-
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-accentSecondary/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-accentSecondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              <div className="flex items-center gap-3 text-textPrimary">
+                <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-textPrimary mb-1">AI Fact-Checking</h3>
-                  <p className="text-sm text-textMuted">Real-time verification. Authentic content only. Stay ahead of misinformation.</p>
-                </div>
+                <span className="text-lg">Value-based earnings if you're a creator</span>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="relative z-10">
-          <p className="text-sm text-textMuted">
-            Where authentic content meets intelligent algorithms
-          </p>
+          <div className="relative z-10 mt-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+              <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <p className="text-sm font-medium text-primary">Your data stays yours</p>
+          </div>
+        </div>
         </div>
       </div>
 
@@ -140,8 +127,8 @@ const Login = () => {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-textPrimary mb-2">Welcome back</h2>
-            <p className="text-textMuted">Sign in to continue to Kurral</p>
+            <h2 className="text-4xl font-bold text-textPrimary mb-3">Good to see you</h2>
+            <p className="text-lg text-textMuted">Your personalized feed is ready and waiting</p>
           </div>
 
           {error && (
