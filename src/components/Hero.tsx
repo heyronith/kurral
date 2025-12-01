@@ -5,12 +5,11 @@ const Hero = () => {
     <section id="top" className="section-container py-16 md:py-28">
       <div className="max-w-4xl mx-auto text-center space-y-6">
         {/* Headline */}
-        <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-[1.1] text-textPrimary tracking-tight flex items-center justify-center gap-3 sm:gap-4">
+        <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-[1.1] text-textPrimary tracking-tight">
           You are the{' '}
           <span className="bg-gradient-to-r from-accent to-accentSecondary bg-clip-text text-transparent">
             algorithm.
           </span>
-          <img src="/quotation-marks.png" alt="" className="h-8 sm:h-10 md:h-14 lg:h-16 w-auto" loading="eager" />
         </h1>
 
         {/* Subhead - Single scannable line */}
