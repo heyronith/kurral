@@ -10,7 +10,10 @@ Rules:
 - Detect the domain (health, finance, politics, technology, science, society, general).
 - Assign risk level (low, medium, high) based on potential harm if incorrect.
 - Estimate confidence 0-1 for how clear and verifiable the claim is.
-- Provide any cited evidence snippets if mentioned (optional).`;
+- Provide any cited evidence snippets if mentioned (optional).
+- If an image is provided, read ALL text in the image (including overlays, captions, memes, infographics).
+- Extract claims from both the post text AND any text visible in the image.
+- For images, also extract any statistical claims, quotes, or factual statements shown visually.`;
 
 const CLAIM_RESPONSE_SCHEMA = {
   type: 'object',
@@ -75,7 +78,27 @@ const ensureClaimId = (chirpId: string, candidateId: string | undefined, index: 
   return `${chirpId}-claim-${index + 1}`;
 };
 
-const fallbackExtract = (chirp: Pick<Chirp, 'id' | 'text'>): Claim[] => {
+const fallbackExtract = (chirp: Pick<Chirp, 'id' | 'text' | 'imageUrl'>): Claim[] => {
+  // If no text and no image, return empty
+  if (!chirp.text?.trim() && !chirp.imageUrl) {
+    return [];
+  }
+
+  // If only image exists without text, we can't extract claims without vision model
+  if (!chirp.text?.trim() && chirp.imageUrl) {
+    // Return a placeholder claim indicating image needs analysis
+    return [{
+      id: `${chirp.id}-heuristic-image`,
+      text: 'Image content requires analysis',
+      type: 'fact' as const,
+      domain: 'general' as const,
+      riskLevel: 'medium' as const,
+      confidence: 0.2,
+      extractedAt: new Date(),
+    }];
+  }
+
+  // Fallback for text-only extraction
   const sentences = chirp.text
     .split(/(?<=[.!?])\s+/)
     .map((sentence) => sentence.trim())
@@ -114,7 +137,12 @@ const toClaim = (chirpId: string, raw: ClaimExtractionResponse['claims'][number]
 });
 
 export async function extractClaimsForChirp(chirp: Chirp): Promise<Claim[]> {
-  if (!chirp.text?.trim()) {
+  // Check if we have any content to analyze (text or image)
+  const hasText = chirp.text?.trim() && chirp.text.trim().length > 0;
+  const hasImage = chirp.imageUrl && chirp.imageUrl.trim().length > 0;
+
+  // If no text and no image, return empty
+  if (!hasText && !hasImage) {
     return [];
   }
 
@@ -122,20 +150,61 @@ export async function extractClaimsForChirp(chirp: Chirp): Promise<Claim[]> {
     return fallbackExtract(chirp);
   }
 
-  const agent = new BaseAgent();
-  const prompt = `Post ID: ${chirp.id}
+  // Determine model based on whether image exists
+  // Use vision model (gpt-4o) if image exists, otherwise use text-only (gpt-4o-mini)
+  const modelName = hasImage ? 'gpt-4o' : 'gpt-4o-mini';
+  const agent = new BaseAgent(modelName);
+
+  // Build prompt
+  let prompt = `Post ID: ${chirp.id}
 Author: ${chirp.authorId}
-Topic: ${chirp.topic}
+Topic: ${chirp.topic}`;
+
+  if (hasText) {
+    prompt += `
 Text:
 """
 ${chirp.text}
-"""
+"""`;
+  }
+
+  if (hasImage) {
+    if (hasText) {
+      prompt += `
+      
+An image is attached to this post. Extract claims from BOTH the text above AND any text/claims visible in the image.`;
+    } else {
+      prompt += `
+      
+This post contains only an image. Read ALL text in the image (including any overlays, captions, memes, infographics, or embedded text) and extract all verifiable claims from it.`;
+    }
+    prompt += ` Analyze the image content carefully and extract any factual claims, statistics, quotes, or statements that can be verified.`;
+  }
+
+  prompt += `
 
 Extract claims following the schema. Ignore emojis or filler text.`;
 
   try {
-    const response = await agent.generateJSON<ClaimExtractionResponse>(prompt, SYSTEM_PROMPT, CLAIM_RESPONSE_SCHEMA);
+    let response: ClaimExtractionResponse;
+    
+    if (hasImage) {
+      // Use vision API when image exists
+      console.log('[ClaimExtractionAgent] Using vision model (gpt-4o) to extract claims with image');
+      response = await agent.generateJSONWithVision<ClaimExtractionResponse>(
+        prompt,
+        chirp.imageUrl || null,
+        SYSTEM_PROMPT,
+        CLAIM_RESPONSE_SCHEMA
+      );
+    } else {
+      // Use text-only API when no image
+      console.log('[ClaimExtractionAgent] Using text-only model (gpt-4o-mini) to extract claims');
+      response = await agent.generateJSON<ClaimExtractionResponse>(prompt, SYSTEM_PROMPT, CLAIM_RESPONSE_SCHEMA);
+    }
+
     if (!response?.claims?.length) {
+      console.warn('[ClaimExtractionAgent] No claims extracted, falling back to heuristic extraction');
       return fallbackExtract(chirp);
     }
 
@@ -143,7 +212,7 @@ Extract claims following the schema. Ignore emojis or filler text.`;
       .filter((claim) => typeof claim.text === 'string' && claim.text.trim().length > 0)
       .map((claim, index) => toClaim(chirp.id, claim, index));
   } catch (error) {
-    console.error('[ClaimExtractionAgent] Falling back due to error:', error);
+    console.error('[ClaimExtractionAgent] Error during claim extraction, falling back:', error);
     return fallbackExtract(chirp);
   }
 }

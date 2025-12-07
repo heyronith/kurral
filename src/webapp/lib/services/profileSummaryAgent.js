@@ -4,7 +4,7 @@ import { tryGenerateEmbedding } from './embeddingService';
 const SYSTEM_INSTRUCTION = `You are a profile analysis expert. Your task is to create a concise, semantic summary of a user's profile that captures their interests, expertise, values, and context. This summary will be used for personalized content recommendations.
 
 Guidelines:
-- Be concise (2-4 sentences, max 300 characters)
+- Be concise (2-4 sentences, max 75 words)
 - Focus on actionable signals: interests, expertise areas, values, location context
 - Use natural language that flows well
 - Include implicit signals from bio, location, and URL
@@ -86,10 +86,11 @@ Return ONLY the summary text, no labels, no formatting, just the natural languag
             console.warn('[ProfileSummaryAgent] Generated empty summary');
             return '';
         }
-        // Enforce max length
-        const maxLength = 300;
-        const finalSummary = cleanedSummary.length > maxLength
-            ? cleanedSummary.substring(0, maxLength - 3) + '...'
+        // Enforce word limit (75 words max)
+        const words = cleanedSummary.split(/\s+/);
+        const maxWords = 75;
+        const finalSummary = words.length > maxWords
+            ? words.slice(0, maxWords).join(' ') + '...'
             : cleanedSummary;
         console.log('[ProfileSummaryAgent] Generated profile summary:', finalSummary.substring(0, 100) + '...');
         return finalSummary;

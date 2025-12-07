@@ -55,7 +55,11 @@ service cloud.firestore {
         && (!('parentCommentId' in request.resource.data) || request.resource.data.parentCommentId == null || request.resource.data.parentCommentId is string)
         && (!('replyToUserId' in request.resource.data) || request.resource.data.replyToUserId == null || request.resource.data.replyToUserId is string)
         && (!('depth' in request.resource.data) || request.resource.data.depth == null || request.resource.data.depth is int)
-        && (!('replyCount' in request.resource.data) || request.resource.data.replyCount == null || request.resource.data.replyCount is int);
+        && (!('replyCount' in request.resource.data) || request.resource.data.replyCount == null || request.resource.data.replyCount is int)
+        // Validate optional rich media fields if present
+        && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl == null || request.resource.data.imageUrl is string)
+        && (!('formattedText' in request.resource.data) || request.resource.data.formattedText == null || request.resource.data.formattedText is string)
+        && (!('scheduledAt' in request.resource.data) || request.resource.data.scheduledAt == null || request.resource.data.scheduledAt is timestamp);
       allow update: if isAuthenticated() 
         && (
           // Author can update their own comment (but not change authorId)

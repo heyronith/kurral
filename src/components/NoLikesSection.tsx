@@ -5,7 +5,7 @@ const NoLikesSection = () => {
         <p className="text-xs uppercase tracking-[0.3em] text-textLabel">No likes, no clout war</p>
         <h2 className="text-3xl font-semibold text-textPrimary">No public likes. No clout war.</h2>
         <p className="text-textMuted">
-          On Kurral, you can appreciate, comment, and repost - but we don't plaster massive like and follower
+          On Kural, you can appreciate, comment, and repost - but we don't plaster massive like and follower
           counts under every post. Discovery happens through conversations and the one For You feed you control.
         </p>
         <ul className="list-disc space-y-3 pl-6 text-sm text-textMuted">
@@ -41,7 +41,7 @@ const NoLikesSection = () => {
             </span>
           </div>
           <p className="text-xs text-textLabel">
-            Kurral surfaces activity and your For You rules - not vanity metrics.
+            Kural surfaces activity and your For You rules - not vanity metrics.
           </p>
         </div>
       </div>

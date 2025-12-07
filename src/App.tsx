@@ -3,6 +3,9 @@ import { useEffect, lazy, Suspense } from 'react';
 import LandingPage from './pages/LandingPage';
 import { ComposerProvider } from './webapp/context/ComposerContext';
 import { useThemeStore } from './webapp/store/useThemeStore';
+import { botService } from './webapp/lib/services/botService';
+import { newsPipelineService } from './webapp/lib/services/newsPipelineService';
+import { botPostService } from './webapp/lib/services/botPostService';
 
 // Lazy load heavy webapp routes to reduce landing page bundle
 const ChirpApp = lazy(() => import('./webapp/pages/ChirpApp'));
@@ -30,10 +33,10 @@ const DocumentTitle = () => {
 
   useEffect(() => {
     const pathname = location.pathname;
-    let title = 'Kurral';
+    let title = 'Kural';
 
     if (pathname === '/lp') {
-      title = 'Kurral';
+      title = 'Kural';
     } else if (pathname === '/login') {
       title = 'Login';
     } else if (pathname === '/signup') {
@@ -41,7 +44,7 @@ const DocumentTitle = () => {
     } else if (pathname === '/onboarding') {
       title = 'Onboarding';
     } else if (pathname === '/app') {
-      title = 'Feed';
+      title = 'Kurals';
     } else if (pathname.startsWith('/post/')) {
       title = 'Post';
     } else if (pathname.startsWith('/profile/')) {
@@ -83,6 +86,71 @@ const FaviconUpdater = () => {
 };
 
 const App = () => {
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeBots = async () => {
+      try {
+        // Step 1: Ensure bot profiles are created
+        const botResult = await botService.ensureBotProfiles();
+        
+        if (!botResult.success) {
+          console.error(`[App] Failed to initialize bot profiles: ${botResult.error}`);
+          console.error('[App] Bot posting services will not start. Please check bot configuration and Firestore connection.');
+          return;
+        }
+
+        if (botResult.bots.length === 0) {
+          console.error('[App] No bot profiles were created. Bot posting services will not start.');
+          return;
+        }
+
+        console.log(`[App] Successfully ensured ${botResult.bots.length} bot profiles.`);
+
+        if (!isMounted) {
+          return;
+        }
+
+        // Step 2: Validate setup before starting services
+        const apiKey = import.meta.env.VITE_NEWS_API_KEY;
+        if (!apiKey) {
+          console.warn(
+            '[App] VITE_NEWS_API_KEY is not set. Bot posts will not be created until the API key is configured.'
+          );
+          console.warn('[App] Set VITE_NEWS_API_KEY in your .env file to enable bot posting.');
+        }
+
+        // Step 3: Start bot post service
+        const posterIntervalMs = Number(import.meta.env.VITE_BOT_POSTER_INTERVAL_MS || 15000);
+        const postServiceResult = botPostService.start(posterIntervalMs);
+        
+        if (!postServiceResult.success) {
+          console.error(`[App] Failed to start bot post service: ${postServiceResult.reason}`);
+        }
+
+        // Step 4: Start news pipeline service
+        const intervalMs = Number(import.meta.env.VITE_NEWS_PIPELINE_INTERVAL_MS || 0);
+        const pipelineResult = await newsPipelineService.start(intervalMs);
+        
+        if (!pipelineResult.success) {
+          console.error(`[App] Failed to start news pipeline service: ${pipelineResult.reason}`);
+        } else {
+          console.log('[App] Bot services initialized successfully.');
+        }
+      } catch (error) {
+        console.error('[App] Critical error initializing bot services:', error);
+      }
+    };
+
+    initializeBots();
+
+    return () => {
+      isMounted = false;
+      botPostService.stop();
+      newsPipelineService.stop();
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <ComposerProvider>

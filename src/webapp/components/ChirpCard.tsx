@@ -1,15 +1,18 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Chirp } from '../types';
 import { useUserStore } from '../store/useUserStore';
 import { useFeedStore } from '../store/useFeedStore';
 import { useThemeStore } from '../store/useThemeStore';
+import { useComposer } from '../context/ComposerContext';
 import { tuningService } from '../lib/services/tuningService';
+import { chirpService } from '../lib/firestore';
 import CommentSection from './CommentSection';
 import FactCheckStatusPopup from './FactCheckStatusPopup';
-import { ReplyIcon, RepeatIcon, BookmarkIcon, BookmarkFilledIcon, TrashIcon } from './Icon';
+import { ReplyIcon, RepeatIcon, BookmarkIcon, BookmarkFilledIcon, TrashIcon, ComposeIcon } from './Icon';
 import ConfirmDialog from './ConfirmDialog';
 import { sanitizeHTML } from '../lib/utils/sanitize';
+import { linkifyMentions } from '../lib/utils/mentions';
 
 interface ChirpCardProps {
   chirp: Chirp;
@@ -20,6 +23,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
   const { getUser, currentUser, followUser, unfollowUser, isFollowing, bookmarkChirp, unbookmarkChirp, isBookmarked } = useUserStore();
   const { addChirp, deleteChirp } = useFeedStore();
   const { theme } = useThemeStore();
+  const { openComposerWithQuote } = useComposer();
   const author =
     getUser(chirp.authorId) ?? {
       id: chirp.authorId,
@@ -35,6 +39,34 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFactCheckPopup, setShowFactCheckPopup] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
+  const [showRepostMenu, setShowRepostMenu] = useState(false);
+  const [quotedChirp, setQuotedChirp] = useState<Chirp | null>(null);
+  const repostMenuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch quoted chirp if needed
+  useEffect(() => {
+    if (chirp.quotedChirpId && !quotedChirp) {
+      chirpService.getChirp(chirp.quotedChirpId).then(fetchedChirp => {
+        if (fetchedChirp) setQuotedChirp(fetchedChirp);
+      });
+    }
+  }, [chirp.quotedChirpId, quotedChirp]);
+
+  // Close repost menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (repostMenuRef.current && !repostMenuRef.current.contains(event.target as Node)) {
+        setShowRepostMenu(false);
+      }
+    };
+
+    if (showRepostMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showRepostMenu]);
 
   const formatTime = (date: Date): string => {
     const minutesAgo = Math.floor((Date.now() - date.getTime()) / 60000);
@@ -61,33 +93,27 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
 
 
   const sanitizedFormattedText = useMemo(() => {
-    if (!chirp.formattedText) {
-      return null;
+    if (chirp.formattedText) {
+      return sanitizeHTML(linkifyMentions(chirp.formattedText));
     }
-    return sanitizeHTML(chirp.formattedText);
-  }, [chirp.formattedText]);
+    return sanitizeHTML(linkifyMentions(chirp.text));
+  }, [chirp.formattedText, chirp.text]);
 
   // Render formatted HTML or plain text
   const renderFormattedText = (): React.ReactNode => {
     const textColorClass = theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary';
-    if (sanitizedFormattedText) {
+    
       return (
         <div
           className={`${textColorClass} mb-2 leading-relaxed whitespace-pre-wrap`}
           dangerouslySetInnerHTML={{ __html: sanitizedFormattedText }}
         />
-      );
-    }
-    // Fallback to plain text
-    return (
-      <p className={`${textColorClass} mb-2 leading-relaxed whitespace-pre-wrap`}>
-        {chirp.text}
-      </p>
     );
   };
 
   const handleRechirp = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setShowRepostMenu(false);
     if (!currentUser) return;
 
     try {
@@ -102,6 +128,12 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
     } catch (error) {
       console.error('Error rechirping:', error);
     }
+  };
+
+  const handleQuoteRepost = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowRepostMenu(false);
+    openComposerWithQuote(chirp);
   };
 
   const handleBookmark = async (e: React.MouseEvent) => {
@@ -163,41 +195,65 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
   };
 
   // Determine card styling based on fact check status
+  // Always returns a rounded border container with fact-check-based colors
   const getCardStyling = () => {
+    // Base styling: rounded container with padding
+    const baseClasses = 'rounded-xl p-4';
+    
+    // Determine border color based on fact check status
+    let borderColor: string;
+    let bgColor: string;
+    
     if (theme === 'dark') {
-      // Dark theme: subtle borders
+      // Dark theme styling
       if (!chirp.factCheckStatus) {
-        return 'bg-darkBgElevated/30 border border-darkBorder';
+        borderColor = 'border-darkBorder';
+        bgColor = 'bg-darkBgElevated/30';
+      } else {
+        switch (chirp.factCheckStatus) {
+          case 'clean':
+            borderColor = 'border-green-500/40';
+            bgColor = 'bg-darkBgElevated/30';
+            break;
+          case 'needs_review':
+            borderColor = 'border-yellow-500/40';
+            bgColor = 'bg-darkBgElevated/30';
+            break;
+          default: // blocked
+            borderColor = 'border-red-500/40';
+            bgColor = 'bg-darkBgElevated/30';
+            break;
+        }
       }
+    } else {
+      // Light theme styling
+      if (!chirp.factCheckStatus) {
+        borderColor = 'border-border';
+        bgColor = 'bg-backgroundElevated';
+      } else {
       switch (chirp.factCheckStatus) {
         case 'clean':
-          return 'bg-darkBgElevated/30 border border-success/30';
+            borderColor = 'border-green-500/50';
+            bgColor = 'bg-backgroundElevated';
+            break;
         case 'needs_review':
-          return 'bg-darkBgElevated/30 border border-warning/30';
-        default:
-          return 'bg-darkBgElevated/30 border border-error/30';
+            borderColor = 'border-yellow-500/50';
+            bgColor = 'bg-backgroundElevated';
+            break;
+          default: // blocked
+            borderColor = 'border-red-500/50';
+            bgColor = 'bg-backgroundElevated';
+            break;
+        }
       }
     }
     
-    // Light theme: completely minimal - no borders, no boxes
-    if (!chirp.factCheckStatus) {
-      return 'pb-6';
-    }
-    
-    // Fact-checked posts get very subtle background hint only (no borders)
-    switch (chirp.factCheckStatus) {
-      case 'clean':
-        return 'pb-6 bg-success/2';
-      case 'needs_review':
-        return 'pb-6 bg-warning/2';
-      default:
-        return 'pb-6 bg-error/2';
-    }
+    return `${baseClasses} border ${borderColor} ${bgColor}`;
   };
 
   return (
     <div 
-      className={`${getCardStyling()} transition-all duration-300 group cursor-pointer relative ${theme === 'dark' ? 'rounded-2xl p-6 text-darkTextPrimary' : 'pt-6 text-textPrimary'}`}
+      className={`${getCardStyling()} transition-all duration-300 group cursor-pointer relative ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}
       onClick={handleCardClick}
     >
       {/* Fact-check status icon - top right */}
@@ -319,13 +375,62 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
           
           {renderFormattedText()}
           
-          {/* Image display */}
+          {/* Quoted Chirp Display */}
+          {chirp.quotedChirpId && quotedChirp && (
+            <div 
+              className={`mt-2 mb-3 rounded-xl border p-3 cursor-pointer hover:bg-opacity-80 transition-colors ${theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-border/60 bg-backgroundElevated/30'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/post/${quotedChirp.id}`);
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                {getUser(quotedChirp.authorId)?.profilePictureUrl ? (
+                  <img
+                    src={getUser(quotedChirp.authorId)?.profilePictureUrl}
+                    alt={getUser(quotedChirp.authorId)?.name || 'User'}
+                    className="w-5 h-5 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center`}>
+                    <span className="text-primary font-bold text-[10px]">
+                      {(getUser(quotedChirp.authorId)?.name || 'U').charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1 overflow-hidden">
+                  <span className={`text-sm font-semibold truncate ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
+                    {getUser(quotedChirp.authorId)?.name || 'Unknown User'}
+                  </span>
+                  <span className={`text-xs truncate ${theme === 'dark' ? 'text-white/50' : 'text-textMuted'}`}>
+                    @{getUser(quotedChirp.authorId)?.handle || 'unknown'}
+                  </span>
+                  <span className={`text-xs ${theme === 'dark' ? 'text-white/30' : 'text-textMuted'}`}>·</span>
+                  <span className={`text-xs ${theme === 'dark' ? 'text-white/50' : 'text-textMuted'}`}>{formatTime(quotedChirp.createdAt)}</span>
+                </div>
+              </div>
+              <p className={`text-sm line-clamp-3 ${theme === 'dark' ? 'text-white/90' : 'text-textSecondary'}`}>
+                {quotedChirp.text}
+              </p>
+              {quotedChirp.imageUrl && (
+                <div className="mt-2 rounded-lg overflow-hidden h-32 relative">
+                  <img 
+                    src={quotedChirp.imageUrl} 
+                    alt="Quoted content" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Image display - 1:1 aspect ratio, full image visible */}
           {chirp.imageUrl && (
-            <div className={`mb-4 rounded-xl overflow-hidden ${theme === 'dark' ? '' : ''}`}>
+            <div className={`mb-4 rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-black/20' : 'bg-gray-50'} aspect-square flex items-center justify-center`}>
               <img
                 src={chirp.imageUrl}
                 alt="Post attachment"
-                className="w-full max-h-96 object-cover"
+                className="w-full h-full object-contain"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
@@ -389,13 +494,39 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
                 <span className="text-xs">{chirp.commentCount}</span>
               )}
             </button>
-            <button
-              onClick={handleRechirp}
-              className={`flex items-center gap-2 px-3 py-2 ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-accent hover:bg-backgroundElevated/60'} rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95`}
-              aria-label={`Repost ${author.name}'s post`}
-            >
-              <RepeatIcon size={16} />
-            </button>
+            <div className="relative" ref={repostMenuRef}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowRepostMenu(!showRepostMenu);
+                }}
+                className={`flex items-center gap-2 px-3 py-2 ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-accent hover:bg-backgroundElevated/60'} rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95 ${showRepostMenu ? 'text-accent' : ''}`}
+                aria-label={`Repost ${author.name}'s post`}
+              >
+                <RepeatIcon size={16} />
+              </button>
+              
+              {/* Repost Menu */}
+              {showRepostMenu && (
+                <div className={`absolute bottom-full right-0 mb-2 z-50 min-w-[160px] overflow-hidden rounded-xl border shadow-xl backdrop-blur-xl transition-all duration-200 ${theme === 'dark' ? 'bg-black/90 border-white/20 text-white' : 'bg-white/95 border-border/60 text-textPrimary'}`}>
+                  <button
+                    onClick={handleRechirp}
+                    className={`w-full px-4 py-3 text-left text-sm font-medium flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/70'}`}
+                  >
+                    <RepeatIcon size={16} />
+                    <span>Just repost</span>
+                  </button>
+                  <div className={`h-px ${theme === 'dark' ? 'bg-white/10' : 'bg-border/40'}`} />
+                  <button
+                    onClick={handleQuoteRepost}
+                    className={`w-full px-4 py-3 text-left text-sm font-medium flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/70'}`}
+                  >
+                    <ComposeIcon size={16} />
+                    <span>Add thoughts</span>
+                  </button>
+                </div>
+              )}
+            </div>
             {!isCurrentUser && (
               <button
                 onClick={handleBookmark}

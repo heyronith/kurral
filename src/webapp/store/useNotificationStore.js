@@ -1,6 +1,21 @@
 import { create } from 'zustand';
 import { notificationService } from '../lib/services/notificationService';
 import { useEffect } from 'react';
+import { useUserStore } from './useUserStore';
+const preloadNotificationActors = async (notifications) => {
+    if (!notifications || notifications.length === 0)
+        return;
+    const { loadUser, users } = useUserStore.getState();
+    if (!loadUser)
+        return;
+    const actorIds = Array.from(new Set(notifications
+        .map((notification) => notification.actorId)
+        .filter((id) => Boolean(id))));
+    const missingActorIds = actorIds.filter((id) => !users[id]);
+    if (missingActorIds.length === 0)
+        return;
+    await Promise.all(missingActorIds.map((actorId) => loadUser(actorId)));
+};
 export const useNotificationStore = create((set, get) => ({
     notifications: [],
     unreadCount: 0,
@@ -18,22 +33,28 @@ export const useNotificationStore = create((set, get) => ({
                 limitCount: 50,
             });
             set({ notifications, isLoading: false });
+            preloadNotificationActors(notifications).catch((error) => {
+                console.error('Error preloading notification actors:', error);
+            });
         }
         catch (error) {
             console.error('Error loading notifications:', error);
             set({ isLoading: false });
         }
     },
-    loadAllNotifications: async () => {
-        const currentUser = get().preferences?.userId;
-        if (!currentUser)
+    loadAllNotifications: async (userId) => {
+        const targetUserId = userId ?? get().preferences?.userId;
+        if (!targetUserId)
             return;
         set({ isLoading: true });
         try {
-            const notifications = await notificationService.getNotifications(currentUser, {
+            const notifications = await notificationService.getNotifications(targetUserId, {
                 limitCount: 100,
             });
             set({ notifications, isLoading: false });
+            preloadNotificationActors(notifications).catch((error) => {
+                console.error('Error preloading notification actors:', error);
+            });
             // Update unread count
             const unreadCount = notifications.filter((n) => !n.read).length;
             set({ unreadCount });
@@ -101,6 +122,9 @@ export const useNotificationStore = create((set, get) => ({
             // Update unread count
             const unreadCount = notifications.filter((n) => !n.read).length;
             set({ unreadCount });
+            preloadNotificationActors(notifications).catch((error) => {
+                console.error('Error preloading notification actors:', error);
+            });
         }, {
             read: false,
             limitCount: 50,

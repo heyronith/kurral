@@ -52,7 +52,7 @@ const InteractiveDemo = () => {
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-xs uppercase tracking-[0.3em] text-textLabel">Interactive demo</p>
-        <h2 className="text-3xl font-semibold text-textPrimary">Tune For You without leaving Kurral</h2>
+        <h2 className="text-3xl font-semibold text-textPrimary">Tune For You without leaving Kural</h2>
         <p className="text-textMuted">
           Flip between Latest and For You, adjust the controls, and watch the feed update live.
         </p>
@@ -63,7 +63,7 @@ const InteractiveDemo = () => {
           <span className="h-3 w-3 rounded-full bg-red-500" />
           <span className="h-3 w-3 rounded-full bg-yellow-500" />
           <span className="h-3 w-3 rounded-full bg-green-500" />
-          <div className="mx-auto text-textMuted">kurral.app/demo</div>
+          <div className="mx-auto text-textMuted">kural.app/demo</div>
         </div>
         <div className="grid gap-8 px-6 py-10 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">

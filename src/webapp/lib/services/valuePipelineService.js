@@ -57,10 +57,30 @@ async function withRetry(fn, operation, retries = MAX_RETRIES) {
     }
     throw lastError || new Error(`${operation} failed after ${retries} retries`);
 }
-export async function processChirpValue(chirp) {
+// Helper to save progress
+async function saveChirpProgress(chirpId, partialInsights, status) {
+    const updates = { ...partialInsights };
+    if (status === 'completed') {
+        // CLEAR tracking fields after completion as requested
+        updates.factCheckingStatus = null;
+        updates.factCheckingStartedAt = null;
+    }
+    else {
+        updates.factCheckingStatus = status;
+        if (status === 'in_progress') {
+            // Update timestamp to indicate activity
+            updates.factCheckingStartedAt = new Date();
+        }
+    }
+    await chirpService.updateChirpInsights(chirpId, updates);
+}
+export async function processChirpValue(chirp, options) {
+    // 1. Mark as in-progress immediately
+    await saveChirpProgress(chirp.id, {}, 'in_progress');
     const insights = {};
     let discussion;
     let latestValueScore;
+    const shouldFactCheck = !options?.skipFactCheck;
     const safeExecute = async (label, fn) => {
         try {
             return await fn();
@@ -70,18 +90,42 @@ export async function processChirpValue(chirp) {
             return undefined;
         }
     };
-    const claimsResult = await safeExecute('claim extraction', () => withRetry(() => extractClaimsForChirp(chirp), 'claim extraction'));
-    if (claimsResult && claimsResult.length > 0) {
+    // 2. Claims Extraction
+    // Check if we already have claims from a previous run (resume capability)
+    let claimsResult = chirp.claims;
+    if (!claimsResult || claimsResult.length === 0) {
+        claimsResult = await safeExecute('claim extraction', () => withRetry(() => extractClaimsForChirp(chirp), 'claim extraction'));
+        if (claimsResult && claimsResult.length > 0) {
+            insights.claims = claimsResult;
+            // CHECKPOINT: Save claims
+            await saveChirpProgress(chirp.id, { claims: claimsResult }, 'in_progress');
+        }
+    }
+    else {
         insights.claims = claimsResult;
     }
     const claimsForScoring = () => insights.claims ?? chirp.claims ?? [];
-    const factChecksForScoring = () => insights.factChecks ?? chirp.factChecks ?? [];
-    if (claimsForScoring().length > 0) {
-        const factChecksResult = await safeExecute('fact checking', () => withRetry(() => factCheckClaims(chirp, claimsForScoring()), 'fact checking'));
-        if (factChecksResult && factChecksResult.length > 0) {
+    const currentClaims = claimsForScoring();
+    let factChecksResult = chirp.factChecks;
+    if (shouldFactCheck && currentClaims.length > 0) {
+        // Only run if we don't have fact checks matching current claims
+        if (!factChecksResult || factChecksResult.length === 0) {
+            factChecksResult = await safeExecute('fact checking', () => withRetry(() => factCheckClaims(chirp, currentClaims), 'fact checking'));
+            if (factChecksResult && factChecksResult.length > 0) {
+                insights.factChecks = factChecksResult;
+                // CHECKPOINT: Save fact checks
+                await saveChirpProgress(chirp.id, { factChecks: factChecksResult }, 'in_progress');
+            }
+        }
+        else {
             insights.factChecks = factChecksResult;
         }
     }
+    else if (!shouldFactCheck) {
+        insights.factCheckStatus = insights.factCheckStatus ?? 'clean';
+    }
+    const factChecksForScoring = () => insights.factChecks ?? chirp.factChecks ?? [];
+    // 4. Discussion Analysis
     const comments = await safeExecute('comment loading', () => commentService.getCommentsForChirp(chirp.id));
     if (comments) {
         discussion = await safeExecute('discussion analysis', () => withRetry(() => analyzeDiscussion(chirp, comments), 'discussion analysis'));
@@ -89,10 +133,14 @@ export async function processChirpValue(chirp) {
             insights.discussionQuality = discussion.threadQuality;
         }
     }
+    // 5. Policy Evaluation
     const policyDecision = evaluatePolicy(claimsForScoring(), factChecksForScoring());
     if (policyDecision.status) {
         insights.factCheckStatus = policyDecision.status;
+        // CHECKPOINT: Save status
+        await saveChirpProgress(chirp.id, { factCheckStatus: policyDecision.status }, 'in_progress');
     }
+    // 6. Value Scoring
     const computedValueScore = await safeExecute('value scoring', () => withRetry(() => scoreChirpValue(chirp, claimsForScoring(), factChecksForScoring(), discussion), 'value scoring'));
     if (!computedValueScore) {
         console.log('[ValuePipeline] Value scoring skipped - agent not available');
@@ -104,10 +152,15 @@ export async function processChirpValue(chirp) {
         if (explanation && explanation.trim().length > 0) {
             insights.valueExplanation = explanation;
         }
+        // CHECKPOINT: Save score and explanation
+        await saveChirpProgress(chirp.id, {
+            valueScore: computedValueScore,
+            valueExplanation: explanation || undefined,
+            discussionQuality: insights.discussionQuality
+        }, 'in_progress');
     }
-    if (Object.keys(insights).length > 0) {
-        await safeExecute('updating chirp insights', () => chirpService.updateChirpInsights(chirp.id, insights));
-    }
+    // 7. Final Save & Completion (Clears tracking fields)
+    await saveChirpProgress(chirp.id, {}, 'completed');
     const updatedChirp = {
         ...chirp,
         ...(insights.claims ? { claims: insights.claims } : {}),
@@ -116,6 +169,9 @@ export async function processChirpValue(chirp) {
         ...(insights.valueExplanation ? { valueExplanation: insights.valueExplanation } : {}),
         ...(insights.discussionQuality ? { discussionQuality: insights.discussionQuality } : {}),
         ...(insights.factCheckStatus ? { factCheckStatus: insights.factCheckStatus } : {}),
+        // Clear tracking fields in returned object
+        factCheckingStatus: undefined,
+        factCheckingStartedAt: undefined
     };
     if (latestValueScore) {
         if (!chirp.valueScore) {
@@ -158,7 +214,7 @@ export async function processChirpValue(chirp) {
             console.error('[ValuePipeline] Failed to update Kurral Score for chirp author:', error);
         });
     }
-    return Object.keys(insights).length > 0 ? updatedChirp : chirp;
+    return updatedChirp;
 }
 export async function processCommentValue(comment) {
     try {
@@ -201,12 +257,23 @@ export async function processCommentValue(comment) {
         }
         const explanation = await withRetry(() => generateValueExplanation(chirp, valueScore, safeClaims(chirp), safeFactChecks(chirp), discussion.threadQuality), 'explanation generation');
         const policyDecision = evaluatePolicy(safeClaims(chirp), safeFactChecks(chirp));
-        await withRetry(() => chirpService.updateChirpInsights(chirp.id, {
-            valueScore,
-            valueExplanation: explanation,
-            discussionQuality: discussion.threadQuality,
-            factCheckStatus: policyDecision.status,
-        }), 'updating chirp insights');
+        // Build insights object, only including defined values
+        const insightsToUpdate = {};
+        if (valueScore !== undefined && valueScore !== null) {
+            insightsToUpdate.valueScore = valueScore;
+        }
+        if (explanation !== undefined && explanation !== null && typeof explanation === 'string' && explanation.trim().length > 0) {
+            insightsToUpdate.valueExplanation = explanation;
+        }
+        if (discussion?.threadQuality !== undefined && discussion.threadQuality !== null) {
+            insightsToUpdate.discussionQuality = discussion.threadQuality;
+        }
+        if (policyDecision?.status !== undefined && policyDecision.status !== null) {
+            insightsToUpdate.factCheckStatus = policyDecision.status;
+        }
+        if (Object.keys(insightsToUpdate).length > 0) {
+            await withRetry(() => chirpService.updateChirpInsights(chirp.id, insightsToUpdate), 'updating chirp insights');
+        }
         await updateKurralScore({
             userId: chirp.authorId,
             valueScore,

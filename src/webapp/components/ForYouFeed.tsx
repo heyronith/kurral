@@ -5,6 +5,8 @@ import { useUserStore } from '../store/useUserStore';
 import { useConfigStore } from '../store/useConfigStore';
 import { useThemeStore } from '../store/useThemeStore';
 import ChirpCard from './ChirpCard';
+import { useNavigate } from 'react-router-dom';
+import { useTopicStore } from '../store/useTopicStore';
 
 const ForYouFeed = () => {
   const chirps = useFeedStore((state) => state.chirps);
@@ -12,6 +14,12 @@ const ForYouFeed = () => {
   const currentUser = useUserStore((state) => state.currentUser);
   const getUser = useUserStore((state) => state.getUser);
   const { theme } = useThemeStore();
+  const { trendingTopics, loadTrendingTopics, selectTopic } = useTopicStore();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    loadTrendingTopics(5);
+  }, [loadTrendingTopics]);
 
   const scoredChirps = useMemo(() => {
     if (!currentUser) return [];
@@ -67,12 +75,31 @@ const ForYouFeed = () => {
     return 'Try adjusting your tuning controls or follow a few more creators.';
   }, [chirps.length, config.mutedTopics.length, currentUser]);
 
+  const handleViewTrending = () => {
+    const firstTrending = trendingTopics[0]?.name ?? null;
+    selectTopic(firstTrending);
+  };
+
   if (scoredChirps.length === 0) {
     return (
       <div className="p-8 space-y-4">
         <div className={`text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
           <p className="text-sm font-medium mb-1">No posts match your For You settings.</p>
           <p className="text-xs mt-2">{emptyReason}</p>
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            <button
+              onClick={() => navigate('/settings')}
+              className="rounded-full border border-border px-3 py-1 text-[10px] font-semibold text-textPrimary hover:border-accent hover:text-accent transition-colors"
+            >
+              Adjust interests
+            </button>
+            <button
+              onClick={handleViewTrending}
+              className="rounded-full border border-border px-3 py-1 text-[10px] font-semibold text-textPrimary hover:border-accent hover:text-accent transition-colors"
+            >
+              Explore trending topics
+            </button>
+          </div>
           <p className="text-[10px] mt-1">Try adjusting your preferences in the controls above.</p>
         </div>
       </div>

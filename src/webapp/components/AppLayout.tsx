@@ -40,10 +40,10 @@ const AppLayout = ({
       <header className={`sticky top-0 z-40 backdrop-blur-lg py-4 px-6 shadow-sm w-full ${theme === 'dark' ? 'bg-darkBg/95 border-b border-darkBorder' : 'bg-backgroundElevated/95'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className={`text-xl md:text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>Kurral</h1>
+            <h1 className={`text-xl md:text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>Kural</h1>
             <img 
               src={theme === 'dark' ? '/right-quotation-mark.png' : '/quotation-marks.png'} 
-              alt="Kurral" 
+              alt="Kural" 
               className="h-6 w-auto md:h-7"
             />
           </div>

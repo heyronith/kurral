@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useEffect, useState } from 'react';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
@@ -19,6 +19,9 @@ import NewsDetailView from '../components/NewsDetailView';
 import TopicDetailView from '../components/TopicDetailView';
 import { useNotificationSetup } from '../store/useNotificationStore';
 import { startPeriodicRecalculation } from '../lib/services/reputationRecalculationService';
+import { findChirpsNeedingFactCheck, resumeFactChecking } from '../lib/services/factCheckResumeService';
+import WelcomeScreen from '../components/WelcomeScreen';
+import FirstTimeTooltips from '../components/FirstTimeTooltips';
 const ChirpApp = () => {
     const { activeFeed, setActiveFeed, loadChirps, loadComments, upsertChirps } = useFeedStore();
     const { currentUser, loadUser } = useUserStore();
@@ -27,6 +30,8 @@ const ChirpApp = () => {
     const { selectedNews, loadTrendingNews } = useNewsStore();
     const [isLoading, setIsLoading] = useState(true);
     const [showTuningModal, setShowTuningModal] = useState(false);
+    const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
+    const [showTooltips, setShowTooltips] = useState(false);
     const navigate = useNavigate();
     // Show search results if query is 2+ characters
     const shouldShowSearch = query.trim().length >= 2;
@@ -36,6 +41,18 @@ const ChirpApp = () => {
     useEffect(() => {
         initializeForYouConfig(currentUser);
     }, [currentUser?.id, initializeForYouConfig]);
+    useEffect(() => {
+        if (currentUser?.firstTimeUser) {
+            setShowWelcomeOverlay(true);
+        }
+    }, [currentUser?.firstTimeUser]);
+    const handleWelcomeComplete = () => {
+        setShowWelcomeOverlay(false);
+        setShowTooltips(true);
+        setTimeout(() => {
+            setShowTooltips(false);
+        }, 6000);
+    };
     // Initialize background reputation recalculation job (runs daily)
     useEffect(() => {
         const stopRecalculation = startPeriodicRecalculation(24 * 60 * 60 * 1000);
@@ -187,6 +204,28 @@ const ChirpApp = () => {
             tuningService.stop();
         };
     }, [currentUser]);
+    // Resume incomplete fact checks
+    useEffect(() => {
+        if (!currentUser)
+            return;
+        const resumeChecks = async () => {
+            try {
+                const chirps = await findChirpsNeedingFactCheck(currentUser.id);
+                if (chirps.length > 0) {
+                    console.log(`[ChirpApp] Found ${chirps.length} chirps needing fact check resume`);
+                    chirps.forEach(chirp => {
+                        resumeFactChecking(chirp).catch(err => console.error('Resume failed:', err));
+                    });
+                }
+            }
+            catch (error) {
+                console.error('[ChirpApp] Error in resumeChecks:', error);
+            }
+        };
+        // Small delay to not block initial load
+        const timer = setTimeout(resumeChecks, 3000);
+        return () => clearTimeout(timer);
+    }, [currentUser]);
     // Process scheduled posts periodically
     // OPTIMIZED: Only runs when user is active, and less frequently
     useEffect(() => {
@@ -214,12 +253,12 @@ const ChirpApp = () => {
     if (selectedTopic) {
         return (_jsx(AppLayout, { children: _jsx("div", { className: "p-6", children: _jsx(TopicDetailView, {}) }) }));
     }
-    return (_jsxs(AppLayout, { pageTitle: "Feeds", pageTitleRight: _jsx(FeedTabs, { activeFeed: activeFeed, onFeedChange: setActiveFeed }), children: [_jsx("div", { className: "overflow-y-auto scroll-smooth pb-20", children: shouldShowSearch ? (_jsx(SearchResults, {})) : activeFeed === 'latest' ? (_jsx(LatestFeed, {})) : (_jsx(ForYouFeed, {})) }), showTuningModal && tuningService.getLastSuggestion() && (_jsx(TuningSuggestionModal, { suggestion: tuningService.getLastSuggestion(), onClose: () => {
-                    setShowTuningModal(false);
-                    localStorage.setItem('tuning_suggestion_dismissed', 'true');
-                }, onApply: () => {
-                    setShowTuningModal(false);
-                    localStorage.removeItem('tuning_suggestion_dismissed');
-                } }))] }));
+    return (_jsxs(_Fragment, { children: [_jsxs(AppLayout, { pageTitle: "Kurals", pageTitleRight: _jsx(FeedTabs, { activeFeed: activeFeed, onFeedChange: setActiveFeed }), children: [_jsx("div", { className: "overflow-y-auto scroll-smooth pb-20", children: shouldShowSearch ? (_jsx(SearchResults, {})) : activeFeed === 'latest' ? (_jsx(LatestFeed, {})) : (_jsx(ForYouFeed, {})) }), showTuningModal && tuningService.getLastSuggestion() && (_jsx(TuningSuggestionModal, { suggestion: tuningService.getLastSuggestion(), onClose: () => {
+                            setShowTuningModal(false);
+                            localStorage.setItem('tuning_suggestion_dismissed', 'true');
+                        }, onApply: () => {
+                            setShowTuningModal(false);
+                            localStorage.removeItem('tuning_suggestion_dismissed');
+                        } }))] }), showTooltips && _jsx(FirstTimeTooltips, {}), showWelcomeOverlay && _jsx(WelcomeScreen, { onComplete: handleWelcomeComplete })] }));
 };
 export default ChirpApp;

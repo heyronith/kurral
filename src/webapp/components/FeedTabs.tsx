@@ -13,7 +13,7 @@ const FeedTabs = ({ activeFeed, onFeedChange }: FeedTabsProps) => {
         onClick={() => onFeedChange('latest')}
         className={`px-3 py-2 text-sm font-medium transition-colors ${
           activeFeed === 'latest'
-            ? 'text-textPrimary font-semibold'
+            ? 'text-accent font-semibold'
             : 'text-textMuted hover:text-textPrimary'
         }`}
       >
@@ -23,11 +23,11 @@ const FeedTabs = ({ activeFeed, onFeedChange }: FeedTabsProps) => {
         onClick={() => onFeedChange('forYou')}
         className={`px-3 py-2 text-sm font-medium transition-colors ${
           activeFeed === 'forYou'
-            ? 'text-textPrimary font-semibold'
+            ? 'text-accent font-semibold'
             : 'text-textMuted hover:text-textPrimary'
         }`}
       >
-        Custom Feed
+        Curated Kurals
       </button>
     </div>
   );

@@ -1,17 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import type { Chirp } from '../types';
 import { useUserStore } from '../store/useUserStore';
 import { useFeedStore } from '../store/useFeedStore';
 import { useThemeStore } from '../store/useThemeStore';
+import { useComposer } from '../context/ComposerContext';
 import { tuningService } from '../lib/services/tuningService';
 import { chirpService, commentService, realtimeService } from '../lib/firestore';
 import CommentSection from './CommentSection';
 import AppLayout from './AppLayout';
 import ReviewContextModal from './ReviewContextModal';
 import FactCheckStatusPopup from './FactCheckStatusPopup';
-import { ReplyIcon, RepeatIcon, BookmarkIcon, BookmarkFilledIcon } from './Icon';
+import { ReplyIcon, RepeatIcon, BookmarkIcon, BookmarkFilledIcon, ComposeIcon } from './Icon';
+import { linkifyMentions } from '../lib/utils/mentions';
+import { sanitizeHTML } from '../lib/utils/sanitize';
 
 const PostDetailView = () => {
   const { postId } = useParams<{ postId: string }>();
@@ -19,12 +22,15 @@ const PostDetailView = () => {
   const { getUser, currentUser, followUser, unfollowUser, isFollowing, loadUser, bookmarkChirp, unbookmarkChirp, isBookmarked } = useUserStore();
   const { chirps, addChirp, loadChirps, loadComments } = useFeedStore();
   const { theme } = useThemeStore();
+  const { openComposerWithQuote } = useComposer();
   const [chirp, setChirp] = useState<Chirp | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showReply, setShowReply] = useState(false);
   const [showReviewContextModal, setShowReviewContextModal] = useState(false);
   const [showFactCheckPopup, setShowFactCheckPopup] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
+  const [showRepostMenu, setShowRepostMenu] = useState(false);
+  const repostMenuRef = useRef<HTMLDivElement>(null);
   const storedChirp = postId ? chirps.find((c) => c.id === postId) ?? null : null;
 
   // Load chirp data
@@ -90,6 +96,22 @@ const PostDetailView = () => {
     }
   }, [chirp?.id, currentUser, chirp?.authorId]);
 
+  // Close repost menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (repostMenuRef.current && !repostMenuRef.current.contains(event.target as Node)) {
+        setShowRepostMenu(false);
+      }
+    };
+
+    if (showRepostMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showRepostMenu]);
+
   const formatTime = (date: Date): string => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -148,23 +170,24 @@ const PostDetailView = () => {
 
   const renderFormattedText = (): React.ReactNode => {
     if (!chirp) return null;
-    if (chirp.formattedText) {
+    
+    const content = chirp.formattedText 
+      ? sanitizeHTML(linkifyMentions(chirp.formattedText))
+      : sanitizeHTML(linkifyMentions(chirp.text));
+
       return (
         <div
           className={`${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 leading-relaxed whitespace-pre-wrap text-[15px]`}
-          dangerouslySetInnerHTML={{ __html: chirp.formattedText }}
+        dangerouslySetInnerHTML={{ __html: content }}
         />
-      );
-    }
-    return (
-      <p className={`${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 leading-relaxed whitespace-pre-wrap text-[15px]`}>
-        {chirp.text}
-      </p>
     );
   };
 
-  const handleRechirp = async () => {
+  const handleRechirp = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowRepostMenu(false);
     if (!currentUser || !chirp) return;
+
     try {
       await addChirp({
         authorId: currentUser.id,
@@ -172,10 +195,18 @@ const PostDetailView = () => {
         topic: chirp.topic,
         reachMode: 'forAll',
         rechirpOfId: chirp.id,
+        semanticTopics: chirp.semanticTopics?.length ? chirp.semanticTopics : undefined,
       });
     } catch (error) {
       console.error('Error rechirping:', error);
     }
+  };
+
+  const handleQuoteRepost = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowRepostMenu(false);
+    if (!chirp) return;
+    openComposerWithQuote(chirp);
   };
 
   const handleFollow = async () => {
@@ -233,7 +264,7 @@ const PostDetailView = () => {
 
   return (
     <AppLayout wrapContent={false}>
-      <div className={`min-h-screen ${theme === 'dark' ? 'bg-black border-x border-white/10' : 'bg-background border-x border-border/60'}`}>
+      <div className={`min-h-screen ${theme === 'dark' ? 'bg-black' : 'bg-background'}`}>
         {/* Header - X-style */}
         <header className={`sticky top-0 z-30 ${theme === 'dark' ? 'border-b border-white/10 bg-black/95' : 'border-b border-border/60 bg-background/95'} backdrop-blur-lg px-4 py-3`}>
           <div className="flex items-center justify-between">
@@ -258,7 +289,7 @@ const PostDetailView = () => {
         </header>
 
         {/* Main Post */}
-        <div className={`border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
+        <div className={`${theme === 'dark' ? 'border-b border-white/5' : 'border-b border-border/20'}`}>
           {chirp.rechirpOfId && (
             <div className="px-4 pt-3 pb-1">
               <div className={`text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} flex items-center gap-1.5`}>
@@ -332,13 +363,13 @@ const PostDetailView = () => {
               {renderFormattedText()}
             </div>
 
-            {/* Image */}
+            {/* Image - 4:3 aspect ratio, full image visible */}
             {chirp.imageUrl && (
-              <div className={`mb-4 rounded-2xl overflow-hidden ${theme === 'dark' ? 'border-0' : 'border border-border/40'}`}>
+              <div className={`mb-4 rounded-2xl overflow-hidden ${theme === 'dark' ? 'bg-black/20 border-0' : 'bg-gray-50 border border-border/40'} aspect-[4/3] flex items-center justify-center`}>
                 <img
                   src={chirp.imageUrl}
                   alt="Post attachment"
-                  className="w-full object-cover"
+                  className="w-full h-full object-contain"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
@@ -347,7 +378,7 @@ const PostDetailView = () => {
             )}
 
             {/* Timestamp and topic */}
-            <div className={`mb-4 pb-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
+            <div className={`mb-4 pb-4 ${theme === 'dark' ? 'border-b border-white/5' : 'border-b border-border/20'}`}>
               <div className={`text-[15px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-3`}>
                 {formatFullTimestamp(chirp.createdAt)}
               </div>
@@ -521,7 +552,7 @@ const PostDetailView = () => {
             </div>
 
             {/* Engagement metrics */}
-            <div className={`flex items-center gap-4 text-[15px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} border-b ${theme === 'dark' ? 'border-white/10' : 'border-border/60'} pb-4`}>
+            <div className={`flex items-center gap-4 text-[15px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} ${theme === 'dark' ? 'border-b border-white/5' : 'border-b border-border/20'} pb-4`}>
               <button
                 onClick={handleReplyClick}
                 className="hover:text-accent transition-colors"
@@ -561,12 +592,39 @@ const PostDetailView = () => {
               >
                 <ReplyIcon size={18} />
               </button>
-              <button
-                onClick={handleRechirp}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-[15px] ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-primary hover:bg-backgroundElevated/60'} transition-all duration-200`}
-              >
-                <RepeatIcon size={18} />
-              </button>
+              <div className="relative" ref={repostMenuRef}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowRepostMenu(!showRepostMenu);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-[15px] ${theme === 'dark' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-textMuted hover:text-primary hover:bg-backgroundElevated/60'} transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/30 active:scale-95 ${showRepostMenu ? 'text-accent' : ''}`}
+                  aria-label={`Repost ${author.name}'s post`}
+                >
+                  <RepeatIcon size={18} />
+                </button>
+                
+                {/* Repost Menu */}
+                {showRepostMenu && (
+                  <div className={`absolute bottom-full right-0 mb-2 z-50 min-w-[160px] overflow-hidden rounded-xl border shadow-xl backdrop-blur-xl transition-all duration-200 ${theme === 'dark' ? 'bg-black/90 border-white/20 text-white' : 'bg-white/95 border-border/60 text-textPrimary'}`}>
+                    <button
+                      onClick={handleRechirp}
+                      className={`w-full px-4 py-3 text-left text-sm font-medium flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/70'}`}
+                    >
+                      <RepeatIcon size={16} />
+                      <span>Just repost</span>
+                    </button>
+                    <div className={`h-px ${theme === 'dark' ? 'bg-white/10' : 'bg-border/40'}`} />
+                    <button
+                      onClick={handleQuoteRepost}
+                      className={`w-full px-4 py-3 text-left text-sm font-medium flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/70'}`}
+                    >
+                      <ComposeIcon size={16} />
+                      <span>Add thoughts</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               {!isCurrentUser && (
                 <button
                   onClick={handleBookmark}

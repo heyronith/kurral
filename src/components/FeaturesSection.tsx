@@ -47,7 +47,7 @@ const FeaturesSection = () => {
       <div className="max-w-6xl mx-auto space-y-16">
         <div className="text-center max-w-3xl mx-auto space-y-4">
           <h2 className="text-4xl md:text-5xl font-bold text-textPrimary">
-            What makes Kurral different
+            What makes Kural different
           </h2>
           <p className="text-lg md:text-xl text-textMuted">
             Four core innovations that put you in control and keep content authentic

@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
 import { useThemeStore } from '../store/useThemeStore';
 import ChirpCard from './ChirpCard';
+import FollowSuggestionsModal from './FollowSuggestionsModal';
 
 const LatestFeed = () => {
   const chirps = useFeedStore((state) => state.chirps);
   const currentUser = useUserStore((state) => state.currentUser);
   const { theme } = useThemeStore();
+  const [showFollowModal, setShowFollowModal] = useState(false);
   
   // Filter to followed users only (excluding own chirps), sort by createdAt DESC
   const latestChirps = currentUser
@@ -22,6 +25,13 @@ const LatestFeed = () => {
       <div className={`p-8 text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
         <p>No posts yet. Follow some users to see their posts here.</p>
         <p className="text-sm mt-2">Because: Latest – pure chronological</p>
+        <button
+          onClick={() => setShowFollowModal(true)}
+          className="mt-4 rounded-full border border-border px-4 py-2 text-xs font-semibold text-textPrimary hover:border-accent hover:text-accent transition-colors"
+        >
+          Find people to follow
+        </button>
+        <FollowSuggestionsModal open={showFollowModal} onClose={() => setShowFollowModal(false)} />
       </div>
     );
   }

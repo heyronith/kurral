@@ -18,6 +18,9 @@ import NewsDetailView from '../components/NewsDetailView';
 import TopicDetailView from '../components/TopicDetailView';
 import { useNotificationSetup } from '../store/useNotificationStore';
 import { startPeriodicRecalculation } from '../lib/services/reputationRecalculationService';
+import { findChirpsNeedingFactCheck, resumeFactChecking } from '../lib/services/factCheckResumeService';
+import WelcomeScreen from '../components/WelcomeScreen';
+import FirstTimeTooltips from '../components/FirstTimeTooltips';
 import type { Chirp, Comment } from '../types';
 
 const ChirpApp = () => {
@@ -28,6 +31,8 @@ const ChirpApp = () => {
   const { selectedNews, loadTrendingNews } = useNewsStore();
   const [isLoading, setIsLoading] = useState(true);
   const [showTuningModal, setShowTuningModal] = useState(false);
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
+  const [showTooltips, setShowTooltips] = useState(false);
   const navigate = useNavigate();
   // Show search results if query is 2+ characters
   const shouldShowSearch = query.trim().length >= 2;
@@ -40,6 +45,20 @@ const ChirpApp = () => {
   useEffect(() => {
     initializeForYouConfig(currentUser);
   }, [currentUser?.id, initializeForYouConfig]);
+
+  useEffect(() => {
+    if (currentUser?.firstTimeUser) {
+      setShowWelcomeOverlay(true);
+    }
+  }, [currentUser?.firstTimeUser]);
+
+  const handleWelcomeComplete = () => {
+    setShowWelcomeOverlay(false);
+    setShowTooltips(true);
+    setTimeout(() => {
+      setShowTooltips(false);
+    }, 6000);
+  };
 
 
   // Initialize background reputation recalculation job (runs daily)
@@ -217,6 +236,29 @@ const ChirpApp = () => {
     };
   }, [currentUser]);
 
+  // Resume incomplete fact checks
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const resumeChecks = async () => {
+        try {
+            const chirps = await findChirpsNeedingFactCheck(currentUser.id);
+            if (chirps.length > 0) {
+                console.log(`[ChirpApp] Found ${chirps.length} chirps needing fact check resume`);
+                chirps.forEach(chirp => {
+                    resumeFactChecking(chirp).catch(err => console.error('Resume failed:', err));
+                });
+            }
+        } catch (error) {
+            console.error('[ChirpApp] Error in resumeChecks:', error);
+        }
+    };
+
+    // Small delay to not block initial load
+    const timer = setTimeout(resumeChecks, 3000);
+    return () => clearTimeout(timer);
+  }, [currentUser]);
+
   // Process scheduled posts periodically
   // OPTIMIZED: Only runs when user is active, and less frequently
   useEffect(() => {
@@ -265,7 +307,8 @@ const ChirpApp = () => {
   }
 
   return (
-    <AppLayout pageTitle="Feeds" pageTitleRight={<FeedTabs activeFeed={activeFeed} onFeedChange={setActiveFeed} />}>
+    <>
+    <AppLayout pageTitle="Kurals" pageTitleRight={<FeedTabs activeFeed={activeFeed} onFeedChange={setActiveFeed} />}>
       {/* Feed Content - Posts */}
       <div className="overflow-y-auto scroll-smooth pb-20">
         {shouldShowSearch ? (
@@ -292,6 +335,9 @@ const ChirpApp = () => {
         />
       )}
     </AppLayout>
+      {showTooltips && <FirstTimeTooltips />}
+      {showWelcomeOverlay && <WelcomeScreen onComplete={handleWelcomeComplete} />}
+    </>
   );
 };
 

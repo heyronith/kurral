@@ -1,5 +1,41 @@
-import { openai } from '../agents/baseAgent';
+/**
+ * Embedding Service - Secure OpenAI Client
+ *
+ * Generates embeddings using OpenAI API through secure proxy
+ */
 const EMBEDDING_MODEL = 'text-embedding-3-small';
+const PROXY_ENDPOINT = '/api/openai-proxy';
+/**
+ * Call OpenAI embeddings API through secure proxy
+ */
+async function callOpenAIEmbeddingsProxy(body) {
+    try {
+        const response = await fetch(PROXY_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                endpoint: '/v1/embeddings',
+                method: 'POST',
+                body,
+            }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const error = new Error(errorData.message || `HTTP ${response.status}`);
+            error.status = response.status;
+            throw error;
+        }
+        return await response.json();
+    }
+    catch (error) {
+        if (error.status === 500) {
+            throw new Error('Server error: OpenAI proxy is not configured. Please contact support.');
+        }
+        throw error;
+    }
+}
 /**
  * Generate an embedding vector for the provided text using OpenAI.
  * Returns an empty array when the text is empty or OpenAI is not configured.
@@ -9,12 +45,8 @@ export const generateEmbedding = async (text) => {
     if (!input) {
         return [];
     }
-    if (!openai) {
-        console.warn('[EmbeddingService] OpenAI client unavailable; skipping embedding generation.');
-        return [];
-    }
     try {
-        const response = await openai.embeddings.create({
+        const response = await callOpenAIEmbeddingsProxy({
             model: EMBEDDING_MODEL,
             input,
         });

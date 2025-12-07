@@ -1,9 +1,9 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { Notification } from '../types';
-import { useUserStore } from '../store/useUserStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { useState } from 'react';
+import { useUserStore } from '../store/useUserStore';
 
 interface NotificationItemProps {
   notification: Notification;
@@ -11,29 +11,37 @@ interface NotificationItemProps {
 
 const NotificationItem = ({ notification }: NotificationItemProps) => {
   const navigate = useNavigate();
-  const { getUser } = useUserStore();
+  const actor = useUserStore((state) => state.users[notification.actorId]);
   const { markAsRead, dismissNotification } = useNotificationStore();
   const { theme } = useThemeStore();
   const [isDismissing, setIsDismissing] = useState(false);
   
-  const actor = getUser(notification.actorId);
+  const actorName = actor?.name ?? 'Someone';
+  const actorProfilePictureUrl = actor?.profilePictureUrl;
+  const fallbackInitial = actorName.charAt(0).toUpperCase() || 'U';
   
   const formatTime = (date: Date): string => {
     const minutesAgo = Math.floor((Date.now() - date.getTime()) / 60000);
-    if (minutesAgo < 1) return 'now';
-    if (minutesAgo < 60) return `${minutesAgo}m`;
-    const hoursAgo = Math.floor(minutesAgo / 60);
-    if (hoursAgo < 24) return `${hoursAgo}h`;
-    const daysAgo = Math.floor(hoursAgo / 24);
-    if (daysAgo < 7) return `${daysAgo}d`;
-    const weeksAgo = Math.floor(daysAgo / 7);
-    return `${weeksAgo}w`;
+    let relativeLabel: string;
+    if (minutesAgo < 1) relativeLabel = 'now';
+    else if (minutesAgo < 60) relativeLabel = `${minutesAgo}m`;
+    else {
+      const hoursAgo = Math.floor(minutesAgo / 60);
+      if (hoursAgo < 24) relativeLabel = `${hoursAgo}h`;
+      else {
+        const daysAgo = Math.floor(hoursAgo / 24);
+        if (daysAgo < 7) relativeLabel = `${daysAgo}d`;
+        else {
+          const weeksAgo = Math.floor(daysAgo / 7);
+          relativeLabel = `${weeksAgo}w`;
+        }
+      }
+    }
+    const exactTime = date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    return `${relativeLabel} · ${exactTime}`;
   };
 
   const getNotificationMessage = (): string => {
-    if (!actor) return 'New notification';
-    
-    const actorName = actor.name;
     const count = notification.aggregatedCount || 1;
     
     if (count > 1) {
@@ -96,13 +104,14 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
       await markAsRead(notification.id);
     }
     
-    // Navigate to relevant content
-    if (notification.chirpId) {
-      navigate(`/post/${notification.chirpId}`);
-    } else if (notification.commentId && notification.chirpId) {
+    const profileTargetId = actor?.id ?? notification.actorId;
+    
+    if (notification.chirpId && notification.commentId) {
       navigate(`/post/${notification.chirpId}#comment-${notification.commentId}`);
-    } else if (notification.type === 'follow' && actor) {
-      navigate(`/profile/${actor.id}`);
+    } else if (notification.chirpId) {
+      navigate(`/post/${notification.chirpId}`);
+    } else if (notification.type === 'follow' && profileTargetId) {
+      navigate(`/profile/${profileTargetId}`);
     }
   };
 
@@ -119,28 +128,45 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
     }
   };
 
-  if (!actor) return null;
+  // Get card styling similar to ChirpCard
+  const getCardStyling = () => {
+    const baseClasses = 'rounded-xl p-4 border cursor-pointer transition-all duration-200';
+    
+    let borderColor: string;
+    let bgColor: string;
+    let hoverBg: string;
+    
+    if (theme === 'dark') {
+      borderColor = notification.read ? 'border-darkBorder' : 'border-accent/40';
+      bgColor = notification.read ? 'bg-darkBgElevated/30' : 'bg-accent/5';
+      hoverBg = 'hover:bg-white/10';
+    } else {
+      borderColor = notification.read ? 'border-border' : 'border-accent/50';
+      bgColor = notification.read ? 'bg-backgroundElevated' : 'bg-accent/5';
+      hoverBg = 'hover:bg-backgroundElevated/80';
+    }
+    
+    return `${baseClasses} ${borderColor} ${bgColor} ${hoverBg}`;
+  };
 
   return (
     <div
       onClick={handleClick}
-      className={`p-3 border-b border-border/40 cursor-pointer transition-all duration-200 ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'} ${
-        !notification.read ? 'bg-accent/5' : ''
-      }`}
+      className={`${getCardStyling()} ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}
     >
       <div className="flex items-start gap-3">
         {/* Actor Avatar */}
         <div className="flex-shrink-0">
-          {actor.profilePictureUrl ? (
+          {actorProfilePictureUrl ? (
             <img
-              src={actor.profilePictureUrl}
-              alt={actor.name}
+              src={actorProfilePictureUrl}
+              alt={actorName}
               className="w-10 h-10 rounded-full object-cover border border-border/50"
             />
           ) : (
             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border border-border/50">
               <span className="text-primary font-semibold text-sm">
-                {actor.name.charAt(0).toUpperCase()}
+                {fallbackInitial}
               </span>
             </div>
           )}
@@ -152,18 +178,18 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg">{getNotificationIcon()}</span>
-                <p className="text-sm text-textPrimary font-medium leading-snug">
+                <p className={`text-sm font-medium leading-snug ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>
                   {getNotificationMessage()}
                 </p>
               </div>
-              <p className="text-xs text-textMuted">{formatTime(notification.createdAt)}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>{formatTime(notification.createdAt)}</p>
             </div>
             
             {/* Dismiss Button */}
             <button
               onClick={handleDismiss}
               disabled={isDismissing}
-              className={`flex-shrink-0 text-textMuted hover:text-accent transition-colors p-1 rounded ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'} disabled:opacity-50`}
+              className={`flex-shrink-0 ${theme === 'dark' ? 'text-darkTextMuted hover:text-accent' : 'text-textMuted hover:text-accent'} transition-colors p-1 rounded ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'} disabled:opacity-50`}
               aria-label="Dismiss notification"
             >
               <svg

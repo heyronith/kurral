@@ -27,7 +27,7 @@ const LeftSidebar = () => {
   };
 
   const menuItems = [
-    { path: '/app', label: 'Feed', icon: NewspaperIcon, notificationCount: null, onClick: null },
+    { path: '/app', label: 'Kurals', icon: NewspaperIcon, notificationCount: null, onClick: null },
     { path: '/dashboard', label: 'Dashboard', icon: DashboardIcon, notificationCount: null, onClick: null },
     { path: '/notifications', label: 'Notifications', icon: BellIcon, notificationCount: unreadCount > 0 ? unreadCount : null, onClick: null },
     { path: '/bookmarks', label: 'Bookmarks', icon: BookmarkIcon, notificationCount: null, onClick: null },

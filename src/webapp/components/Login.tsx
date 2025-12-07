@@ -58,10 +58,10 @@ const Login = () => {
         
         <div className="relative z-10 flex flex-col h-full">
           <Link to="/" className="inline-flex items-center gap-2 mb-16 group">
-            <span className="text-xl font-bold text-textPrimary">Kurral</span>
+            <span className="text-xl font-bold text-textPrimary">Kural</span>
             <img 
               src="/quotation-marks.png" 
-              alt="Kurral" 
+              alt="Kural" 
               className="h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
             />
           </Link>
@@ -117,10 +117,10 @@ const Login = () => {
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8">
             <Link to="/" className="inline-flex items-center gap-2">
-              <span className="text-xl font-bold text-textPrimary">Kurral</span>
+              <span className="text-xl font-bold text-textPrimary">Kural</span>
               <img 
                 src="/quotation-marks.png" 
-                alt="Kurral" 
+                alt="Kural" 
                 className="h-6 w-auto"
               />
             </Link>

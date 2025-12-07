@@ -60,13 +60,13 @@ const IntegrityPrincipleModal = ({ isOpen, onClose }: IntegrityPrincipleModalPro
           <section className={`space-y-3 pt-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/60'}`}>
             <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Value Creation Priority</h3>
             <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
-              We prioritize value creation over engagement metrics. Every post is scored using our proprietary Kurral Score system (0-100) that evaluates content quality through AI analysis.
+              We prioritize value creation over engagement metrics. Every post is scored using our proprietary Kural Score system (0-100) that evaluates content quality through AI analysis.
             </p>
             <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
               Scores are calculated dynamically using our unique algorithm. Posts with higher value scores receive better visibility and creators get recognized based on the value they contribute, not views or likes. The system evaluates discussion quality, fact-check results, and community trust to determine scores.
             </p>
             <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
-              High-value creators with strong Kurral Scores get recognized for their impact. Scores update in real-time as new posts are published and fact-checked. In the future, we plan to introduce monetization based on this value system.
+              High-value creators with strong Kural Scores get recognized for their impact. Scores update in real-time as new posts are published and fact-checked. In the future, we plan to introduce monetization based on this value system.
             </p>
           </section>
 
@@ -80,7 +80,7 @@ const IntegrityPrincipleModal = ({ isOpen, onClose }: IntegrityPrincipleModalPro
               Policy decisions are made algorithmically using AI analysis, not keyword matching or heuristics. The system considers claim risk levels, fact-check confidence scores, and domain context to make enforcement decisions. Users can see the policy status and reasons for each decision.
             </p>
             <p className={`text-sm ${theme === 'dark' ? 'text-white/90' : 'text-textPrimary'} leading-relaxed`}>
-              Violations impact Kurral Scores negatively. Repeated violations or severe misinformation result in score penalties that affect your credibility and reach. The system tracks violations over time with decay, allowing users to recover through consistent quality contributions.
+              Violations impact Kural Scores negatively. Repeated violations or severe misinformation result in score penalties that affect your credibility and reach. The system tracks violations over time with decay, allowing users to recover through consistent quality contributions.
             </p>
           </section>
         </div>

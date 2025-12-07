@@ -116,6 +116,9 @@ export type User = {
   url?: string;
   location?: string; // City
   onboardingCompleted?: boolean;
+  onboardingCompletedAt?: Date;
+  firstTimeUser?: boolean;
+  autoFollowedAccounts?: string[];
   profilePictureUrl?: string; // Profile picture URL
   coverPhotoUrl?: string; // Cover photo URL
   reputation?: Record<string, number>;
@@ -133,6 +136,11 @@ export type User = {
   profileSummaryUpdatedAt?: Date; // When summary was last generated
   profileEmbedding?: number[]; // Embedding vector for profile summary
   profileEmbeddingVersion?: number;
+  semanticTopics?: string[];
+  isBot?: boolean;
+  botType?: BotType;
+  botPersonality?: BotPersonality;
+  botPostingPreferences?: BotPostingPreferences;
 };
 
 export type TunedAudience = {
@@ -158,11 +166,16 @@ export type Chirp = {
   contentEmbedding?: number[]; // Embedding for the chirp content
   createdAt: Date;
   rechirpOfId?: string; // If this is a rechirp, reference original
+  quotedChirpId?: string; // If this is a quote repost, reference original
+  quotedChirp?: Chirp; // Hydrated quoted chirp (client-side only, not in Firestore)
   commentCount: number;
   countryCode?: string; // ISO 3166-1 alpha-2 country code where post was made
   imageUrl?: string; // Optional image URL
   scheduledAt?: Date; // Optional scheduled post time
   formattedText?: string; // Optional formatted text (markdown-style)
+  mentions?: string[]; // Array of User IDs mentioned in the post
+  factCheckingStatus?: 'pending' | 'in_progress' | 'completed' | 'failed'; // Processing status
+  factCheckingStartedAt?: Date; // When processing started
   claims?: Claim[];
   factChecks?: FactCheck[];
   factCheckStatus?: 'clean' | 'needs_review' | 'blocked';
@@ -183,6 +196,9 @@ export type Comment = {
   replyCount?: number; // Number of direct replies to this comment
   discussionRole?: 'question' | 'answer' | 'evidence' | 'opinion' | 'moderation' | 'other';
   valueContribution?: ValueVector & { total: number };
+  imageUrl?: string; // Optional image URL
+  scheduledAt?: Date; // Optional scheduled comment time
+  formattedText?: string; // Optional formatted text (markdown-style)
 };
 
 export type FollowingWeight = 'none' | 'light' | 'medium' | 'heavy';
@@ -218,6 +234,53 @@ export const ALL_TOPICS: Topic[] = [
   'crypto',
 ];
 
+export type BotType =
+  | 'news'
+  | 'tech'
+  | 'science'
+  | 'finance'
+  | 'sports'
+  | 'entertainment'
+  | 'culture'
+  | 'global'
+  | 'climate'
+  | 'lifestyle'
+  | 'gaming'
+  | 'education';
+
+export type BotTone = 'analytical' | 'journalistic' | 'curious' | 'empathetic' | 'playful';
+
+export type BotPersonality = {
+  tone: BotTone;
+  voice: string;
+  signaturePhrases: string[];
+  engagementStyle: 'informative' | 'contextual' | 'conversational' | 'question-driven';
+};
+
+export type BotPostingPreferences = {
+  dailyFrequency: number;
+  burstWindowMinutes: number;
+  activeHours: string[];
+  timezone: string;
+  minGapMinutes: number;
+};
+
+export type BotProfileConfig = {
+  botId: string;
+  handle: string;
+  name: string;
+  displayName: string;
+  bio: string;
+  profilePictureUrl?: string;
+  coverPhotoUrl?: string;
+  topics: Topic[];
+  semanticTopics: string[];
+  interests: string[];
+  botType: BotType;
+  personality: BotPersonality;
+  postingPreferences: BotPostingPreferences;
+};
+
 // Topic metadata for engagement tracking
 export type TopicMetadata = {
   name: string; // Topic name (e.g., 'dev')
@@ -238,8 +301,9 @@ export type FirestoreChirp = Omit<Chirp, 'createdAt' | 'scheduledAt' | 'analyzed
   analyzedAt?: any;
 };
 
-export type FirestoreComment = Omit<Comment, 'createdAt'> & {
+export type FirestoreComment = Omit<Comment, 'createdAt' | 'scheduledAt'> & {
   createdAt: any; // Firestore Timestamp
+  scheduledAt?: any; // Firestore Timestamp
 };
 
 // Comment tree structure for UI rendering
@@ -282,6 +346,39 @@ export type TrendingNews = {
 export type FirestoreTrendingNews = Omit<TrendingNews, 'publishedAt' | 'lastUpdated'> & {
   publishedAt: any; // Firestore Timestamp
   lastUpdated: any; // Firestore Timestamp
+};
+
+export type NewsArticle = {
+  id: string;
+  title: string;
+  description?: string;
+  content?: string;
+  url: string;
+  urlToImage?: string;
+  sourceId?: string | null;
+  sourceName: string;
+  publishedAt: Date;
+  category?: string;
+  query?: string;
+  fetchedAt: Date;
+};
+
+export type ArticleClassification = {
+  botType: BotType;
+  primaryTopic: string;
+  secondaryTopics: string[];
+  confidence: number; // 0-1
+  tags: string[];
+  classificationSource: 'category' | 'keywords' | 'default';
+};
+
+export type RoutedArticle = {
+  id: string;
+  article: NewsArticle;
+  classification: ArticleClassification;
+  assignedBotId: string;
+  assignedBotType: BotType;
+  assignedAt: Date;
 };
 
 // Notification types
@@ -362,4 +459,3 @@ export type PostReviewContext = {
 export type FirestorePostReviewContext = Omit<PostReviewContext, 'createdAt'> & {
   createdAt: any; // Firestore Timestamp
 };
-

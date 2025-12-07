@@ -38,7 +38,7 @@ const AppSection = () => {
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-semibold text-textPrimary mb-4">
-            Try Kurral
+            Try Kural
           </h2>
           <p className="text-lg text-textMuted">
             Experience the minimalist social feed you control

@@ -4,6 +4,7 @@ import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, getDoc,
 import { db } from './firebase';
 import { DEFAULT_FOR_YOU_CONFIG } from '../types';
 import { notificationService } from './services/notificationService';
+import { processChirpValue } from './services/valuePipelineService';
 // Helper to convert Firestore Timestamp to Date
 const toDate = (timestamp) => {
     if (timestamp?.toDate) {
@@ -280,15 +281,19 @@ const chirpFromFirestore = (doc) => {
         tunedAudience: data.tunedAudience,
         createdAt: toDate(data.createdAt),
         rechirpOfId: data.rechirpOfId,
+        quotedChirpId: data.quotedChirpId,
         commentCount: data.commentCount || 0,
         countryCode: data.countryCode,
         imageUrl: data.imageUrl,
         scheduledAt: data.scheduledAt ? toDate(data.scheduledAt) : undefined,
         formattedText: data.formattedText,
+        mentions: data.mentions || [],
         contentEmbedding: data.contentEmbedding,
         claims,
         factChecks,
         factCheckStatus: data.factCheckStatus,
+        factCheckingStatus: data.factCheckingStatus,
+        factCheckingStartedAt: data.factCheckingStartedAt ? toDate(data.factCheckingStartedAt) : undefined,
         valueScore: normalizeValueScore(data.valueScore, createdAt),
         valueExplanation: data.valueExplanation,
         discussionQuality: normalizeDiscussionQuality(data.discussionQuality),
@@ -308,6 +313,9 @@ const commentFromFirestore = (doc) => {
         replyCount: data.replyCount || 0,
         discussionRole: data.discussionRole,
         valueContribution: normalizeValueContribution(data.valueContribution),
+        imageUrl: data.imageUrl || undefined,
+        formattedText: data.formattedText || undefined,
+        scheduledAt: data.scheduledAt ? toDate(data.scheduledAt) : undefined,
     };
 };
 const userFromFirestore = (doc) => {
@@ -328,6 +336,9 @@ const userFromFirestore = (doc) => {
         url: data.url,
         location: data.location,
         onboardingCompleted: data.onboardingCompleted || false,
+        onboardingCompletedAt: data.onboardingCompletedAt ? toDate(data.onboardingCompletedAt) : undefined,
+        firstTimeUser: data.firstTimeUser !== undefined ? data.firstTimeUser : true,
+        autoFollowedAccounts: data.autoFollowedAccounts || [],
         profilePictureUrl: data.profilePictureUrl,
         coverPhotoUrl: data.coverPhotoUrl,
         reputation: data.reputation || {},
@@ -352,6 +363,11 @@ const userFromFirestore = (doc) => {
         profileSummaryUpdatedAt: data.profileSummaryUpdatedAt ? toDate(data.profileSummaryUpdatedAt) : undefined,
         profileEmbedding: data.profileEmbedding,
         profileEmbeddingVersion: data.profileEmbeddingVersion,
+        semanticTopics: data.semanticTopics || [],
+        isBot: data.isBot ?? false,
+        botType: data.botType,
+        botPersonality: data.botPersonality,
+        botPostingPreferences: data.botPostingPreferences,
     };
 };
 // Chirp operations
@@ -494,6 +510,18 @@ export const chirpService = {
             return null;
         }
     },
+    // Get chirps that need fact-checking (pending or in_progress)
+    async getChirpsNeedingFactCheck(authorId) {
+        try {
+            const q = query(collection(db, 'chirps'), where('authorId', '==', authorId), where('factCheckingStatus', 'in', ['pending', 'in_progress']), orderBy('createdAt', 'desc'), limit(10));
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(chirpFromFirestore);
+        }
+        catch (error) {
+            console.error('Error getting chirps needing fact check:', error);
+            return [];
+        }
+    },
     // Create a new chirp
     async createChirp(chirp) {
         try {
@@ -514,6 +542,13 @@ export const chirpService = {
             if (chirp.rechirpOfId) {
                 chirpData.rechirpOfId = chirp.rechirpOfId;
             }
+            // Only include quotedChirpId if it exists
+            if (chirp.quotedChirpId) {
+                chirpData.quotedChirpId = chirp.quotedChirpId;
+            }
+            // Initialize fact checking status for resume capability
+            chirpData.factCheckingStatus = 'pending';
+            chirpData.factCheckingStartedAt = Timestamp.now();
             // Include new optional fields
             if (chirp.imageUrl) {
                 chirpData.imageUrl = chirp.imageUrl;
@@ -527,6 +562,9 @@ export const chirpService = {
             if (chirp.formattedText) {
                 chirpData.formattedText = chirp.formattedText;
             }
+            if (chirp.mentions && chirp.mentions.length > 0) {
+                chirpData.mentions = chirp.mentions;
+            }
             if (chirp.semanticTopics && chirp.semanticTopics.length > 0) {
                 chirpData.semanticTopics = chirp.semanticTopics;
             }
@@ -539,6 +577,9 @@ export const chirpService = {
             if (chirp.analyzedAt) {
                 chirpData.analyzedAt = Timestamp.fromDate(chirp.analyzedAt);
             }
+            // Initialize fact checking status for resume capability
+            chirpData.factCheckingStatus = 'pending';
+            chirpData.factCheckingStartedAt = Timestamp.now();
             if (chirp.claims && chirp.claims.length > 0) {
                 chirpData.claims = serializeClaims(chirp.claims);
             }
@@ -567,6 +608,24 @@ export const chirpService = {
                 throw new Error('Failed to create chirp');
             }
             const newChirp = chirpFromFirestore(docSnap);
+            // Create notifications for mentions
+            if (chirp.mentions && chirp.mentions.length > 0) {
+                chirp.mentions.forEach(mentionedUserId => {
+                    if (mentionedUserId !== chirp.authorId) {
+                        notificationService.createNotification({
+                            userId: mentionedUserId,
+                            type: 'mention',
+                            actorId: chirp.authorId,
+                            chirpId: newChirp.id,
+                        }).catch(err => {
+                            // Silently fail - notification errors shouldn't block posting
+                            if (!err.message?.includes('disabled') && !err.message?.includes('muted')) {
+                                console.error('Error creating mention notification:', err);
+                            }
+                        });
+                    }
+                });
+            }
             // Create notification if this is a rechirp
             if (chirp.rechirpOfId && chirp.authorId) {
                 try {
@@ -620,6 +679,22 @@ export const chirpService = {
         if (insights.factCheckStatus !== undefined && insights.factCheckStatus !== null) {
             updates.factCheckStatus = insights.factCheckStatus;
         }
+        if (insights.factCheckingStatus !== undefined) {
+            if (insights.factCheckingStatus === null) {
+                updates.factCheckingStatus = deleteField();
+            }
+            else {
+                updates.factCheckingStatus = insights.factCheckingStatus;
+            }
+        }
+        if (insights.factCheckingStartedAt !== undefined) {
+            if (insights.factCheckingStartedAt === null) {
+                updates.factCheckingStartedAt = deleteField();
+            }
+            else {
+                updates.factCheckingStartedAt = insights.factCheckingStartedAt;
+            }
+        }
         if (insights.valueScore !== undefined && insights.valueScore !== null) {
             const serialized = serializeValueScore(insights.valueScore);
             if (serialized !== undefined && serialized !== null) {
@@ -636,15 +711,30 @@ export const chirpService = {
             }
         }
         // Remove any undefined values from updates (safety check)
-        Object.keys(updates).forEach(key => {
-            if (updates[key] === undefined) {
-                delete updates[key];
+        // Also recursively clean nested objects
+        const cleanUpdates = (obj) => {
+            if (obj === null || typeof obj !== 'object' || obj instanceof Date) {
+                return obj;
             }
-        });
-        if (Object.keys(updates).length === 0) {
+            if (Array.isArray(obj)) {
+                return obj.map(cleanUpdates).filter(item => item !== undefined);
+            }
+            const cleaned = {};
+            for (const [key, value] of Object.entries(obj)) {
+                if (value !== undefined) {
+                    const cleanedValue = cleanUpdates(value);
+                    if (cleanedValue !== undefined) {
+                        cleaned[key] = cleanedValue;
+                    }
+                }
+            }
+            return cleaned;
+        };
+        const cleanedUpdates = cleanUpdates(updates);
+        if (Object.keys(cleanedUpdates).length === 0) {
             return;
         }
-        await updateDoc(doc(db, 'chirps', chirpId), updates);
+        await updateDoc(doc(db, 'chirps', chirpId), cleanedUpdates);
     },
     // Delete a chirp and all its comments
     async deleteChirp(chirpId, authorId) {
@@ -696,6 +786,27 @@ export const chirpService = {
             });
             await batch.commit();
             console.log(`[ScheduledPosts] Published scheduled chirps for user ${authorId}`);
+            // Trigger fact-checking for published posts
+            // We do this after commit so the post is officially "live" without scheduledAt
+            // We use fire-and-forget pattern so we don't block or throw if AI fails
+            snapshot.docs.forEach(async (docSnap) => {
+                try {
+                    // We can construct the Chirp object from the docSnap
+                    // The scheduledAt field is technically deleted in DB but still in docSnap data
+                    // We should construct it and manually ensure scheduledAt is undefined for processing
+                    const chirp = chirpFromFirestore(docSnap);
+                    // Manually clear scheduledAt as it's now published
+                    const liveChirp = {
+                        ...chirp,
+                        scheduledAt: undefined
+                    };
+                    console.log(`[ScheduledPosts] Triggering fact-checking for published post ${liveChirp.id}`);
+                    await processChirpValue(liveChirp);
+                }
+                catch (error) {
+                    console.error(`[ScheduledPosts] Error triggering fact-check for post ${docSnap.id}:`, error);
+                }
+            });
         }
         catch (error) {
             console.error('Error processing scheduled posts:', error);
@@ -729,6 +840,255 @@ export const userService = {
             return null;
         }
     },
+    async getBots(limitCount = 20) {
+        try {
+            const botsQuery = query(collection(db, 'users'), where('isBot', '==', true), limit(limitCount));
+            const snapshot = await getDocs(botsQuery);
+            return snapshot.docs.map(userFromFirestore);
+        }
+        catch (error) {
+            console.error('Error fetching bot profiles:', error);
+            return [];
+        }
+    },
+    async searchUsers(searchQuery, limitCount = 5) {
+        if (!searchQuery.trim()) {
+            // For empty query, return recent users (limit to 10 for performance)
+            try {
+                const recentQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(10));
+                const snapshot = await getDocs(recentQuery);
+                return snapshot.docs.map(userFromFirestore).slice(0, limitCount);
+            }
+            catch (error) {
+                // If orderBy fails (no index), fallback to simple limit query
+                if (error.code === 'failed-precondition') {
+                    try {
+                        const fallbackQuery = query(collection(db, 'users'), limit(10));
+                        const snapshot = await getDocs(fallbackQuery);
+                        return snapshot.docs.map(userFromFirestore).slice(0, limitCount);
+                    }
+                    catch (fallbackError) {
+                        console.error('Error fetching recent users (fallback):', fallbackError);
+                        return [];
+                    }
+                }
+                console.error('Error fetching recent users:', error);
+                return [];
+            }
+        }
+        const term = searchQuery.toLowerCase().trim();
+        try {
+            // ENHANCED HYBRID APPROACH FOR FIRST/LAST NAME SEARCH:
+            // 1. Fetch candidates from Firestore by handle prefix (primary source)
+            // 2. Also fetch recent users as additional candidates (for name-based matching)
+            // 3. Combine and deduplicate candidates
+            // 4. Filter client-side by handle, first name, last name, and full name
+            // 5. Score with priority: handle > first name > last name > full name
+            // 6. Return top matches
+            const firestoreLimit = Math.max(limitCount * 4, 30); // Fetch 4x more for filtering
+            const candidatesSet = new Map(); // Use Map to deduplicate by user ID
+            // Primary: Fetch by handle prefix (most efficient)
+            try {
+                const handleQuery = query(collection(db, 'users'), where('handle', '>=', term), where('handle', '<', term + '\uf8ff'), limit(firestoreLimit));
+                const handleSnapshot = await getDocs(handleQuery);
+                handleSnapshot.docs.forEach(doc => {
+                    const user = userFromFirestore(doc);
+                    candidatesSet.set(user.id, user);
+                });
+            }
+            catch (handleError) {
+                console.warn('Error fetching users by handle prefix:', handleError);
+            }
+            // Secondary: Fetch recent users as additional candidates (for name-based search)
+            // This helps find users whose name matches but handle doesn't start with term
+            try {
+                const recentQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(50) // Fetch 50 recent users as additional candidates
+                );
+                const recentSnapshot = await getDocs(recentQuery);
+                recentSnapshot.docs.forEach(doc => {
+                    const user = userFromFirestore(doc);
+                    // Only add if not already in set (deduplicate)
+                    if (!candidatesSet.has(user.id)) {
+                        candidatesSet.set(user.id, user);
+                    }
+                });
+            }
+            catch (recentError) {
+                // If orderBy fails (no index), silently continue with handle results only
+                if (recentError.code !== 'failed-precondition') {
+                    console.warn('Error fetching recent users for name search:', recentError);
+                }
+            }
+            const candidates = Array.from(candidatesSet.values());
+            // Enhanced client-side filtering and scoring with first/last name support
+            const scoredUsers = candidates.map((user) => {
+                const handle = (user.handle || '').toLowerCase();
+                const fullName = (user.displayName || user.name || '').toLowerCase();
+                const userId = (user.userId || '').toLowerCase();
+                // Split name into words to identify first and last name
+                const nameWords = fullName.split(/\s+/).filter(w => w.length > 0);
+                const firstName = nameWords.length > 0 ? nameWords[0] : '';
+                const lastName = nameWords.length > 1 ? nameWords[nameWords.length - 1] : '';
+                const middleNames = nameWords.length > 2 ? nameWords.slice(1, -1) : [];
+                let score = 0;
+                const matchDetails = [];
+                // ===== HANDLE MATCHES (Highest Priority) =====
+                // Handle prefix match (highest priority - exact start)
+                if (handle.startsWith(term)) {
+                    score += 100;
+                    matchDetails.push('handle-prefix');
+                    // Bonus for exact match
+                    if (handle === term) {
+                        score += 50;
+                        matchDetails.push('handle-exact');
+                    }
+                }
+                // Handle contains match (medium priority)
+                else if (handle.includes(term)) {
+                    score += 50;
+                    matchDetails.push('handle-contains');
+                }
+                // Alternative handle/userId match
+                if (userId) {
+                    if (userId.startsWith(term)) {
+                        score += 40;
+                        matchDetails.push('userId-prefix');
+                    }
+                    else if (userId.includes(term)) {
+                        score += 20;
+                        matchDetails.push('userId-contains');
+                    }
+                }
+                // ===== FIRST NAME MATCHES (High Priority) =====
+                if (firstName) {
+                    // First name exact match (very high priority)
+                    if (firstName === term) {
+                        score += 80;
+                        matchDetails.push('first-name-exact');
+                    }
+                    // First name starts with term
+                    else if (firstName.startsWith(term)) {
+                        score += 60;
+                        matchDetails.push('first-name-prefix');
+                    }
+                    // First name contains term
+                    else if (firstName.includes(term)) {
+                        score += 40;
+                        matchDetails.push('first-name-contains');
+                    }
+                }
+                // ===== LAST NAME MATCHES (Medium Priority) =====
+                if (lastName) {
+                    // Last name exact match
+                    if (lastName === term) {
+                        score += 70;
+                        matchDetails.push('last-name-exact');
+                    }
+                    // Last name starts with term
+                    else if (lastName.startsWith(term)) {
+                        score += 50;
+                        matchDetails.push('last-name-prefix');
+                    }
+                    // Last name contains term
+                    else if (lastName.includes(term)) {
+                        score += 35;
+                        matchDetails.push('last-name-contains');
+                    }
+                }
+                // ===== MIDDLE NAME MATCHES (Lower Priority) =====
+                for (const middleName of middleNames) {
+                    if (middleName.startsWith(term)) {
+                        score += 30;
+                        matchDetails.push('middle-name-match');
+                        break; // Only count once
+                    }
+                }
+                // ===== FULL NAME MATCHES (Lower Priority) =====
+                // Full name contains match (fallback)
+                if (fullName.includes(term) && !matchDetails.some(d => d.includes('name'))) {
+                    score += 30;
+                    matchDetails.push('full-name-contains');
+                }
+                // Full name starts with term (bonus)
+                if (fullName.startsWith(term)) {
+                    score += 25;
+                    matchDetails.push('full-name-prefix');
+                }
+                // ===== WORD-LEVEL MATCHING (Additional Scoring) =====
+                // Check if search term matches any word in the name (for partial matches)
+                const termWords = term.split(/\s+/).filter(w => w.length >= 2);
+                for (const word of nameWords) {
+                    for (const tWord of termWords) {
+                        if (word.startsWith(tWord)) {
+                            // Give bonus points based on which word matched
+                            if (word === firstName) {
+                                score += 20; // First name word match
+                                matchDetails.push('first-name-word');
+                            }
+                            else if (word === lastName) {
+                                score += 15; // Last name word match
+                                matchDetails.push('last-name-word');
+                            }
+                            else {
+                                score += 10; // Other name word match
+                                matchDetails.push('name-word-match');
+                            }
+                        }
+                    }
+                }
+                return {
+                    user,
+                    score,
+                    matchDetails,
+                };
+            });
+            // Filter out zero-score matches and sort by score (descending)
+            const filtered = scoredUsers
+                .filter((item) => item.score > 0)
+                .sort((a, b) => {
+                // Primary sort: by score (highest first)
+                if (b.score !== a.score) {
+                    return b.score - a.score;
+                }
+                // Secondary sort: prioritize match types in order:
+                // 1. Handle matches (highest)
+                // 2. First name matches
+                // 3. Last name matches
+                // 4. Other name matches
+                const getMatchPriority = (details) => {
+                    if (details.some(d => d.includes('handle') || d.includes('userId')))
+                        return 4;
+                    if (details.some(d => d.includes('first-name')))
+                        return 3;
+                    if (details.some(d => d.includes('last-name')))
+                        return 2;
+                    if (details.some(d => d.includes('name')))
+                        return 1;
+                    return 0;
+                };
+                const aPriority = getMatchPriority(a.matchDetails);
+                const bPriority = getMatchPriority(b.matchDetails);
+                if (bPriority !== aPriority) {
+                    return bPriority - aPriority;
+                }
+                // Tertiary sort: prefer exact matches over prefix matches
+                const aHasExact = a.matchDetails.some(d => d.includes('exact'));
+                const bHasExact = b.matchDetails.some(d => d.includes('exact'));
+                if (aHasExact !== bHasExact) {
+                    return bHasExact ? 1 : -1;
+                }
+                // Quaternary sort: by handle length (shorter handles first for exact matches)
+                return (a.user.handle || '').length - (b.user.handle || '').length;
+            })
+                .slice(0, limitCount)
+                .map((item) => item.user);
+            return filtered;
+        }
+        catch (error) {
+            console.error('Error searching users:', error);
+            return [];
+        }
+    },
     async createUser(user, userId) {
         try {
             const now = Timestamp.now();
@@ -738,6 +1098,17 @@ export const userService = {
                 following: user.following || [],
                 bookmarks: user.bookmarks || [],
                 interests: user.interests || [],
+                semanticTopics: user.semanticTopics || [],
+                onboardingCompleted: user.onboardingCompleted ?? false,
+                onboardingCompletedAt: user.onboardingCompletedAt,
+                firstTimeUser: user.firstTimeUser ?? true,
+                autoFollowedAccounts: user.autoFollowedAccounts || [],
+                isBot: user.isBot ?? false,
+                botType: user.botType,
+                botPersonality: user.botPersonality,
+                botPostingPreferences: user.botPostingPreferences,
+                profilePictureUrl: user.profilePictureUrl,
+                coverPhotoUrl: user.coverPhotoUrl,
                 kurralScore: user.kurralScore || {
                     score: 65,
                     lastUpdated: now,
@@ -757,6 +1128,9 @@ export const userService = {
                     }
                     : DEFAULT_FOR_YOU_CONFIG,
             };
+            if (!user.onboardingCompletedAt) {
+                delete userData.onboardingCompletedAt;
+            }
             if (userId) {
                 // Create user with specific ID (for Firebase Auth UID)
                 await setDoc(doc(db, 'users', userId), userData);
@@ -783,7 +1157,14 @@ export const userService = {
     },
     async updateUser(userId, updates) {
         try {
-            await updateDoc(doc(db, 'users', userId), updates);
+            // Filter out undefined values - Firestore doesn't accept undefined
+            const cleanUpdates = {};
+            for (const [key, value] of Object.entries(updates)) {
+                if (value !== undefined) {
+                    cleanUpdates[key] = value;
+                }
+            }
+            await updateDoc(doc(db, 'users', userId), cleanUpdates);
         }
         catch (error) {
             console.error('Error updating user:', error);
@@ -806,6 +1187,76 @@ export const userService = {
         catch (error) {
             console.error('Error updating bookmarks:', error);
             throw error;
+        }
+    },
+    async getPopularAccounts(limitCount = 5) {
+        try {
+            const recentChirps = await chirpService.getRecentChirps(150);
+            const authorStats = new Map();
+            recentChirps.forEach((chirp) => {
+                const existing = authorStats.get(chirp.authorId);
+                if (!existing) {
+                    authorStats.set(chirp.authorId, { count: 1, lastPosted: chirp.createdAt });
+                }
+                else {
+                    existing.count += 1;
+                    if (chirp.createdAt > existing.lastPosted) {
+                        existing.lastPosted = chirp.createdAt;
+                    }
+                    authorStats.set(chirp.authorId, existing);
+                }
+            });
+            const sortedAuthorIds = Array.from(authorStats.entries())
+                .sort(([, a], [, b]) => {
+                if (b.count !== a.count) {
+                    return b.count - a.count;
+                }
+                return b.lastPosted.getTime() - a.lastPosted.getTime();
+            })
+                .map(([authorId]) => authorId)
+                .slice(0, limitCount);
+            if (sortedAuthorIds.length === 0) {
+                return [];
+            }
+            const snapshots = await Promise.all(sortedAuthorIds.map((authorId) => getDoc(doc(db, 'users', authorId))));
+            return snapshots
+                .filter((snap) => snap.exists())
+                .map((snap) => userFromFirestore(snap));
+        }
+        catch (error) {
+            console.error('Error fetching popular accounts:', error);
+            return [];
+        }
+    },
+    async autoFollowAccounts(userId, accountIds) {
+        if (accountIds.length === 0) {
+            return this.getUser(userId);
+        }
+        try {
+            const userSnap = await getDoc(doc(db, 'users', userId));
+            if (!userSnap.exists()) {
+                return null;
+            }
+            const currentUserData = userFromFirestore(userSnap);
+            const toFollow = Array.from(new Set(accountIds.filter((id) => id !== userId && !currentUserData.following.includes(id))));
+            if (toFollow.length === 0) {
+                return currentUserData;
+            }
+            const newFollowing = Array.from(new Set([...currentUserData.following, ...toFollow]));
+            const newAutoFollowed = Array.from(new Set([...(currentUserData.autoFollowedAccounts || []), ...toFollow]));
+            await updateDoc(doc(db, 'users', userId), {
+                following: newFollowing,
+                autoFollowedAccounts: newAutoFollowed,
+            });
+            const refreshed = await getDoc(doc(db, 'users', userId));
+            if (!refreshed.exists()) {
+                return currentUserData;
+            }
+            return userFromFirestore(refreshed);
+        }
+        catch (error) {
+            console.error('Error auto-following accounts:', error);
+            return this.getUser(userId);
         }
     },
     // Get users with similar interests (client-side matching)
@@ -936,6 +1387,15 @@ export const commentService = {
             }
             if (comment.valueContribution) {
                 commentData.valueContribution = serializeValueContribution(comment.valueContribution);
+            }
+            if (comment.imageUrl) {
+                commentData.imageUrl = comment.imageUrl;
+            }
+            if (comment.formattedText) {
+                commentData.formattedText = comment.formattedText;
+            }
+            if (comment.scheduledAt) {
+                commentData.scheduledAt = Timestamp.fromDate(comment.scheduledAt);
             }
             const docRef = await addDoc(collection(db, 'comments'), commentData);
             const docSnap = await getDoc(docRef);

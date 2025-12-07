@@ -334,7 +334,7 @@ const DashboardPage = () => {
           {/* Kurral Score Card */}
           <div className={`${theme === 'dark' ? 'bg-transparent border-white/10' : 'bg-backgroundElevated border-border'} rounded-xl border p-6`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} uppercase tracking-wide`}>Kurral Score</h3>
+              <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} uppercase tracking-wide`}>Kural Score</h3>
               <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getTierColor(metrics.kurralTier)} bg-opacity-10`}>
                 {metrics.kurralTier}
               </span>

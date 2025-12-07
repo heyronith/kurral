@@ -9,7 +9,7 @@ const Footer = () => {
     <>
       <footer className="section-container border-t border-border/40 py-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-textMuted">
-          <span>© {year} Kurral</span>
+          <span>© {year} Kural</span>
           <button
             onClick={() => setContactModalOpen(true)}
             className="hover:text-textPrimary transition-colors"

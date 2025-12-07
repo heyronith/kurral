@@ -131,7 +131,7 @@ const RightPanel = () => {
   return (
     <aside className="sticky top-20 hidden xl:flex w-80 flex-col gap-5">
       <div className={`rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`}>
-        <label className={`mb-3 block text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>Search Kurral</label>
+        <label className={`mb-3 block text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>Search Kural</label>
         <div className="relative">
           <input
             type="text"

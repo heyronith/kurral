@@ -24,6 +24,10 @@
     "test:semantic-similarity-runtime": "node scripts/test-semantic-similarity-runtime.js",
     "test:semantic-topics": "node scripts/test-semantic-topics-migration.js",
     "test:platform": "node scripts/test-platform-comprehensive.js",
+    "test:onboarding": "node scripts/test-onboarding-flow.js",
+    "test:bot-feature": "tsx --loader ./scripts/test-bot-loader.mjs scripts/test-bot-feature-e2e.js",
+    "check:bot-production": "node scripts/check-bot-production-readiness.js",
+    "bot:worker": "tsx scripts/bot-worker.ts",
     "check:firebase": "node scripts/check-firebase-config.js",
     "fix:following": "node scripts/fix-main-user-following.js",
     "verify:posts": "node scripts/verify-user-posts.js",
@@ -53,6 +57,7 @@
     "firebase-tools": "^13.0.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.2.2",
     "vite": "^5.0.8"
   },

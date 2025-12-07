@@ -184,7 +184,7 @@ const ValueBasedMonetizationDemo = () => {
             return 'bg-orange-500';
         return 'bg-red-500';
     };
-    return (_jsx("div", { className: "relative w-full flex items-center justify-center py-4", children: _jsxs("div", { className: "relative w-full max-w-sm space-y-4", children: [_jsxs("div", { className: "space-y-2.5", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("div", { className: `w-1.5 h-1.5 rounded-full ${getScoreColor(kurralScore)} transition-colors duration-300` }), _jsx("span", { className: "text-[10px] font-medium text-textMuted uppercase tracking-wide", children: "Kurral Score" })] }), _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("div", { className: "flex items-center gap-1.5", children: [1, 2, 3, 4, 5].map((level) => {
+    return (_jsx("div", { className: "relative w-full flex items-center justify-center py-4", children: _jsxs("div", { className: "relative w-full max-w-sm space-y-4", children: [_jsxs("div", { className: "space-y-2.5", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("div", { className: `w-1.5 h-1.5 rounded-full ${getScoreColor(kurralScore)} transition-colors duration-300` }), _jsx("span", { className: "text-[10px] font-medium text-textMuted uppercase tracking-wide", children: "Kural Score" })] }), _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("div", { className: "flex items-center gap-1.5", children: [1, 2, 3, 4, 5].map((level) => {
                                         const threshold = level * 20;
                                         const isActive = kurralScore >= threshold - 20;
                                         return (_jsx("div", { className: `w-2.5 h-2.5 rounded-full transition-all duration-300 ${isActive
@@ -327,7 +327,7 @@ const pillars = [
         id: 'control',
         title: 'Your Feed, Your Control',
         tagline: 'Stop fighting the feed',
-        description: 'Other platforms decide what you see. You don\'t. On Kurral, talk to your feed in plain English. Type "show more AI posts" or "mute politics" - it just works. Every post shows why it appeared, so you always know what\'s driving your feed. No black boxes. No hidden manipulation.',
+        description: 'Other platforms decide what you see. You don\'t. On Kural, talk to your feed in plain English. Type "show more AI posts" or "mute politics" - it just works. Every post shows why it appeared, so you always know what\'s driving your feed. No black boxes. No hidden manipulation.',
         visual: _jsx(TypingAnimation, {}),
         demo: true,
     },
@@ -335,7 +335,7 @@ const pillars = [
         id: 'audience',
         title: 'Audience Tuning',
         tagline: 'Stop shouting into the void',
-        description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts, and they guess wrong. On Kurral, AI analyzes your content and matches it to users whose profiles actually align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
+        description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts, and they guess wrong. On Kural, AI analyzes your content and matches it to users whose profiles actually align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
         visual: _jsx(AudienceTargetingDemo, {}),
         demo: true,
     },
@@ -343,7 +343,7 @@ const pillars = [
         id: 'monetization',
         title: 'Value over Views',
         tagline: 'Get recognized for what matters',
-        description: 'Other platforms reward views. Clickbait wins. On Kurral, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kurral Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. In the future, monetization will be based on this value system. Rage-bait doesn\'t.',
+        description: 'Other platforms reward views. Clickbait wins. On Kural, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kural Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. In the future, monetization will be based on this value system. Rage-bait doesn\'t.',
         visual: _jsx(ValueBasedMonetizationDemo, {}),
         demo: true,
     },
@@ -351,7 +351,7 @@ const pillars = [
         id: 'factcheck',
         title: 'Truth Intelligence',
         tagline: 'Trust what you read',
-        description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kurral, Truth intelligence verifies every post using systems and human intervention when needed before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
+        description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kural, Truth intelligence verifies every post using systems and human intervention when needed before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
         visual: _jsx(TruthIntelligenceDemo, {}),
         demo: true,
     },
@@ -359,14 +359,14 @@ const pillars = [
         id: 'transparency',
         title: 'Transparent by Design',
         tagline: 'Your data, your rules',
-        description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kurral, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Just social media that works for you, not against you.',
+        description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kural, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Just social media that works for you, not against you.',
         visual: _jsx(TransparencyDemo, {}),
         demo: true,
     },
 ];
 const ValuePropositionSection = ({}) => {
     const [activeTab, setActiveTab] = useState(0);
-    return (_jsx("section", { id: "how-it-works", className: "section-container py-20 md:py-32", children: _jsxs("div", { className: "max-w-6xl mx-auto space-y-12", children: [_jsxs("div", { className: "text-center space-y-4", children: [_jsxs("h2", { className: "text-3xl sm:text-4xl md:text-5xl font-bold text-textPrimary", children: ["How", ' ', _jsx("span", { className: "bg-gradient-to-r from-accent to-accentSecondary bg-clip-text text-transparent", children: "Kurral" }), ' ', "works"] }), _jsx("p", { className: "text-base md:text-lg text-textMuted max-w-xl mx-auto", children: "Stop fighting the feed. Start getting what you actually want." })] }), _jsxs("div", { className: "relative", children: [_jsx("div", { className: "flex flex-wrap justify-center gap-3 mb-8", children: pillars.map((pillar, index) => (_jsx("button", { onClick: () => setActiveTab(index), className: `px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${activeTab === index
+    return (_jsx("section", { id: "how-it-works", className: "section-container py-20 md:py-32", children: _jsxs("div", { className: "max-w-6xl mx-auto space-y-12", children: [_jsxs("div", { className: "text-center space-y-4", children: [_jsxs("h2", { className: "text-3xl sm:text-4xl md:text-5xl font-bold text-textPrimary", children: ["How", ' ', _jsx("span", { className: "bg-gradient-to-r from-accent to-accentSecondary bg-clip-text text-transparent", children: "Kural" }), ' ', "works"] }), _jsx("p", { className: "text-base md:text-lg text-textMuted max-w-xl mx-auto", children: "Stop fighting the feed. Start getting what you actually want." })] }), _jsxs("div", { className: "relative", children: [_jsx("div", { className: "flex flex-wrap justify-center gap-3 mb-8", children: pillars.map((pillar, index) => (_jsx("button", { onClick: () => setActiveTab(index), className: `px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${activeTab === index
                                     ? 'bg-accent text-white shadow-lg shadow-accent/20 scale-105'
                                     : 'bg-white/5 text-textMuted hover:bg-white/10 hover:text-textPrimary border border-white/10'}`, children: pillar.title }, pillar.id))) }), _jsx("div", { className: "relative min-h-[200px] md:min-h-[240px]", children: pillars.map((pillar, index) => (_jsx("div", { className: `absolute inset-0 transition-all duration-500 ${activeTab === index
                                     ? 'opacity-100 translate-y-0 pointer-events-auto'

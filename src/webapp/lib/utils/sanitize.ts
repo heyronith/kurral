@@ -16,7 +16,7 @@ const DEFAULT_ALLOWED_TAGS = new Set([
 
 const DEFAULT_ALLOWED_ATTRS = new Set(['href', 'title', 'target', 'rel', 'class']);
 const URI_ATTRS = new Set(['href']);
-const SAFE_URI_PATTERN = /^(https?:|mailto:)/i;
+const SAFE_URI_PATTERN = /^(https?:|mailto:|\/)/i;
 
 const sanitizeElementNode = (element: Element): void => {
   const tagName = element.tagName.toLowerCase();

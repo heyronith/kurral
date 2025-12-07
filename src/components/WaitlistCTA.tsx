@@ -18,7 +18,7 @@ const WaitlistCTA = () => {
             Join the founding community
           </h2>
           <p className="text-lg text-textMuted leading-relaxed">
-            Kurral is in private beta. We're inviting people who want a minimalist social feed they control - chronological
+            Kural is in private beta. We're inviting people who want a minimalist social feed they control - chronological
             by default, transparent when it's ranked, and calm enough that you can be fully caught up in minutes, not
             hours. Help us prove social media doesn't need manipulation to work.
           </p>

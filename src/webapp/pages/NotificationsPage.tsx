@@ -12,7 +12,7 @@ const NotificationsPage = () => {
 
   useEffect(() => {
     if (currentUser?.id) {
-      loadAllNotifications();
+      loadAllNotifications(currentUser.id);
     }
   }, [currentUser?.id, loadAllNotifications]);
 
@@ -48,7 +48,7 @@ const NotificationsPage = () => {
             <p className="text-sm">You're all caught up!</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="flex flex-col gap-3">
             {notifications.map((notification) => (
               <NotificationItem key={notification.id} notification={notification} />
             ))}

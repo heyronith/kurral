@@ -1,4 +1,4 @@
-import { BaseAgent, openai } from '../agents/baseAgent';
+import { BaseAgent } from '../agents/baseAgent';
 import type { Chirp, Claim, FactCheck } from '../../types';
 
 const TRUSTED_DOMAINS = [
@@ -87,6 +87,23 @@ const scoreEvidence = (url?: string): number => {
   return 0.5;
 };
 
+export const isTrustedDomain = (url?: string): boolean => {
+  const domain = getDomain(url);
+  if (!domain) {
+    return false;
+  }
+  if (BLOCKED_DOMAINS.includes(domain)) {
+    return false;
+  }
+  if (TRUSTED_DOMAINS.includes(domain)) {
+    return true;
+  }
+  if (domain.endsWith('.gov') || domain.endsWith('.edu')) {
+    return true;
+  }
+  return false;
+};
+
 const fallbackFactCheck = (claim: Claim): FactCheck => ({
   id: `${claim.id}-fallback`,
   claimId: claim.id,
@@ -98,13 +115,33 @@ const fallbackFactCheck = (claim: Claim): FactCheck => ({
 });
 
 const buildFactCheckPrompt = (chirp: Chirp, claim: Claim): string => {
-  return `You are a senior fact-checking analyst. Evaluate the following claim that appeared on a social platform.
+  const hasImage = chirp.imageUrl && chirp.imageUrl.trim().length > 0;
+  const hasText = chirp.text?.trim() && chirp.text.trim().length > 0;
+  
+  let prompt = `You are a senior fact-checking analyst. Evaluate the following claim that appeared on a social platform.
 
 Post Context:
 - Post ID: ${chirp.id}
 - Author ID: ${chirp.authorId}
-- Topic: ${chirp.topic}
-- Post text: """${chirp.text}"""
+- Topic: ${chirp.topic}`;
+
+  if (hasText) {
+    prompt += `
+- Post text: """${chirp.text}"""`;
+  }
+
+  if (hasImage) {
+    if (hasText) {
+      prompt += `
+- An image is attached to this post (image URL: ${chirp.imageUrl})`;
+    } else {
+      prompt += `
+- This post contains only an image (image URL: ${chirp.imageUrl})`;
+    }
+    prompt += `. The claim may have been extracted from text visible in the image.`;
+  }
+
+  prompt += `
 
 Claim to verify: "${claim.text}"
 
@@ -140,6 +177,8 @@ Rules:
 - Confidence should reflect how well the web search results support or contradict the claim.
 - Provide 1-3 evidence records with source name, actual URL from web search, and a short snippet.
 - Return ONLY the JSON object, no markdown, no code blocks, no explanation.`;
+  
+  return prompt;
 };
 
 const ensureEvidenceQuality = (evidence: FactCheckResponse['evidence'], isWebSearch: boolean = false): FactCheck['evidence'] => {
@@ -183,7 +222,18 @@ const sanitizeVerdict = (verdict: string): FactCheck['verdict'] => {
   return 'unknown';
 };
 
-const ENABLE_WEB_SEARCH = import.meta.env.VITE_OPENAI_WEB_SEARCH === 'true';
+const readEnv = (key: string): string | undefined => {
+  const viteEnv = (typeof import.meta !== 'undefined' && (import.meta as any).env) || {};
+  if (viteEnv && viteEnv[key] !== undefined) {
+    return viteEnv[key];
+  }
+  if (typeof process !== 'undefined' && process.env && process.env[key] !== undefined) {
+    return process.env[key];
+  }
+  return undefined;
+};
+
+const ENABLE_WEB_SEARCH = readEnv('VITE_OPENAI_WEB_SEARCH') === 'true';
 const WEB_SEARCH_MODEL = 'gpt-4o-mini';
 
 const parseJsonFromSearchResponse = (response: any): FactCheckResponse | null => {
@@ -244,18 +294,47 @@ const parseJsonFromSearchResponse = (response: any): FactCheckResponse | null =>
   return null;
 };
 
-const runFactCheckWithWebSearch = async (chirp: Chirp, claim: Claim): Promise<FactCheck> => {
-  if (!openai) {
-    throw new Error('OpenAI client not configured for web search');
-  }
+/**
+ * Call OpenAI responses API (for web search) through secure proxy
+ */
+async function callOpenAIResponsesProxy(body: any): Promise<any> {
+  try {
+    const response = await fetch('/api/openai-proxy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        endpoint: '/v1/responses',
+        method: 'POST',
+        body,
+      }),
+    });
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.message || `HTTP ${response.status}`);
+      (error as any).status = response.status;
+      throw error;
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.status === 500) {
+      throw new Error('Server error: OpenAI proxy is not configured. Please contact support.');
+    }
+    throw error;
+  }
+}
+
+const runFactCheckWithWebSearch = async (chirp: Chirp, claim: Claim): Promise<FactCheck> => {
   const systemPrompt = `You are a rigorous fact-checking agent that ALWAYS uses web search to verify claims. You MUST use the web_search tool for every fact-check. Do NOT rely on training data. Always cite credible sources from web search results with real URLs. Avoid speculation. If web search doesn't provide sufficient information, answer "unknown" and explain why.`;
   const userPrompt = buildFactCheckPrompt(chirp, claim);
   const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
   console.log('[FactCheckAgent] Using web search to verify claim:', claim.text);
 
-  const response = await openai.responses.create({
+  const response = await callOpenAIResponsesProxy({
     model: WEB_SEARCH_MODEL,
     input: fullPrompt,
     tools: [{ type: 'web_search' }],
@@ -357,7 +436,7 @@ export async function factCheckClaims(chirp: Chirp, claims: Claim[]): Promise<Fa
     return [];
   }
 
-  if (ENABLE_WEB_SEARCH && openai) {
+  if (ENABLE_WEB_SEARCH) {
     const results: FactCheck[] = [];
     for (const claim of claims) {
       try {

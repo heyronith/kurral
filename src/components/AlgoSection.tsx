@@ -63,7 +63,7 @@ const AlgoSection = () => {
         <p className="text-xs uppercase tracking-[0.3em] text-textLabel">The algorithm</p>
         <h2 className="text-3xl font-semibold text-textPrimary">The Algorithm (For You, not for us)</h2>
         <p className="text-textMuted">
-          Kurral doesn't run a giant AI to guess what will hook you. Latest stays chronological. For You is the
+          Kural doesn't run a giant AI to guess what will hook you. Latest stays chronological. For You is the
           only ranked feed - and you can see, tweak, and trust every rule that powers it.
         </p>
         <ul className="list-disc space-y-3 pl-6 text-sm text-textMuted">

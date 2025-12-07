@@ -6,10 +6,12 @@ import { useThemeStore } from '../store/useThemeStore';
 import { userService, chirpService } from '../lib/firestore';
 import { uploadProfilePicture, uploadCoverPhoto, deleteImage } from '../lib/storage';
 import { initializeKurralScore } from '../lib/services/kurralScoreService';
+import { deleteField } from 'firebase/firestore';
 import ChirpCard from '../components/ChirpCard';
 import AppLayout from '../components/AppLayout';
 import EditProfileModal from '../components/EditProfileModal';
 import FollowersFollowingModal from '../components/FollowersFollowingModal';
+import ProfileSummaryModal from '../components/ProfileSummaryModal';
 const getKurralTier = (score) => {
     if (score >= 88)
         return 'Excellent';
@@ -54,17 +56,6 @@ const getScoreBarColor = (score) => {
         return 'bg-gradient-to-r from-orange-500 to-orange-600';
     return 'bg-gradient-to-r from-red-500 to-red-600';
 };
-const getScoreStrokeColor = (score) => {
-    if (score >= 88)
-        return '#22c55e';
-    if (score >= 77)
-        return '#3b82f6';
-    if (score >= 65)
-        return '#eab308';
-    if (score >= 53)
-        return '#f97316';
-    return '#ef4444';
-};
 const ProfilePage = () => {
     const { userId } = useParams();
     const { currentUser, getUser, loadUser, followUser, unfollowUser, isFollowing, setCurrentUser, addUser, users } = useUserStore();
@@ -81,6 +72,7 @@ const ProfilePage = () => {
     const [hoveringCoverPhoto, setHoveringCoverPhoto] = useState(false);
     const [followersModalOpen, setFollowersModalOpen] = useState(false);
     const [followingModalOpen, setFollowingModalOpen] = useState(false);
+    const [profileSummaryModalOpen, setProfileSummaryModalOpen] = useState(false);
     const profilePictureInputRef = useRef(null);
     const coverPhotoInputRef = useRef(null);
     useEffect(() => {
@@ -91,13 +83,18 @@ const ProfilePage = () => {
             }
             try {
                 setIsLoading(true);
-                // Try to get from cache first
-                let user = getUser(userId);
-                if (!user) {
-                    // Load from Firestore
-                    const firestoreUser = await userService.getUser(userId);
-                    if (firestoreUser) {
-                        user = firestoreUser;
+                let user;
+                // Handle lookup (starts with @)
+                if (userId.startsWith('@')) {
+                    const handle = userId.substring(1);
+                    user = await userService.getUserByHandle(handle);
+                }
+                else {
+                    // Try to get from cache first
+                    user = getUser(userId);
+                    if (!user) {
+                        // Load from Firestore
+                        user = await userService.getUser(userId);
                     }
                 }
                 if (user) {
@@ -106,7 +103,7 @@ const ProfilePage = () => {
                         try {
                             await initializeKurralScore(user.id);
                             // Reload user to get updated kurralScore
-                            const updatedUser = await userService.getUser(userId);
+                            const updatedUser = await userService.getUser(user.id);
                             if (updatedUser) {
                                 user = updatedUser;
                             }
@@ -263,6 +260,78 @@ const ProfilePage = () => {
             }
         }
     };
+    const handleDeleteProfilePicture = async () => {
+        if (!profileUser || !isOwnProfile || !profileUser.profilePictureUrl)
+            return;
+        if (!confirm('Are you sure you want to delete your profile picture?')) {
+            return;
+        }
+        setUploadingProfilePicture(true);
+        try {
+            // Delete from Firebase Storage
+            if (profileUser.profilePictureUrl) {
+                try {
+                    await deleteImage(profileUser.profilePictureUrl);
+                }
+                catch (deleteError) {
+                    console.warn('Failed to delete profile picture from storage:', deleteError);
+                    // Continue even if storage delete fails - we still want to remove the URL
+                }
+            }
+            // Remove the URL from Firestore (using any to allow FieldValue from deleteField)
+            const updateData = {};
+            updateData.profilePictureUrl = deleteField();
+            await userService.updateUser(profileUser.id, updateData);
+            // Reload updated user
+            const updatedUser = await userService.getUser(profileUser.id);
+            if (updatedUser) {
+                handleProfileUpdate(updatedUser);
+            }
+        }
+        catch (error) {
+            console.error('Error deleting profile picture:', error);
+            alert(error.message || 'Failed to delete profile picture');
+        }
+        finally {
+            setUploadingProfilePicture(false);
+        }
+    };
+    const handleDeleteCoverPhoto = async () => {
+        if (!profileUser || !isOwnProfile || !profileUser.coverPhotoUrl)
+            return;
+        if (!confirm('Are you sure you want to delete your cover photo?')) {
+            return;
+        }
+        setUploadingCoverPhoto(true);
+        try {
+            // Delete from Firebase Storage
+            if (profileUser.coverPhotoUrl) {
+                try {
+                    await deleteImage(profileUser.coverPhotoUrl);
+                }
+                catch (deleteError) {
+                    console.warn('Failed to delete cover photo from storage:', deleteError);
+                    // Continue even if storage delete fails - we still want to remove the URL
+                }
+            }
+            // Remove the URL from Firestore (using any to allow FieldValue from deleteField)
+            const updateData = {};
+            updateData.coverPhotoUrl = deleteField();
+            await userService.updateUser(profileUser.id, updateData);
+            // Reload updated user
+            const updatedUser = await userService.getUser(profileUser.id);
+            if (updatedUser) {
+                handleProfileUpdate(updatedUser);
+            }
+        }
+        catch (error) {
+            console.error('Error deleting cover photo:', error);
+            alert(error.message || 'Failed to delete cover photo');
+        }
+        finally {
+            setUploadingCoverPhoto(false);
+        }
+    };
     if (isLoading) {
         return (_jsx("div", { className: `min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`, children: _jsx("div", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Loading..." }) }));
     }
@@ -283,19 +352,24 @@ const ProfilePage = () => {
         .map((part) => part[0]?.toUpperCase())
         .join('')
         .slice(0, 2);
-    return (_jsxs(AppLayout, { pageTitle: "Profile", wrapContent: true, children: [_jsxs("div", { className: `border-b ${theme === 'dark' ? 'border-white/10' : 'border-border'}`, children: [_jsxs("div", { className: "relative w-full h-48 bg-gradient-to-br from-primary/20 via-accent/20 to-primary/30 cursor-pointer group", onMouseEnter: () => isOwnProfile && setHoveringCoverPhoto(true), onMouseLeave: () => setHoveringCoverPhoto(false), onClick: () => isOwnProfile && coverPhotoInputRef.current?.click(), children: [profileUser.coverPhotoUrl ? (_jsx("img", { src: profileUser.coverPhotoUrl, alt: `${displayName}'s cover photo`, className: "w-full h-full object-cover" })) : null, isOwnProfile && (_jsxs(_Fragment, { children: [_jsx("div", { className: `absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-200 ${hoveringCoverPhoto ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-sm font-medium", children: uploadingCoverPhoto ? 'Uploading...' : 'Change cover photo' }) }), _jsx("input", { ref: coverPhotoInputRef, type: "file", accept: "image/*", onChange: handleCoverPhotoChange, className: "hidden", disabled: uploadingCoverPhoto })] }))] }), _jsx("div", { className: "px-6 py-4", children: _jsxs("div", { className: "flex items-start justify-between gap-4 mb-4", children: [_jsxs("div", { className: "flex flex-col items-start gap-3 flex-1 min-w-0", children: [_jsxs("div", { className: "relative cursor-pointer group -mt-16 flex-shrink-0", onMouseEnter: () => isOwnProfile && setHoveringProfilePicture(true), onMouseLeave: () => setHoveringProfilePicture(false), onClick: () => isOwnProfile && profilePictureInputRef.current?.click(), children: [_jsxs("div", { className: `flex h-24 w-24 items-center justify-center rounded-full ${theme === 'dark' ? 'bg-black' : 'bg-background border-4 border-background'} overflow-hidden z-10 relative`, children: [profileUser.profilePictureUrl ? (_jsx("img", { src: profileUser.profilePictureUrl, alt: `${displayName}'s profile picture`, className: "w-full h-full object-cover" })) : (_jsx("div", { className: "flex h-full w-full items-center justify-center bg-primary/20 text-2xl font-semibold text-primary", children: initials })), isOwnProfile && (_jsx("div", { className: `absolute inset-0 bg-black/60 rounded-full flex items-center justify-center transition-opacity duration-200 ${hoveringProfilePicture ? 'opacity-100' : 'opacity-0'}`, children: _jsx("div", { className: "text-white text-xs font-medium text-center px-2", children: uploadingProfilePicture ? 'Uploading...' : 'Change' }) }))] }), isOwnProfile && (_jsx("input", { ref: profilePictureInputRef, type: "file", accept: "image/*", onChange: handleProfilePictureChange, className: "hidden", disabled: uploadingProfilePicture }))] }), _jsxs("div", { className: "flex-1 min-w-0 w-full relative z-10 -mt-12 pt-16", children: [_jsx("h2", { className: `text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-0.5`, children: displayName }), _jsxs("p", { className: `text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-3`, children: ["@", userHandle] }), _jsxs("div", { className: "flex items-center gap-4 text-sm mb-3 flex-wrap", children: [_jsxs("button", { onClick: () => setFollowingModalOpen(true), className: "flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer", children: [_jsx("span", { className: `font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: profileUser.following.length }), _jsx("span", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Following" })] }), _jsxs("button", { onClick: () => setFollowersModalOpen(true), className: "flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer", children: [_jsx("span", { className: `font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: followersCount }), _jsx("span", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Followers" })] }), _jsxs("div", { className: "flex items-center gap-1", children: [_jsx("span", { className: `font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: userChirps.length }), _jsx("span", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Posts" })] })] }), profileUser.reputation && Object.keys(profileUser.reputation).length > 0 && (_jsxs("div", { className: "mb-3", children: [_jsx("div", { className: `text-xs font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`, children: "Reputation by Domain" }), _jsx("div", { className: "flex flex-wrap gap-1.5", children: Object.entries(profileUser.reputation)
-                                                                .sort(([, a], [, b]) => b - a)
-                                                                .slice(0, 5)
-                                                                .map(([domain, score]) => (_jsxs("div", { className: `px-2 py-1 ${theme === 'dark' ? 'bg-transparent text-white border-white/10' : 'bg-backgroundElevated/60 text-textPrimary border-border/50'} rounded border text-xs`, title: `${domain}: ${(score * 100).toFixed(0)}`, children: [_jsx("span", { className: "font-medium capitalize", children: domain }), _jsx("span", { className: "ml-1 text-accent", children: (score * 100).toFixed(0) })] }, domain))) })] })), profileUser.bio && (_jsx("p", { className: `text-sm ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2 whitespace-pre-wrap`, children: profileUser.bio })), (profileUser.location || profileUser.url) && (_jsxs("div", { className: `flex flex-wrap gap-3 text-xs ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} mb-2`, children: [profileUser.location && (_jsxs("span", { className: "flex items-center gap-1", children: [_jsx("span", { children: "\u2022" }), _jsx("span", { children: profileUser.location })] })), profileUser.url && (_jsxs("a", { href: profileUser.url, target: "_blank", rel: "noopener noreferrer", className: "flex items-center gap-1 text-primary hover:underline", children: [_jsx("span", { children: "\uD83D\uDD17" }), _jsx("span", { className: "truncate max-w-[200px]", children: profileUser.url.replace(/^https?:\/\//, '') })] }))] })), profileUser.interests && profileUser.interests.length > 0 && (_jsxs("div", { className: "flex flex-wrap gap-1.5", children: [profileUser.interests.slice(0, 5).map((interest) => (_jsx("span", { className: "px-2 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded text-xs", title: interest, children: interest }, interest))), profileUser.interests.length > 5 && (_jsxs("span", { className: "px-2 py-0.5 text-xs text-textMuted", children: ["+", profileUser.interests.length - 5] }))] }))] })] }), _jsxs("div", { className: "flex-shrink-0 pt-2 flex flex-col gap-2", children: [isOwnProfile && (_jsx("button", { onClick: () => setIsEditModalOpen(true), className: `px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white hover:bg-white/20' : 'bg-background/50 border-border text-textPrimary hover:bg-background/70'}`, children: "Edit Profile" })), !isOwnProfile && currentUser && (_jsx("button", { onClick: handleFollow, className: `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${following
-                                                ? theme === 'dark'
-                                                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
-                                                    : 'bg-background/50 border border-border text-textPrimary hover:bg-background/70'
-                                                : 'bg-primary text-white hover:bg-primary/90'}`, children: following ? 'Following' : 'Follow' })), profileUser.kurralScore && kurralScoreValue !== null && (_jsxs("div", { className: `px-4 py-3 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-backgroundElevated/40 border-border/60'} w-full min-w-[200px]`, children: [_jsxs("div", { className: "flex items-center gap-2 mb-3", children: [_jsx("div", { className: `w-2 h-2 rounded-full ${getScoreColor(kurralScoreValue)}` }), _jsx("span", { className: `text-xs font-medium ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: "Kurral Score" })] }), _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("div", { className: "flex items-center gap-2", children: [1, 2, 3, 4, 5].map((level) => {
-                                                                const threshold = level * 20;
-                                                                const isActive = kurralScoreValue >= threshold - 20;
-                                                                return (_jsx("div", { className: `w-2.5 h-2.5 rounded-full transition-all duration-300 ${isActive
-                                                                        ? getScoreColor(kurralScoreValue)
-                                                                        : theme === 'dark' ? 'bg-white/10' : 'bg-border/40'}` }, level));
-                                                            }) }), isMonetizationEligible && (_jsxs("div", { className: "flex items-center gap-1", children: [_jsx("div", { className: "w-2 h-2 rounded-full bg-green-500 animate-pulse" }), _jsx("div", { className: `w-1 h-1 rounded-full ${theme === 'dark' ? 'bg-green-400' : 'bg-green-600'}` })] }))] })] }))] })] }) })] }), _jsx("div", { className: "max-h-[calc(100vh-350px)] overflow-y-auto", children: isLoadingContent ? (_jsx("div", { className: "p-8 text-center text-textMuted", children: "Loading..." })) : userChirps.length > 0 ? (userChirps.map((chirp) => (_jsx(ChirpCard, { chirp: chirp }, chirp.id)))) : (_jsx("div", { className: "p-8 text-center text-textMuted", children: _jsx("p", { children: "No posts yet" }) })) }), profileUser && (_jsx(EditProfileModal, { open: isEditModalOpen, onClose: () => setIsEditModalOpen(false), user: profileUser, onUpdate: handleProfileUpdate })), profileUser && (_jsxs(_Fragment, { children: [_jsx(FollowersFollowingModal, { open: followersModalOpen, onClose: () => setFollowersModalOpen(false), userId: profileUser.id, mode: "followers" }), _jsx(FollowersFollowingModal, { open: followingModalOpen, onClose: () => setFollowingModalOpen(false), userId: profileUser.id, mode: "following" })] }))] }));
+    return (_jsxs(AppLayout, { pageTitle: "Profile", wrapContent: true, children: [_jsx("div", { className: "px-4 pt-4 pb-2", children: _jsxs("div", { className: `relative overflow-hidden rounded-[2.5rem] border transition-all duration-500 group ${theme === 'dark'
+                        ? 'bg-[#09090b] border-white/10 shadow-2xl shadow-black/50'
+                        : 'bg-white border-gray-100 shadow-xl shadow-gray-200/50'}`, children: [_jsxs("div", { className: "relative w-full h-56 sm:h-72 bg-gray-900 cursor-pointer overflow-hidden", onMouseEnter: () => isOwnProfile && setHoveringCoverPhoto(true), onMouseLeave: () => setHoveringCoverPhoto(false), children: [profileUser.coverPhotoUrl ? (_jsx("img", { src: profileUser.coverPhotoUrl, alt: "Cover", className: "w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-[1.02]" })) : (_jsx("div", { className: `w-full h-full opacity-40 ${theme === 'dark'
+                                        ? 'bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-gray-800 via-black to-black'
+                                        : 'bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-gray-200 via-gray-100 to-white'}` })), _jsx("div", { className: `absolute inset-0 bg-gradient-to-b ${theme === 'dark'
+                                        ? 'from-black/0 via-black/20 to-[#09090b]'
+                                        : 'from-white/0 via-white/30 to-white'}` }), kurralScoreValue !== null && (_jsxs("div", { className: "absolute bottom-0 left-0 right-0 h-[2px] w-full overflow-hidden", children: [_jsx("div", { className: `h-full ${getScoreBarColor(kurralScoreValue)} opacity-80 blur-[1px]`, style: { width: `${Math.max(5, kurralScoreValue)}%` } }), _jsx("div", { className: `absolute bottom-0 left-0 h-[1px] w-full ${getScoreColor(kurralScoreValue)} shadow-[0_0_15px_rgba(var(--color-primary),0.5)]`, style: { width: `${Math.max(5, kurralScoreValue)}%` } })] })), isOwnProfile && (_jsxs(_Fragment, { children: [_jsx("div", { className: `absolute inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center transition-opacity duration-300 ${hoveringCoverPhoto ? 'opacity-100' : 'opacity-0'}`, children: uploadingCoverPhoto ? (_jsx("span", { className: "text-white font-medium tracking-widest uppercase text-xs animate-pulse", children: "Updating Horizon..." })) : (_jsxs("div", { className: "flex gap-3", children: [_jsx("button", { onClick: (e) => { e.stopPropagation(); coverPhotoInputRef.current?.click(); }, className: "px-5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-widest rounded-full backdrop-blur-md border border-white/20 transition-all", children: "Change Cover" }), profileUser.coverPhotoUrl && (_jsx("button", { onClick: (e) => { e.stopPropagation(); handleDeleteCoverPhoto(); }, className: "p-2 bg-red-500/20 hover:bg-red-500/40 text-white rounded-full backdrop-blur-md border border-red-500/30 transition-all", children: _jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" }) }) }))] })) }), _jsx("input", { ref: coverPhotoInputRef, type: "file", accept: "image/*", onChange: handleCoverPhotoChange, className: "hidden", disabled: uploadingCoverPhoto })] }))] }), _jsx("div", { className: "relative px-6 sm:px-10 pb-8", children: _jsxs("div", { className: "flex flex-col sm:flex-row items-start gap-6 -mt-16 sm:-mt-20", children: [_jsxs("div", { className: "relative z-10 flex-shrink-0", children: [_jsxs("div", { className: `relative w-32 h-32 sm:w-40 sm:h-40 rounded-[2rem] p-1.5 shadow-2xl ${theme === 'dark' ? 'bg-[#09090b]' : 'bg-white'}`, onMouseEnter: () => isOwnProfile && setHoveringProfilePicture(true), onMouseLeave: () => setHoveringProfilePicture(false), children: [_jsxs("div", { className: `w-full h-full rounded-[1.6rem] overflow-hidden relative ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`, children: [profileUser.profilePictureUrl ? (_jsx("img", { src: profileUser.profilePictureUrl, alt: displayName, className: "w-full h-full object-cover" })) : (_jsx("div", { className: "w-full h-full flex items-center justify-center bg-gradient-to-br from-primary to-accent text-white text-4xl font-black", children: initials })), isOwnProfile && (_jsx("div", { className: `absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity duration-200 ${hoveringProfilePicture ? 'opacity-100' : 'opacity-0'}`, children: uploadingProfilePicture ? (_jsx("div", { className: "w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" })) : (_jsx("button", { onClick: (e) => { e.stopPropagation(); profilePictureInputRef.current?.click(); }, className: "text-white/90 hover:text-white transform hover:scale-110 transition-transform", children: _jsxs("svg", { className: "w-8 h-8", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: [_jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" }), _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M15 13a3 3 0 11-6 0 3 3 0 016 0z" })] }) })) }))] }), isMonetizationEligible && (_jsx("div", { className: "absolute -bottom-1 -right-1 w-7 h-7 bg-[#09090b] rounded-full flex items-center justify-center", children: _jsx("div", { className: "w-4 h-4 bg-green-500 rounded-full border-2 border-[#09090b] shadow-[0_0_10px_rgba(34,197,94,0.6)]" }) }))] }), isOwnProfile && _jsx("input", { ref: profilePictureInputRef, type: "file", accept: "image/*", onChange: handleProfilePictureChange, className: "hidden", disabled: uploadingProfilePicture })] }), _jsxs("div", { className: "flex-1 w-full pt-2 sm:pt-20 min-w-0", children: [_jsxs("div", { className: "flex flex-col lg:flex-row lg:items-start justify-between gap-6", children: [_jsxs("div", { className: "flex-1 space-y-3", children: [_jsxs("div", { children: [_jsx("h1", { className: `text-3xl sm:text-4xl font-black tracking-tight leading-tight ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`, children: displayName }), _jsxs("p", { className: `text-base font-medium mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`, children: ["@", userHandle] })] }), profileUser.bio && (_jsx("p", { className: `text-sm sm:text-base leading-relaxed max-w-2xl ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`, children: profileUser.bio })), _jsxs("div", { className: "flex flex-wrap gap-2 pt-1", children: [profileUser.location && (_jsxs("div", { className: `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${theme === 'dark' ? 'bg-white/5 text-gray-300' : 'bg-gray-50 text-gray-600'}`, children: [_jsxs("svg", { className: "w-3.5 h-3.5 opacity-70", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: [_jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" }), _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M15 11a3 3 0 11-6 0 3 3 0 016 0z" })] }), profileUser.location] })), profileUser.url && (_jsxs("a", { href: profileUser.url, target: "_blank", rel: "noopener noreferrer", className: `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${theme === 'dark' ? 'bg-white/5 text-primary hover:bg-primary/10' : 'bg-gray-50 text-primary hover:bg-primary/5'}`, children: [_jsx("svg", { className: "w-3.5 h-3.5 opacity-70", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" }) }), profileUser.url.replace(/^https?:\/\//, '')] })), _jsxs("div", { className: `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${theme === 'dark' ? 'bg-white/5 text-gray-400' : 'bg-gray-50 text-gray-500'}`, children: [_jsx("svg", { className: "w-3.5 h-3.5 opacity-70", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" }) }), "Joined ", new Date(profileUser.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })] })] })] }), _jsxs("div", { className: "flex flex-col gap-6 lg:items-end", children: [_jsxs("div", { className: "flex items-center gap-6 lg:justify-end", children: [_jsxs("button", { onClick: () => setFollowingModalOpen(true), className: "group text-left lg:text-right", children: [_jsx("p", { className: `text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`, children: profileUser.following.length }), _jsx("p", { className: `text-xs font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-500 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-600'} transition-colors`, children: "Following" })] }), _jsx("div", { className: `w-px h-8 ${theme === 'dark' ? 'bg-white/10' : 'bg-gray-200'}` }), _jsxs("button", { onClick: () => setFollowersModalOpen(true), className: "group text-left lg:text-right", children: [_jsx("p", { className: `text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`, children: followersCount }), _jsx("p", { className: `text-xs font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-500 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-600'} transition-colors`, children: "Followers" })] }), _jsx("div", { className: `w-px h-8 ${theme === 'dark' ? 'bg-white/10' : 'bg-gray-200'}` }), _jsxs("div", { className: "text-left lg:text-right", children: [_jsx("p", { className: `text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`, children: userChirps.length }), _jsx("p", { className: `text-xs font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`, children: "Posts" })] })] }), _jsxs("div", { className: "flex flex-col gap-3 lg:items-end", children: [_jsx("div", { className: "flex flex-wrap gap-3 lg:justify-end", children: isOwnProfile ? (_jsx("button", { onClick: () => setIsEditModalOpen(true), className: `px-6 py-2.5 rounded-2xl font-semibold text-sm transition-all active:scale-95 ${theme === 'dark'
+                                                                                ? 'bg-white text-black hover:bg-gray-200'
+                                                                                : 'bg-black text-white hover:bg-gray-800'}`, children: "Edit Profile" })) : currentUser && (_jsxs(_Fragment, { children: [_jsx("button", { onClick: handleFollow, className: `px-6 py-2.5 rounded-2xl font-semibold text-sm shadow-lg transition-all active:scale-95 ${following
+                                                                                        ? theme === 'dark'
+                                                                                            ? 'bg-white/10 border border-white/10 text-white hover:bg-white/20'
+                                                                                            : 'bg-gray-100 border border-gray-200 text-gray-900 hover:bg-gray-200'
+                                                                                        : 'bg-primary text-white hover:bg-primary/90 hover:shadow-primary/25'}`, children: following ? 'Following' : 'Follow' }), _jsxs("button", { onClick: () => setProfileSummaryModalOpen(true), className: `flex items-center gap-2 px-4 py-2.5 rounded-2xl font-semibold text-sm border transition-all ${theme === 'dark'
+                                                                                        ? 'border-white/20 text-white hover:bg-white/5'
+                                                                                        : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`, children: [_jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" }) }), _jsx("span", { className: "hidden sm:inline", children: "Summary" })] })] })) }), kurralScoreValue !== null && (_jsxs("div", { className: `flex items-center gap-2 px-3 py-1.5 rounded-xl ${theme === 'dark'
+                                                                            ? 'bg-white/5'
+                                                                            : 'bg-gray-50'}`, children: [_jsx("div", { className: `w-2 h-2 rounded-full ${getScoreColor(kurralScoreValue)}` }), _jsx("span", { className: `text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`, children: getKurralTier(kurralScoreValue) })] }))] })] })] }), profileUser.interests && profileUser.interests.length > 0 && (_jsxs("div", { className: "mt-8 pt-6 border-t border-dashed border-gray-200 dark:border-white/10", children: [_jsx("p", { className: `text-xs font-bold uppercase tracking-widest mb-3 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`, children: "Interest Signals" }), _jsx("div", { className: "flex flex-wrap gap-2", children: profileUser.interests.map((interest) => (_jsxs("span", { className: `px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-colors cursor-default ${theme === 'dark'
+                                                                ? 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`, children: ["#", interest] }, interest))) })] }))] })] }) })] }) }), _jsxs("div", { className: "px-4 pb-12 mt-6", children: [_jsx("h3", { className: `text-lg font-bold mb-4 px-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`, children: "Recent Posts" }), isLoadingContent ? (_jsx("div", { className: "py-12 text-center", children: _jsx("div", { className: "inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin text-textMuted" }) })) : userChirps.length > 0 ? (_jsx("div", { className: "space-y-4", children: userChirps.map((chirp) => (_jsx(ChirpCard, { chirp: chirp }, chirp.id))) })) : (_jsx("div", { className: `py-16 text-center rounded-2xl border border-dashed ${theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-gray-50'}`, children: _jsx("p", { className: "text-textMuted", children: "No posts yet" }) }))] }), profileUser && (_jsxs(_Fragment, { children: [_jsx(EditProfileModal, { open: isEditModalOpen, onClose: () => setIsEditModalOpen(false), user: profileUser, onUpdate: handleProfileUpdate }), _jsx(FollowersFollowingModal, { open: followersModalOpen, onClose: () => setFollowersModalOpen(false), userId: profileUser.id, mode: "followers" }), _jsx(FollowersFollowingModal, { open: followingModalOpen, onClose: () => setFollowingModalOpen(false), userId: profileUser.id, mode: "following" }), !isOwnProfile && (_jsx(ProfileSummaryModal, { open: profileSummaryModalOpen, onClose: () => setProfileSummaryModalOpen(false), user: profileUser }))] }))] }));
 };
 export default ProfilePage;

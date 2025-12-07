@@ -1,0 +1,19 @@
+# Cursor ignore file
+# This file controls what files Cursor AI can see
+# Files listed here will be hidden from the AI
+
+# Allow .env files to be visible to AI (override .gitignore)
+!.env
+!.env.local
+!.env.development.local
+!.env.test.local
+!.env.production.local
+
+# Ignore other sensitive or large files
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.DS_Store
+

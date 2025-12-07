@@ -77,14 +77,20 @@ export const useUserStore = create<UserState>((set, get) => ({
     
     if (!currentUser.following.includes(userId)) {
       const newFollowing = [...currentUser.following, userId];
+      const updatedUser = { ...currentUser, following: newFollowing };
       
       // Optimistic update
-      set({
-        currentUser: {
-          ...currentUser,
-          following: newFollowing,
+      set((state) => ({
+        currentUser: updatedUser,
+        users: {
+          ...state.users,
+          [updatedUser.id]: updatedUser,
         },
-      });
+        userFetchTimestamps: {
+          ...state.userFetchTimestamps,
+          [updatedUser.id]: Date.now(),
+        },
+      }));
 
       // Persist to Firestore
       try {
@@ -104,12 +110,17 @@ export const useUserStore = create<UserState>((set, get) => ({
       } catch (error) {
         console.error('Error following user:', error);
         // Revert on error
-        set({
-          currentUser: {
-            ...currentUser,
-            following: currentUser.following,
+        set((state) => ({
+          currentUser: currentUser,
+          users: {
+            ...state.users,
+            [currentUser.id]: currentUser,
           },
-        });
+          userFetchTimestamps: {
+            ...state.userFetchTimestamps,
+            [currentUser.id]: Date.now(),
+          },
+        }));
       }
     }
   },
@@ -119,14 +130,20 @@ export const useUserStore = create<UserState>((set, get) => ({
     if (!currentUser) return;
     
     const newFollowing = currentUser.following.filter((id) => id !== userId);
+    const updatedUser = { ...currentUser, following: newFollowing };
     
     // Optimistic update
-    set({
-      currentUser: {
-        ...currentUser,
-        following: newFollowing,
+    set((state) => ({
+      currentUser: updatedUser,
+      users: {
+        ...state.users,
+        [updatedUser.id]: updatedUser,
       },
-    });
+      userFetchTimestamps: {
+        ...state.userFetchTimestamps,
+        [updatedUser.id]: Date.now(),
+      },
+    }));
 
     // Persist to Firestore
     try {
@@ -134,12 +151,17 @@ export const useUserStore = create<UserState>((set, get) => ({
     } catch (error) {
       console.error('Error unfollowing user:', error);
       // Revert on error
-      set({
-        currentUser: {
-          ...currentUser,
-          following: currentUser.following,
+      set((state) => ({
+        currentUser: currentUser,
+        users: {
+          ...state.users,
+          [currentUser.id]: currentUser,
         },
-      });
+        userFetchTimestamps: {
+          ...state.userFetchTimestamps,
+          [currentUser.id]: Date.now(),
+        },
+      }));
     }
   },
 

@@ -23,7 +23,7 @@ const AudienceTargetingDemo = () => {
   ];
   
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     let currentIndex = 0;
     
     const cycle = () => {
@@ -260,9 +260,9 @@ const ValueBasedMonetizationDemo = () => {
   const [avgDiscussionQuality, setAvgDiscussionQuality] = useState(0);
 
   useEffect(() => {
-    let scoreInterval: NodeJS.Timeout;
-    let metricsInterval: NodeJS.Timeout;
-    let timeoutIds: NodeJS.Timeout[] = [];
+    let scoreInterval: ReturnType<typeof setInterval>;
+    let metricsInterval: ReturnType<typeof setInterval>;
+    let timeoutIds: ReturnType<typeof setTimeout>[] = [];
 
     const cycle = () => {
       // Reset all values
@@ -344,7 +344,7 @@ const ValueBasedMonetizationDemo = () => {
         <div className="space-y-2.5">
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${getScoreColor(kurralScore)} transition-colors duration-300`}></div>
-            <span className="text-[10px] font-medium text-textMuted uppercase tracking-wide">Kurral Score</span>
+            <span className="text-[10px] font-medium text-textMuted uppercase tracking-wide">Kural Score</span>
           </div>
           
           {/* Dotted Score Display */}
@@ -410,7 +410,7 @@ const TypingAnimation = () => {
   useEffect(() => {
     if (!isTyping || showSuccess) return;
     
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     let currentIndex = 0;
     
     const typeText = () => {
@@ -642,7 +642,7 @@ const TruthIntelligenceDemo = () => {
   const [showContextCheck, setShowContextCheck] = useState(false);
 
   useEffect(() => {
-    let timeoutIds: NodeJS.Timeout[] = [];
+    let timeoutIds: ReturnType<typeof setTimeout>[] = [];
 
     const cycle = () => {
       // Reset
@@ -797,7 +797,7 @@ const pillars = [
     id: 'control',
     title: 'Your Feed, Your Control',
     tagline: 'Stop fighting the feed',
-    description: 'Other platforms decide what you see. You don\'t. On Kurral, talk to your feed in plain English. Type "show more AI posts" or "mute politics" - it just works. Every post shows why it appeared, so you always know what\'s driving your feed. No black boxes. No hidden manipulation.',
+    description: 'Other platforms decide what you see. You don\'t. On Kural, talk to your feed in plain English. Type "show more AI posts" or "mute politics" - it just works. Every post shows why it appeared, so you always know what\'s driving your feed. No black boxes. No hidden manipulation.',
     visual: <TypingAnimation />,
     demo: true,
   },
@@ -805,7 +805,7 @@ const pillars = [
     id: 'audience',
     title: 'Audience Tuning',
     tagline: 'Stop shouting into the void',
-    description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts, and they guess wrong. On Kurral, AI analyzes your content and matches it to users whose profiles actually align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
+    description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts, and they guess wrong. On Kural, AI analyzes your content and matches it to users whose profiles actually align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
     visual: <AudienceTargetingDemo />,
     demo: true,
   },
@@ -813,7 +813,7 @@ const pillars = [
     id: 'monetization',
     title: 'Value over Views',
     tagline: 'Get recognized for what matters',
-    description: 'Other platforms reward views. Clickbait wins. On Kurral, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kurral Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. In the future, monetization will be based on this value system. Rage-bait doesn\'t.',
+    description: 'Other platforms reward views. Clickbait wins. On Kural, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kural Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. In the future, monetization will be based on this value system. Rage-bait doesn\'t.',
     visual: <ValueBasedMonetizationDemo />,
     demo: true,
   },
@@ -821,7 +821,7 @@ const pillars = [
     id: 'factcheck',
     title: 'Truth Intelligence',
     tagline: 'Trust what you read',
-    description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kurral, Truth intelligence verifies every post using systems and human intervention when needed before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
+    description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kural, Truth intelligence verifies every post using systems and human intervention when needed before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
     visual: <TruthIntelligenceDemo />,
     demo: true,
   },
@@ -829,7 +829,7 @@ const pillars = [
     id: 'transparency',
     title: 'Transparent by Design',
     tagline: 'Your data, your rules',
-    description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kurral, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Just social media that works for you, not against you.',
+    description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kural, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Just social media that works for you, not against you.',
     visual: <TransparencyDemo />,
     demo: true,
   },
@@ -846,7 +846,7 @@ const ValuePropositionSection = ({}: ValuePropositionSectionProps) => {
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-textPrimary">
             How{' '}
               <span className="bg-gradient-to-r from-accent to-accentSecondary bg-clip-text text-transparent">
-              Kurral
+              Kural
             </span>{' '}
             works
             </h2>
