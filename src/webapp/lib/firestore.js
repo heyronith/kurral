@@ -836,6 +836,17 @@ export const userService = {
             return null;
         }
     },
+    async getBots(limitCount = 20) {
+        try {
+            const botsQuery = query(collection(db, 'users'), where('isBot', '==', true), limit(limitCount));
+            const snapshot = await getDocs(botsQuery);
+            return snapshot.docs.map(userFromFirestore);
+        }
+        catch (error) {
+            console.error('Error fetching bot profiles:', error);
+            return [];
+        }
+    },
     async searchUsers(searchQuery, limitCount = 5) {
         if (!searchQuery.trim()) {
             // For empty query, return recent users (limit to 10 for performance)
