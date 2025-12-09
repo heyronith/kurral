@@ -32,7 +32,7 @@ const DocumentTitle = () => {
     const pathname = location.pathname;
     let title = 'Kural';
 
-    if (pathname === '/lp') {
+    if (pathname === '/info') {
       title = 'Kural';
     } else if (pathname === '/login') {
       title = 'Login';
@@ -40,7 +40,7 @@ const DocumentTitle = () => {
       title = 'Sign Up';
     } else if (pathname === '/onboarding') {
       title = 'Onboarding';
-    } else if (pathname === '/app') {
+    } else if (pathname === '/' || pathname === '/app') {
       title = 'Kurals';
     } else if (pathname.startsWith('/post/')) {
       title = 'Post';
@@ -91,8 +91,7 @@ const App = () => {
       <FaviconUpdater />
       <Suspense fallback={<PageLoader />}>
       <Routes>
-        <Route path="/lp" element={<LandingPage />} />
-        <Route path="/" element={<Navigate to="/app" replace />} />
+        <Route path="/info" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route
@@ -105,6 +104,10 @@ const App = () => {
         />
         <Route
           path="/app"
+          element={<Navigate to="/" replace />}
+        />
+        <Route
+          path="/"
           element={
             <ProtectedRoute>
               <ChirpApp />

@@ -352,7 +352,7 @@ const ProfilePage = () => {
       <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`}>
         <div className="text-center">
           <h1 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`}>User not found</h1>
-          <Link to="/app" className="text-primary hover:underline">
+          <Link to="/" className="text-primary hover:underline">
             Go back to app
           </Link>
         </div>

@@ -316,7 +316,7 @@ const Onboarding = () => {
                 setCurrentUser(followUpdated);
             }
             // Navigate immediately - don't wait for AI operations
-            navigate('/app');
+            navigate('/');
             // Generate profile summary in background (NON-CRITICAL)
             // This happens asynchronously and doesn't block the user
             generateAndSaveProfileSummary(currentUser.id)

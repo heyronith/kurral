@@ -13,12 +13,12 @@ const SidebarNav = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     const isActive = (path) => {
-        if (path === '/app') {
-            return location.pathname === '/app';
+        if (path === '/') {
+            return location.pathname === '/' || location.pathname === '/app';
         }
         return location.pathname.startsWith(path);
     };
-    return (_jsxs("aside", { className: "sticky top-24 hidden lg:flex w-20 flex-col items-center gap-4 py-4 z-30", children: [_jsx(Link, { to: "/app", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/app')
+    return (_jsxs("aside", { className: "sticky top-24 hidden lg:flex w-20 flex-col items-center gap-4 py-4 z-30", children: [_jsx(Link, { to: "/", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/app')
                     ? 'bg-primary/20 text-primary shadow-subtle'
                     : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Home", children: _jsx(HomeIcon, { size: 24 }) }), _jsx(Link, { to: `/profile/${currentUser?.id || ''}`, className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/profile')
                     ? 'bg-primary/20 text-primary shadow-subtle'

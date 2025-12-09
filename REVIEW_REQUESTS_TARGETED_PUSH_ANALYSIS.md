@@ -513,3 +513,4 @@ Users should be able to configure:
 By pushing review requests to high kurralScore users with matching interests, we can dramatically speed up the fact-checking process while maintaining quality. The enhanced UI component provides an intuitive, efficient interface for reviewers to contribute to the community's fact-checking efforts.
 
 The multi-factor matching algorithm ensures that the right users see the right requests, while the gamification and rewards system incentivizes participation. Combined with smart notifications and user preferences, this creates a powerful, scalable system for community-driven fact-checking.
+

@@ -12,7 +12,7 @@ const DashboardSidebar = ({ className = '', isCompact = false }) => {
             label: 'News Feed',
             hint: 'Your main timeline',
             Icon: HomeIcon,
-            to: '/app',
+            to: '/',
         },
         {
             id: 'messages',

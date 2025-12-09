@@ -12,7 +12,7 @@ const Navbar = () => {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 py-4 backdrop-blur-lg shadow-elevated">
       <div className="section-container flex items-center justify-between">
-        <Link to="/lp" className="flex items-center gap-2 text-xl font-bold text-textPrimary tracking-tight hover:text-accent transition-colors duration-200">
+        <Link to="/info" className="flex items-center gap-2 text-xl font-bold text-textPrimary tracking-tight hover:text-accent transition-colors duration-200">
           Kural
           <img src="/quotation-marks.png" alt="" className="h-6 w-auto" loading="eager" />
         </Link>

@@ -45,7 +45,7 @@ const Signup = () => {
             const user = await authService.signInWithGoogle();
             // Check if onboarding is completed
             if (user.onboardingCompleted) {
-                navigate('/app');
+                navigate('/');
             }
             else {
                 navigate('/onboarding');

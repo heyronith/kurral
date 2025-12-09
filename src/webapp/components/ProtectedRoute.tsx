@@ -42,7 +42,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
   // Redirect away from onboarding if already completed
   if (currentUser.onboardingCompleted && location.pathname === '/onboarding') {
-    return <Navigate to="/app" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

@@ -15,8 +15,8 @@ const SidebarNav = () => {
   };
 
   const isActive = (path: string) => {
-    if (path === '/app') {
-      return location.pathname === '/app';
+    if (path === '/') {
+      return location.pathname === '/' || location.pathname === '/app';
     }
     return location.pathname.startsWith(path);
   };
@@ -25,9 +25,9 @@ const SidebarNav = () => {
     <aside className="sticky top-24 hidden lg:flex w-20 flex-col items-center gap-4 py-4 z-30">
       {/* Home */}
       <Link
-        to="/app"
+        to="/"
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
-          isActive('/app')
+          isActive('/')
             ? 'bg-primary/20 text-primary shadow-subtle'
             : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
