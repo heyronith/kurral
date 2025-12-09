@@ -137,10 +137,6 @@ export type User = {
   profileEmbedding?: number[]; // Embedding vector for profile summary
   profileEmbeddingVersion?: number;
   semanticTopics?: string[];
-  isBot?: boolean;
-  botType?: BotType;
-  botPersonality?: BotPersonality;
-  botPostingPreferences?: BotPostingPreferences;
 };
 
 export type TunedAudience = {
@@ -234,53 +230,6 @@ export const ALL_TOPICS: Topic[] = [
   'crypto',
 ];
 
-export type BotType =
-  | 'news'
-  | 'tech'
-  | 'science'
-  | 'finance'
-  | 'sports'
-  | 'entertainment'
-  | 'culture'
-  | 'global'
-  | 'climate'
-  | 'lifestyle'
-  | 'gaming'
-  | 'education';
-
-export type BotTone = 'analytical' | 'journalistic' | 'curious' | 'empathetic' | 'playful';
-
-export type BotPersonality = {
-  tone: BotTone;
-  voice: string;
-  signaturePhrases: string[];
-  engagementStyle: 'informative' | 'contextual' | 'conversational' | 'question-driven';
-};
-
-export type BotPostingPreferences = {
-  dailyFrequency: number;
-  burstWindowMinutes: number;
-  activeHours: string[];
-  timezone: string;
-  minGapMinutes: number;
-};
-
-export type BotProfileConfig = {
-  botId: string;
-  handle: string;
-  name: string;
-  displayName: string;
-  bio: string;
-  profilePictureUrl?: string;
-  coverPhotoUrl?: string;
-  topics: Topic[];
-  semanticTopics: string[];
-  interests: string[];
-  botType: BotType;
-  personality: BotPersonality;
-  postingPreferences: BotPostingPreferences;
-};
-
 // Topic metadata for engagement tracking
 export type TopicMetadata = {
   name: string; // Topic name (e.g., 'dev')
@@ -361,24 +310,6 @@ export type NewsArticle = {
   category?: string;
   query?: string;
   fetchedAt: Date;
-};
-
-export type ArticleClassification = {
-  botType: BotType;
-  primaryTopic: string;
-  secondaryTopics: string[];
-  confidence: number; // 0-1
-  tags: string[];
-  classificationSource: 'category' | 'keywords' | 'default';
-};
-
-export type RoutedArticle = {
-  id: string;
-  article: NewsArticle;
-  classification: ArticleClassification;
-  assignedBotId: string;
-  assignedBotType: BotType;
-  assignedAt: Date;
 };
 
 // Notification types

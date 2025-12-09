@@ -4,16 +4,6 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "vite",
-  "crons": [
-    {
-      "path": "/api/bot-pipeline",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/bot-dispatcher",
-      "schedule": "* * * * *"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

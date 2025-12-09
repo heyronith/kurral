@@ -364,10 +364,6 @@ const userFromFirestore = (doc) => {
         profileEmbedding: data.profileEmbedding,
         profileEmbeddingVersion: data.profileEmbeddingVersion,
         semanticTopics: data.semanticTopics || [],
-        isBot: data.isBot ?? false,
-        botType: data.botType,
-        botPersonality: data.botPersonality,
-        botPostingPreferences: data.botPostingPreferences,
     };
 };
 // Chirp operations
@@ -840,17 +836,6 @@ export const userService = {
             return null;
         }
     },
-    async getBots(limitCount = 20) {
-        try {
-            const botsQuery = query(collection(db, 'users'), where('isBot', '==', true), limit(limitCount));
-            const snapshot = await getDocs(botsQuery);
-            return snapshot.docs.map(userFromFirestore);
-        }
-        catch (error) {
-            console.error('Error fetching bot profiles:', error);
-            return [];
-        }
-    },
     async searchUsers(searchQuery, limitCount = 5) {
         if (!searchQuery.trim()) {
             // For empty query, return recent users (limit to 10 for performance)
@@ -1103,10 +1088,6 @@ export const userService = {
                 onboardingCompletedAt: user.onboardingCompletedAt,
                 firstTimeUser: user.firstTimeUser ?? true,
                 autoFollowedAccounts: user.autoFollowedAccounts || [],
-                isBot: user.isBot ?? false,
-                botType: user.botType,
-                botPersonality: user.botPersonality,
-                botPostingPreferences: user.botPostingPreferences,
                 profilePictureUrl: user.profilePictureUrl,
                 coverPhotoUrl: user.coverPhotoUrl,
                 kurralScore: user.kurralScore || {

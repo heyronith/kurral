@@ -44,9 +44,6 @@ import type {
   ValueVector,
   KurralScore,
   KurralScoreHistoryEntry,
-  BotType,
-  BotPersonality,
-  BotPostingPreferences,
 } from '../types';
 import { DEFAULT_FOR_YOU_CONFIG } from '../types';
 import { notificationService } from './services/notificationService';
@@ -434,10 +431,6 @@ const userFromFirestore = (doc: any): User => {
     profileEmbedding: data.profileEmbedding,
     profileEmbeddingVersion: data.profileEmbeddingVersion,
     semanticTopics: data.semanticTopics || [],
-    isBot: data.isBot ?? false,
-    botType: data.botType,
-    botPersonality: data.botPersonality,
-    botPostingPreferences: data.botPostingPreferences,
   };
 };
 
@@ -1307,10 +1300,6 @@ export const userService = {
         onboardingCompletedAt: user.onboardingCompletedAt,
         firstTimeUser: user.firstTimeUser ?? true,
         autoFollowedAccounts: user.autoFollowedAccounts || [],
-        isBot: user.isBot ?? false,
-        botType: user.botType,
-        botPersonality: user.botPersonality,
-        botPostingPreferences: user.botPostingPreferences,
         profilePictureUrl: user.profilePictureUrl,
         coverPhotoUrl: user.coverPhotoUrl,
         kurralScore: user.kurralScore || {
