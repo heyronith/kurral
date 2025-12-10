@@ -23,9 +23,9 @@ const RightPanel = () => {
     // Format volume display
     const formatVolume = (count) => {
         if (count >= 1000) {
-            return `${(count / 1000).toFixed(1)}K chirps`;
+            return `${(count / 1000).toFixed(1)}K kurals`;
         }
-        return `${count} chirps`;
+        return `${count} kurals`;
     };
     // Get top 5 trending topics for display, prioritizing user interests
     const displayTrendingTopics = useMemo(() => {

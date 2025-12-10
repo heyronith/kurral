@@ -595,7 +595,7 @@ const Onboarding = () => {
                     onClick={() => addInterest(topic.name)}
                     className="px-3 py-1.5 text-xs rounded-lg border border-border dark:border-white/10 bg-background/30 dark:bg-white/5 text-textPrimary dark:text-white hover:border-accent dark:hover:border-accent/60 hover:text-accent hover:bg-accent/5 dark:hover:bg-accent/10 transition-all"
                   >
-                    #{topic.name} · {topic.postsLast1h} chirps
+                    #{topic.name} · {topic.postsLast1h} kurals
                   </button>
                 ))}
               </div>
