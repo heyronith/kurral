@@ -40,9 +40,11 @@ export default async function handler(req, res) {
   
   if (!OPENAI_API_KEY) {
     console.error('[openai-proxy] OPENAI_API_KEY not found in environment variables');
+    console.error('[openai-proxy] Available env vars:', Object.keys(process.env).filter(k => k.includes('OPENAI')));
     return res.status(500).json({ 
       error: 'Server configuration error',
-      message: 'OpenAI API key is not configured on the server'
+      message: 'OpenAI API key is not configured on the server. Please set OPENAI_API_KEY in Vercel environment variables.',
+      details: 'The OPENAI_API_KEY environment variable is missing. Go to Vercel Dashboard → Settings → Environment Variables → Add OPENAI_API_KEY'
     });
   }
 
