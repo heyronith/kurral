@@ -14,7 +14,11 @@ const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_MAX_TOKENS = 1024;
 
 // Proxy endpoint (serverless function)
-const PROXY_ENDPOINT = '/api/openai-proxy';
+// In local dev the Vite dev server won't serve /api/*, so allow override.
+// Set VITE_OPENAI_PROXY_URL to your deployed proxy (e.g., https://yourapp.vercel.app/api/openai-proxy).
+const PROXY_ENDPOINT =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_PROXY_URL) ||
+  '/api/openai-proxy';
 
 export interface AgentResponse<T> {
   success: boolean;
@@ -44,6 +48,11 @@ async function callOpenAIProxy(endpoint: string, body: any): Promise<any> {
       const errorData = await response.json().catch(() => ({}));
       const error = new Error(errorData.message || `HTTP ${response.status}`);
       (error as any).status = response.status;
+      // Help devs understand missing proxy during local dev
+      if (response.status === 404) {
+        error.message =
+          'OpenAI proxy endpoint not found. In local dev set VITE_OPENAI_PROXY_URL to a deployed /api/openai-proxy.';
+      }
       throw error;
     }
 

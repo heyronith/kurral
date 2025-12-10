@@ -146,17 +146,28 @@ const Onboarding = () => {
 
     try {
       if (looksLikeStatement(input)) {
-        const extracted = await extractInterestsFromStatement(input);
-        if (extracted.length === 0) {
-          setInterestError('Could not extract interests. Try using keywords.');
+        try {
+          const extracted = await extractInterestsFromStatement(input);
+          if (extracted.length === 0) {
+            setInterestError('Could not extract interests. Try using keywords.');
+            return;
+          }
+          setSemanticInterests((prev) => {
+            const combined = [...prev, ...extracted];
+            const unique = Array.from(new Set(combined.map((interest) => interest.toLowerCase())));
+            return unique;
+          });
+          setUnifiedInterestInput('');
+        } catch (aiError: any) {
+          // If the AI proxy is unavailable (e.g., local dev without /api proxy), fall back to adding the raw text.
+          const fallback = input.toLowerCase();
+          setSemanticInterests((prev) =>
+            prev.includes(fallback) ? prev : [...prev, fallback]
+          );
+          setUnifiedInterestInput('');
+          setInterestError('AI extractor unavailable; added your text directly.');
           return;
         }
-        setSemanticInterests((prev) => {
-          const combined = [...prev, ...extracted];
-          const unique = Array.from(new Set(combined.map((interest) => interest.toLowerCase())));
-          return unique;
-        });
-        setUnifiedInterestInput('');
       } else {
         const normalized = input.toLowerCase();
         if (semanticInterests.includes(normalized)) {
@@ -485,29 +496,21 @@ const Onboarding = () => {
 
     if (currentStep === 2) {
       return (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-textLabel mb-1.5">
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-xs leading-relaxed text-textMuted">
+              <p className="text-sm font-semibold text-textPrimary mb-1">How this works</p>
+              <ul className="space-y-1">
+                <li>• Add a keyword or phrase and hit Enter or Add.</li>
+                <li>• Write a full sentence and click Extract to auto-pull topics.</li>
+                <li>• Tap a chip to remove it, or pick from Trending below.</li>
+              </ul>
+            </div>
+            <label className="block text-xs font-medium text-textLabel mb-2">
               Interests <span className="text-red-500">*</span>
             </label>
-            <div className="mb-2 p-2.5 bg-background/30 border border-border rounded-lg max-h-32 overflow-y-auto">
-              <div className="flex flex-wrap gap-1.5">
-                {semanticInterests.length === 0 && (
-                  <p className="text-xs text-textMuted italic">No interests yet</p>
-                )}
-                {semanticInterests.map((interest) => (
-                  <button
-                    key={interest}
-                    type="button"
-                    onClick={() => handleRemoveInterest(interest)}
-                    className="px-2 py-0.5 bg-accent/15 text-accent border border-accent/30 rounded-full text-xs font-medium hover:bg-accent/25 transition-colors flex items-center gap-1"
-                  >
-                    {interest}
-                    <span className="text-[10px]">×</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            
+            {/* Input field with button */}
             <div className="flex gap-2">
               <input
                 type="text"
@@ -527,26 +530,62 @@ const Onboarding = () => {
                     ? 'e.g. I want more AI research and less politics'
                     : 'e.g. ai research, react development, or describe what you want'
                 }
-                className="flex-1 px-3 py-2 text-sm bg-background/50 border border-border rounded-lg text-textPrimary placeholder-textMuted focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
+                className="flex-1 px-4 py-2.5 text-sm bg-white text-gray-900 dark:bg-slate-900 dark:text-white border border-border/80 dark:border-white/15 rounded-lg placeholder:text-textMuted/80 dark:placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/60 dark:focus:border-accent/70 shadow-sm"
               />
               <button
                 type="button"
                 onClick={() => addInterest()}
                 disabled={interestLoading || !unifiedInterestInput.trim()}
-                className="px-3 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                className="px-4 py-2.5 text-sm bg-accent text-white rounded-lg hover:bg-accentHover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-sm"
               >
                 {interestLoading ? '...' : looksLikeStatement(unifiedInterestInput) ? 'Extract' : 'Add'}
               </button>
             </div>
-            {interestError && <p className="text-xs text-red-500 mt-1">{interestError}</p>}
+            
+            {interestError && (
+              <p className="text-xs text-red-500 dark:text-red-400 mt-1">{interestError}</p>
+            )}
+
+            {/* Selected interests displayed as removable chips */}
+            {semanticInterests.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-textLabel dark:text-white/60">
+                  Your interests ({semanticInterests.length})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {semanticInterests.map((interest) => (
+                    <button
+                      key={interest}
+                      type="button"
+                      onClick={() => handleRemoveInterest(interest)}
+                      className="group px-3 py-1.5 bg-accent/10 dark:bg-accent/20 text-accent border border-accent/30 dark:border-accent/40 rounded-lg text-xs font-medium hover:bg-accent/20 dark:hover:bg-accent/30 hover:border-accent/50 dark:hover:border-accent/50 transition-all flex items-center gap-1.5"
+                    >
+                      <span>{interest}</span>
+                      <span className="text-[10px] opacity-60 group-hover:opacity-100 transition-opacity">×</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {semanticInterests.length === 0 && (
+              <div className="py-4 text-center">
+                <p className="text-xs text-textMuted dark:text-white/50 italic">
+                  Add interests to personalize your feed
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">Trending topics</p>
+          {/* Trending topics section */}
+          <div className="space-y-3 pt-4 border-t border-border/50 dark:border-white/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-textMuted dark:text-white/60">
+              Trending topics
+            </p>
             {isLoadingTrending ? (
-              <p className="text-xs text-textMuted">Loading trending topics...</p>
+              <p className="text-xs text-textMuted dark:text-white/50">Loading trending topics...</p>
             ) : trendingTopicChips.length === 0 ? (
-              <p className="text-xs text-textMuted">No trending topics yet</p>
+              <p className="text-xs text-textMuted dark:text-white/50">No trending topics yet</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {trendingTopicChips.map((topic) => (
@@ -554,7 +593,7 @@ const Onboarding = () => {
                     key={topic.name}
                     type="button"
                     onClick={() => addInterest(topic.name)}
-                    className="px-3 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors"
+                    className="px-3 py-1.5 text-xs rounded-lg border border-border dark:border-white/10 bg-background/30 dark:bg-white/5 text-textPrimary dark:text-white hover:border-accent dark:hover:border-accent/60 hover:text-accent hover:bg-accent/5 dark:hover:bg-accent/10 transition-all"
                   >
                     #{topic.name} · {topic.postsLast1h} chirps
                   </button>

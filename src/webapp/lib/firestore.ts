@@ -1325,10 +1325,17 @@ export const userService = {
       if (!user.onboardingCompletedAt) {
         delete userData.onboardingCompletedAt;
       }
+      // Filter out undefined values - Firestore doesn't accept undefined
+      const cleanUserData: any = {};
+      for (const [key, value] of Object.entries(userData)) {
+        if (value !== undefined) {
+          cleanUserData[key] = value;
+        }
+      }
 
       if (userId) {
         // Create user with specific ID (for Firebase Auth UID)
-        await setDoc(doc(db, 'users', userId), userData);
+        await setDoc(doc(db, 'users', userId), cleanUserData);
         const docSnap = await getDoc(doc(db, 'users', userId));
         if (!docSnap.exists()) {
           throw new Error('Failed to create user');
@@ -1336,7 +1343,7 @@ export const userService = {
         return userFromFirestore(docSnap);
       } else {
         // Create user with auto-generated ID
-        const docRef = await addDoc(collection(db, 'users'), userData);
+        const docRef = await addDoc(collection(db, 'users'), cleanUserData);
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists()) {
           throw new Error('Failed to create user');
