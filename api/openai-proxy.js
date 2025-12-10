@@ -60,7 +60,9 @@ export default async function handler(req, res) {
     }
 
     // Build the full OpenAI API URL
-    const url = `${OPENAI_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    // Fix: Remove /v1 from endpoint if it's already in base URL, or just use base without v1
+    const cleanEndpoint = endpoint.startsWith('/v1/') ? endpoint.substring(3) : endpoint;
+    const url = `${OPENAI_BASE_URL}${cleanEndpoint.startsWith('/') ? cleanEndpoint : `/${cleanEndpoint}`}`;
 
     // Prepare headers
     const headers = {
@@ -78,21 +80,52 @@ export default async function handler(req, res) {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    // Get response data
-    const data = await response.json();
+    // Try to parse response as JSON
+    let data;
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('[openai-proxy] Failed to parse JSON response:', parseError);
+        const text = await response.text();
+        return res.status(502).json({
+          error: 'Invalid upstream response',
+          message: 'OpenAI API returned invalid JSON',
+          details: text.substring(0, 500) // Return first 500 chars of text for debugging
+        });
+      }
+    } else {
+      // Handle non-JSON response (likely an error page)
+      const text = await response.text();
+      // If it's an error status, return it wrapped in JSON
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: `Upstream Error ${response.status}`,
+          message: text.substring(0, 500) || 'Unknown upstream error'
+        });
+      }
+      // If it's a success but not JSON (unexpected for OpenAI), return as text-wrapped JSON
+      data = { text_response: text };
+    }
 
     // Forward the status code and response
     return res.status(response.status).json(data);
 
   } catch (error) {
     console.error('[openai-proxy] Error proxying request:', error);
+    console.error('[openai-proxy] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+      code: error.code
+    });
     
-    // Don't expose internal error details to client
     return res.status(500).json({ 
       error: 'Proxy error',
       message: 'Failed to proxy request to OpenAI API',
-      // Only include error message in development
-      ...(process.env.NODE_ENV === 'development' && { details: error.message })
+      details: error.message,
+      code: error.code
     });
   }
 }

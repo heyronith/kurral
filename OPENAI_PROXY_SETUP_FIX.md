@@ -1,11 +1,33 @@
 # 🔧 OpenAI Proxy Setup Fix
 
+## ❓ Why do we use a Proxy?
+
+**Safety & Security.**
+If you put your OpenAI API key directly in your frontend code (React/Javascript), it is sent to every user's browser. Anyone can:
+1. Right-click → "Inspect Element" or "View Source"
+2. Find your API key (starts with `sk-...`)
+3. Use your key for their own apps, draining your bank account or credits.
+
+**The Solution:**
+We use a **Proxy** (a small server function running on Vercel).
+1. Your frontend talks to the Proxy (no key needed).
+2. The Proxy adds the API key (stored securely in Vercel).
+3. The Proxy talks to OpenAI.
+4. OpenAI responds to the Proxy.
+5. The Proxy sends the answer back to your frontend.
+
+This way, the key never leaves Vercel's secure servers.
+
 ## ❌ Current Error
 
 You're seeing this error:
 ```
 POST https://www.mykural.app/api/openai-proxy 500 (Internal Server Error)
 [BaseAgent] OpenAI error: Error: Server error: OpenAI proxy is not configured. Please contact support.
+```
+OR
+```
+Failed to proxy request to OpenAI API
 ```
 
 ## ✅ Root Cause
@@ -101,6 +123,7 @@ I've improved the error messages to be more helpful:
 - ✅ Better error messages that explain the issue
 - ✅ Health check endpoint: `/api/openai-proxy-health`
 - ✅ Verification script: `scripts/verify-openai-proxy-setup.js`
+- ✅ **Improved Proxy Code:** Now handles non-JSON errors from OpenAI more gracefully.
 
 ## 🎯 Next Steps After Fix
 
