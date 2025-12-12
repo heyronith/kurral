@@ -339,6 +339,7 @@ const chirpFromFirestore = (doc: any): Chirp => {
     text: data.text,
     topic: data.topic,
     semanticTopics: data.semanticTopics || [],
+    semanticTopicBuckets: data.semanticTopicBuckets || {},
     entities: data.entities || [],
     intent: data.intent,
     analyzedAt: data.analyzedAt ? toDate(data.analyzedAt) : undefined,
@@ -685,6 +686,10 @@ export const chirpService = {
 
       if (chirp.semanticTopics && chirp.semanticTopics.length > 0) {
         chirpData.semanticTopics = chirp.semanticTopics;
+      }
+
+      if (chirp.semanticTopicBuckets && Object.keys(chirp.semanticTopicBuckets).length > 0) {
+        chirpData.semanticTopicBuckets = chirp.semanticTopicBuckets;
       }
 
       if (chirp.entities && chirp.entities.length > 0) {
@@ -2675,9 +2680,26 @@ export const reviewContextService = {
     submittedBy: string,
     action: PostReviewAction,
     sources: string[],
-    context?: string
+    context: string
   ): Promise<PostReviewContext> {
     try {
+      // Validate context (required, 20-500 chars)
+      const trimmedContext = context.trim();
+      if (trimmedContext.length < 20) {
+        throw new Error('Context must be at least 20 characters');
+      }
+      if (trimmedContext.length > 500) {
+        throw new Error('Context must be at most 500 characters');
+      }
+
+      // Validate sources
+      if (!sources || sources.length === 0) {
+        throw new Error('At least one source URL is required');
+      }
+      if (sources.length > 10) {
+        throw new Error('Maximum 10 source URLs allowed');
+      }
+
       // Check if user already submitted a review for this chirp
       const existingQuery = query(
         collection(db, 'postReviews'),
@@ -2695,12 +2717,9 @@ export const reviewContextService = {
         submittedBy,
         action,
         sources,
+        context: trimmedContext,
         createdAt: Timestamp.now(),
       };
-
-      if (context && context.trim().length > 0) {
-        reviewData.context = context.trim();
-      }
 
       const docRef = await addDoc(collection(db, 'postReviews'), reviewData);
       const docSnap = await getDoc(docRef);
@@ -2709,17 +2728,16 @@ export const reviewContextService = {
         throw new Error('Failed to create review context');
       }
 
-      // Update chirp's factCheckStatus immediately based on action
-      const newStatus: 'clean' | 'blocked' = action === 'validate' ? 'clean' : 'blocked';
-      try {
-        await chirpService.updateChirpInsights(chirpId, {
-          factCheckStatus: newStatus,
-        });
-        console.log(`[ReviewContextService] Updated chirp ${chirpId} factCheckStatus to ${newStatus} based on ${action}`);
-      } catch (updateError) {
-        console.error('[ReviewContextService] Error updating chirp factCheckStatus:', updateError);
-        // Don't throw - review context was created successfully, status update failure is not critical
+      // Check for consensus after adding review (async, don't wait)
+      // Use setTimeout to avoid blocking the response
+      setTimeout(async () => {
+        try {
+          const { checkAndUpdateConsensus } = await import('./services/reviewConsensusService');
+          await checkAndUpdateConsensus(chirpId);
+        } catch (error) {
+          console.error('[ReviewContextService] Error checking consensus:', error);
       }
+      }, 0);
 
       return reviewContextFromFirestore(docSnap);
     } catch (error) {

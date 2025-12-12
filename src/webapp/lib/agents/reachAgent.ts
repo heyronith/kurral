@@ -1,9 +1,9 @@
 // Reach Suggestion Agent - Suggests optimal reach settings and topics for chirps
 import BaseAgent, { type AgentResponse } from './baseAgent';
-import type { TunedAudience, Topic, TopicMetadata } from '../../types';
+import type { TunedAudience, Topic, TopicMetadata, LegacyTopic } from '../../types';
 import { tryGenerateEmbedding } from '../services/embeddingService';
 
-const LEGACY_TOPIC_KEYWORDS: Record<Topic, string[]> = {
+const LEGACY_TOPIC_KEYWORDS: Record<LegacyTopic, string[]> = {
   dev: ['dev', 'code', 'coding', 'software', 'engineer', 'react', 'javascript', 'typescript', 'programming', 'frontend', 'backend'],
   startups: ['startup', 'founder', 'pitch', 'vc', 'venture', 'funding', 'saas', 'growth'],
   music: ['music', 'song', 'album', 'guitar', 'piano', 'concert', 'dj', 'lyrics'],
@@ -14,9 +14,9 @@ const LEGACY_TOPIC_KEYWORDS: Record<Topic, string[]> = {
   crypto: ['crypto', 'blockchain', 'bitcoin', 'ethereum', 'defi', 'nft'],
 };
 
-const inferLegacyTopicFromText = (text: string): Topic => {
+const inferLegacyTopicFromText = (text: string): LegacyTopic => {
   const lower = text.toLowerCase();
-  for (const [topic, keywords] of Object.entries(LEGACY_TOPIC_KEYWORDS) as [Topic, string[]][]) {
+  for (const [topic, keywords] of Object.entries(LEGACY_TOPIC_KEYWORDS) as [LegacyTopic, string[]][]) {
     if (keywords.some((keyword) => lower.includes(keyword))) {
       return topic;
     }
@@ -70,7 +70,7 @@ export interface ContentAnalysis {
   semanticTopics: string[];
   entities: string[];
   intent: string;
-  suggestedLegacyTopic: Topic;
+  suggestedBucket: Topic; // legacy or dynamic bucket
 }
 
 const SYSTEM_INSTRUCTION = `You are an expert social media advisor. Your job is to analyze chirp content and suggest:
@@ -117,13 +117,13 @@ const buildContentAnalysisInstruction = (
 1. semanticTopics: Array of 3-8 concise keywords/phrases that reflect the content's subject (lowercase, no punctuation)
 2. entities: Names of products, technologies, people, or companies mentioned (original casing)
 3. intent: One of [question, announcement, tutorial, opinion, update, discussion]
-4. suggestedLegacyTopic: Best matching legacy topic from [dev, startups, music, sports, productivity, design, politics, crypto]
+4. suggestedBucket: Best matching topic bucket from [${normalizedList}] OR propose a new bucket name when no existing bucket clearly fits.
 
 Guidance:
-- Favor existing tags when they match the content. Consider this pool first: ${normalizedList}.
-${detailsSection}- When no existing tag covers the concept, you may create a new meaningful tag. Keep new tags lowercase, descriptive, and without punctuation.
+- Favor existing buckets when they match the content. Consider this pool first: ${normalizedList}.
+${detailsSection}- When no existing bucket covers the concept, you may create a new meaningful bucket. Keep bucket names lowercase, descriptive, alphanumeric/hyphen, 2-50 chars, no punctuation.
 - Posts can belong to multiple tags—include every relevant tag in the semanticTopics array (up to 8 entries).
-- Only return tags that are clearly reflected in the text; avoid inventing unrelated or vague tags.
+- Only return tags/buckets that are clearly reflected in the text; avoid inventing unrelated or vague tags.
 
 Respond ONLY with JSON matching the schema.`;
 };
@@ -142,12 +142,11 @@ const CONTENT_ANALYSIS_SCHEMA = {
       items: { type: 'string' },
     },
     intent: { type: 'string' },
-    suggestedLegacyTopic: {
+    suggestedBucket: {
       type: 'string',
-      enum: ['dev', 'startups', 'music', 'sports', 'productivity', 'design', 'politics', 'crypto'],
     },
   },
-  required: ['semanticTopics', 'entities', 'intent', 'suggestedLegacyTopic'],
+  required: ['semanticTopics', 'entities', 'intent', 'suggestedBucket'],
 };
 export class ReachAgent {
   private agent: BaseAgent;
@@ -328,7 +327,8 @@ Consider:
 
   async analyzePostContent(
     text: string,
-    availableTopics: TopicMetadata[] = []
+    availableTopics: TopicMetadata[] = [],
+    existingBuckets: string[] = []
   ): Promise<ContentAnalysis> {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -336,7 +336,7 @@ Consider:
         semanticTopics: [],
         entities: [],
         intent: 'update',
-        suggestedLegacyTopic: 'dev',
+        suggestedBucket: 'dev',
       };
     }
 
@@ -344,7 +344,7 @@ Consider:
       semanticTopics: extractFallbackTopics(trimmed),
       entities: [],
       intent: detectIntentFromText(trimmed),
-      suggestedLegacyTopic: inferLegacyTopicFromText(trimmed),
+      suggestedBucket: inferLegacyTopicFromText(trimmed),
     };
 
     const availableTopicNames = Array.from(
@@ -364,10 +364,15 @@ Consider:
           .join('\n')
       : '';
 
+    // Use existing buckets if provided, otherwise derive from available topics
+    const bucketsForAI = existingBuckets.length > 0 
+      ? existingBuckets 
+      : availableTopicNames;
+
     try {
       const result = await this.agent.generateJSON<ContentAnalysis>(
         `Post text: """${trimmed}"""`,
-        buildContentAnalysisInstruction(availableTopicNames, availableTopicDetails),
+        buildContentAnalysisInstruction(bucketsForAI, availableTopicDetails),
         CONTENT_ANALYSIS_SCHEMA
       );
 
@@ -383,7 +388,7 @@ Consider:
         semanticTopics: normalizedTopics.length > 0 ? normalizedTopics : fallback.semanticTopics,
         entities: normalizedEntities,
         intent: result.intent || fallback.intent,
-        suggestedLegacyTopic: (result.suggestedLegacyTopic as Topic) || fallback.suggestedLegacyTopic,
+        suggestedBucket: result.suggestedBucket || fallback.suggestedBucket,
       };
     } catch (error) {
       console.warn('[ReachAgent] Falling back to heuristic content analysis:', error);

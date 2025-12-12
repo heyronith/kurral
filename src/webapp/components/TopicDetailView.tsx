@@ -2,14 +2,16 @@
 import { useEffect, useState } from 'react';
 import { useTopicStore } from '../store/useTopicStore';
 import { useThemeStore } from '../store/useThemeStore';
+import { useUserStore } from '../store/useUserStore';
 import { getPostsByTopic } from '../lib/services/postAggregationService';
 import ChirpCard from './ChirpCard';
-import Composer from './Composer';
 import type { Chirp } from '../types';
+import { filterChirpsForViewer } from '../lib/utils/chirpVisibility';
 
 const TopicDetailView = () => {
   const { selectedTopic, clearTopicSelection } = useTopicStore();
   const { theme } = useThemeStore();
+  const currentUser = useUserStore((state) => state.currentUser);
   const [topicPosts, setTopicPosts] = useState<Chirp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -31,8 +33,9 @@ const TopicDetailView = () => {
         // Sort chronologically (oldest first)
         posts.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         
-        console.log(`[TopicDetailView] Loaded ${posts.length} posts for topic "${selectedTopic}"`);
-        setTopicPosts(posts);
+        const visiblePosts = filterChirpsForViewer(posts, currentUser?.id);
+        console.log(`[TopicDetailView] Loaded ${visiblePosts.length} posts for topic "${selectedTopic}"`);
+        setTopicPosts(visiblePosts);
       } catch (error) {
         console.error('[TopicDetailView] Error fetching topic posts:', error);
         setTopicPosts([]);
@@ -42,7 +45,7 @@ const TopicDetailView = () => {
     };
 
     fetchTopicPosts();
-  }, [selectedTopic]);
+  }, [selectedTopic, currentUser?.id]);
 
   // Comments will be loaded automatically by ChirpCard components
 
@@ -72,7 +75,7 @@ const TopicDetailView = () => {
           </div>
         </div>
       </div>
-      <Composer />
+      {/* Composer is handled globally by AppLayout, no need to render it here */}
 
       {isLoading ? (
         <div className="py-12 text-center">

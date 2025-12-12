@@ -3,6 +3,7 @@ import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { getFunctions, Functions } from 'firebase/functions';
 
 // Browser-only window type extension
 declare global {
@@ -92,11 +93,13 @@ try {
 let db: Firestore;
 let auth: Auth;
 let storage: FirebaseStorage;
+let functions: Functions;
 
 try {
   db = getFirestore(app);
   auth = getAuth(app);
   storage = getStorage(app);
+  functions = getFunctions(app);
   console.log('[Firebase] Services initialized');
 } catch (error: any) {
   console.error('[Firebase] Service initialization failed:', error?.message || error);
@@ -106,6 +109,6 @@ try {
   throw error;
 }
 
-export { db, auth, storage };
+export { db, auth, storage, functions };
 export default app;
 

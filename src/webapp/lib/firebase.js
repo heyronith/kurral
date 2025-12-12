@@ -3,6 +3,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 const isBrowser = typeof window !== 'undefined';
 // Safe env reader that works in both browser (import.meta.env) and Node (process.env)
 const readEnv = (key) => {
@@ -72,10 +73,12 @@ catch (error) {
 let db;
 let auth;
 let storage;
+let functions;
 try {
     db = getFirestore(app);
     auth = getAuth(app);
     storage = getStorage(app);
+    functions = getFunctions(app);
     console.log('[Firebase] Services initialized');
 }
 catch (error) {
@@ -85,5 +88,5 @@ catch (error) {
     }
     throw error;
 }
-export { db, auth, storage };
+export { db, auth, storage, functions };
 export default app;

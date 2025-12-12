@@ -81,13 +81,13 @@ const buildContentAnalysisInstruction = (availableTopicNames, availableTopicDeta
 1. semanticTopics: Array of 3-8 concise keywords/phrases that reflect the content's subject (lowercase, no punctuation)
 2. entities: Names of products, technologies, people, or companies mentioned (original casing)
 3. intent: One of [question, announcement, tutorial, opinion, update, discussion]
-4. suggestedLegacyTopic: Best matching legacy topic from [dev, startups, music, sports, productivity, design, politics, crypto]
+4. suggestedBucket: Best matching topic bucket from [${normalizedList}] OR propose a new bucket name when no existing bucket clearly fits.
 
 Guidance:
-- Favor existing tags when they match the content. Consider this pool first: ${normalizedList}.
-${detailsSection}- When no existing tag covers the concept, you may create a new meaningful tag. Keep new tags lowercase, descriptive, and without punctuation.
+- Favor existing buckets when they match the content. Consider this pool first: ${normalizedList}.
+${detailsSection}- When no existing bucket covers the concept, you may create a new meaningful bucket. Keep bucket names lowercase, descriptive, alphanumeric/hyphen, 2-50 chars, no punctuation.
 - Posts can belong to multiple tags—include every relevant tag in the semanticTopics array (up to 8 entries).
-- Only return tags that are clearly reflected in the text; avoid inventing unrelated or vague tags.
+- Only return tags/buckets that are clearly reflected in the text; avoid inventing unrelated or vague tags.
 
 Respond ONLY with JSON matching the schema.`;
 };
@@ -105,12 +105,11 @@ const CONTENT_ANALYSIS_SCHEMA = {
             items: { type: 'string' },
         },
         intent: { type: 'string' },
-        suggestedLegacyTopic: {
+        suggestedBucket: {
             type: 'string',
-            enum: ['dev', 'startups', 'music', 'sports', 'productivity', 'design', 'politics', 'crypto'],
         },
     },
-    required: ['semanticTopics', 'entities', 'intent', 'suggestedLegacyTopic'],
+    required: ['semanticTopics', 'entities', 'intent', 'suggestedBucket'],
 };
 export class ReachAgent {
     constructor() {
@@ -268,21 +267,21 @@ Consider:
             };
         }
     }
-    async analyzePostContent(text, availableTopics = []) {
+    async analyzePostContent(text, availableTopics = [], existingBuckets = []) {
         const trimmed = text.trim();
         if (!trimmed) {
             return {
                 semanticTopics: [],
                 entities: [],
                 intent: 'update',
-                suggestedLegacyTopic: 'dev',
+                suggestedBucket: 'dev',
             };
         }
         const fallback = {
             semanticTopics: extractFallbackTopics(trimmed),
             entities: [],
             intent: detectIntentFromText(trimmed),
-            suggestedLegacyTopic: inferLegacyTopicFromText(trimmed),
+            suggestedBucket: inferLegacyTopicFromText(trimmed),
         };
         const availableTopicNames = Array.from(new Set(availableTopics
             .map((topic) => topic?.name?.toLowerCase() || '')
@@ -292,8 +291,12 @@ Consider:
                 .map((topic) => `#${topic.name} (${topic.postsLast48h} posts last 48h, ${topic.totalUsers} users)`)
                 .join('\n')
             : '';
+        // Use existing buckets if provided, otherwise derive from available topics
+        const bucketsForAI = existingBuckets.length > 0
+            ? existingBuckets
+            : availableTopicNames;
         try {
-            const result = await this.agent.generateJSON(`Post text: """${trimmed}"""`, buildContentAnalysisInstruction(availableTopicNames, availableTopicDetails), CONTENT_ANALYSIS_SCHEMA);
+            const result = await this.agent.generateJSON(`Post text: """${trimmed}"""`, buildContentAnalysisInstruction(bucketsForAI, availableTopicDetails), CONTENT_ANALYSIS_SCHEMA);
             const normalizedTopics = (result.semanticTopics || [])
                 .map((topic) => topic.trim().toLowerCase())
                 .filter((topic, index, arr) => topic && arr.indexOf(topic) === index);
@@ -304,7 +307,7 @@ Consider:
                 semanticTopics: normalizedTopics.length > 0 ? normalizedTopics : fallback.semanticTopics,
                 entities: normalizedEntities,
                 intent: result.intent || fallback.intent,
-                suggestedLegacyTopic: result.suggestedLegacyTopic || fallback.suggestedLegacyTopic,
+                suggestedBucket: result.suggestedBucket || fallback.suggestedBucket,
             };
         }
         catch (error) {

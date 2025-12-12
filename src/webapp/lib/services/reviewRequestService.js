@@ -95,6 +95,7 @@ const chirpFromFirestore = (doc) => {
         text: data.text,
         topic: data.topic,
         semanticTopics: data.semanticTopics || [],
+        semanticTopicBuckets: data.semanticTopicBuckets || {},
         entities: data.entities || [],
         intent: data.intent,
         analyzedAt: data.analyzedAt ? toDate(data.analyzedAt) : undefined,

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ALL_TOPICS,
+  isValidTopic,
   type Topic,
   type ReachMode,
   type TunedAudience,
@@ -18,6 +19,7 @@ import { topicService, userService } from '../lib/firestore';
 import { extractMentionHandles } from '../lib/utils/mentions';
 import { BaseAgent } from '../lib/agents/baseAgent';
 import type { ReachSuggestion } from '../lib/agents/reachAgent';
+import { mapSemanticTopicToBucket, ensureBucket, getAllBuckets } from '../lib/services/topicBucketService';
 import TopicSuggestionBox from './TopicSuggestionBox';
 import { ImageIcon, EmojiIcon, CalendarIcon } from './Icon';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -41,11 +43,6 @@ const detectIntentFromContent = (text: string): string => {
   if (lower.includes('tutorial') || lower.includes('guide')) return 'tutorial';
   if (lower.includes('opinion') || lower.includes('i think')) return 'opinion';
   return 'update';
-};
-
-const isLegacyTopic = (value?: string): value is Topic => {
-  if (!value) return false;
-  return ALL_TOPICS.includes(value as Topic);
 };
 
 const normalizeSemanticTopics = (topics: string[]): string[] => {
@@ -924,21 +921,24 @@ const Composer = () => {
       let semanticTopics: string[] = [];
       let entities: string[] = [];
       let intentValue: string | undefined;
-      let legacyTopicFromAI: Topic | null = null;
+      let bucketFromAI: Topic | null = null;
       let analysisTimestamp: Date | undefined;
 
       // Show analyzing modal during AI analysis
       if (reachAgent && plainTextContent.trim().length >= 4) {
         setIsGeneratingSuggestion(true);
         try {
+          // Get all existing buckets to pass to AI for better suggestions
+          const existingBuckets = await getAllBuckets();
           const analysis = await reachAgent.analyzePostContent(
             plainTextContent.trim(),
-            availableTopicsForAnalysis
+            availableTopicsForAnalysis,
+            existingBuckets
           );
           semanticTopics = analysis.semanticTopics || [];
           entities = analysis.entities || [];
           intentValue = analysis.intent;
-          legacyTopicFromAI = analysis.suggestedLegacyTopic;
+          bucketFromAI = analysis.suggestedBucket;
           analysisTimestamp = new Date();
         } catch (analysisError) {
           console.warn('[Composer] Semantic analysis failed, using fallback keywords.', analysisError);
@@ -976,6 +976,23 @@ const Composer = () => {
 
       semanticTopics = normalizeSemanticTopics(semanticTopics);
 
+      const semanticTopicBuckets: Record<string, string> = {};
+      if (semanticTopics.length > 0) {
+        const mapped = await Promise.all(
+          semanticTopics.map(async (topic) => {
+            const bucket = await mapSemanticTopicToBucket(topic, bucketFromAI || selectedTopic);
+            return { topic, bucket };
+          })
+        );
+        mapped.forEach(({ topic, bucket }) => {
+          semanticTopicBuckets[topic] = bucket;
+        });
+        // If AI did not provide a bucket, reuse the first mapped bucket as a hint
+        if (!bucketFromAI && mapped[0]) {
+          bucketFromAI = mapped[0].bucket as Topic;
+        }
+      }
+
       const newTopicNames = await createMissingTopics(semanticTopics, availableTopicsForAnalysis);
       if (newTopicNames.length > 0) {
         const timestamp = new Date();
@@ -998,10 +1015,18 @@ const Composer = () => {
       }
 
       const resolvedTopic: Topic =
-        (isLegacyTopic(selectedTopic) ? (selectedTopic as Topic) : null) ||
-        legacyTopicFromAI ||
-        (userTopics.find((topic) => isLegacyTopic(topic)) as Topic | undefined) ||
+        (selectedTopic && isValidTopic(selectedTopic) ? selectedTopic : null) ||
+        bucketFromAI ||
+        (userTopics.find((topic) => isValidTopic(topic)) as Topic | undefined) ||
         'dev';
+
+      // Ensure the resolved topic bucket exists (important for dynamic buckets)
+      if (resolvedTopic && isValidTopic(resolvedTopic)) {
+        await ensureBucket(resolvedTopic).catch((error) => {
+          console.warn('[Composer] Failed to ensure bucket exists:', resolvedTopic, error);
+          // Continue anyway - bucket might already exist or will be created on next post
+        });
+      }
 
       // Create new chirp (will be persisted to Firestore)
       const contentEmbedding = trimmedContent ? await tryGenerateEmbedding(trimmedContent) : undefined;
@@ -1019,6 +1044,7 @@ const Composer = () => {
 
       if (semanticTopics.length > 0) {
         chirpData.semanticTopics = semanticTopics;
+        chirpData.semanticTopicBuckets = semanticTopicBuckets;
       }
       if (entities.length > 0) {
         chirpData.entities = entities;

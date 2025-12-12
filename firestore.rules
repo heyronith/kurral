@@ -112,7 +112,7 @@ service cloud.firestore {
     // Notifications collection
     // - Users can only read their own notifications
     // - Users can only update read/dismissed fields on their notifications
-    // - Only server (via service account) can create notifications
+    // - Only server (via Cloud Functions Admin SDK) can create notifications
     // - Users cannot delete notifications (only dismiss them)
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() 
@@ -129,18 +129,10 @@ service cloud.firestore {
         && request.resource.data.type == resource.data.type
         && request.resource.data.actorId == resource.data.actorId
         && request.resource.data.createdAt == resource.data.createdAt;
-      // Notifications are created by server only (via service account or Cloud Functions)
-      // For now, allow authenticated users to create notifications for themselves or others
-      // In production, restrict this to Cloud Functions only
-      allow create: if isAuthenticated()
-        && request.resource.data.keys().hasAll(['userId', 'type', 'actorId', 'createdAt', 'read', 'dismissed'])
-        && request.resource.data.userId is string
-        && request.resource.data.type is string
-        && request.resource.data.actorId is string
-        && request.resource.data.actorId == request.auth.uid
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.read is bool
-        && request.resource.data.dismissed is bool;
+      // Notifications are created server-side only via Cloud Functions
+      // Cloud Functions use Admin SDK which bypasses these rules
+      // Client-side creation is explicitly blocked for security
+      allow create: if false;
       allow delete: if false; // No deletions - use dismissed flag instead
     }
     
@@ -156,6 +148,42 @@ service cloud.firestore {
         && resource.data.userId == userId
         && request.resource.data.userId == userId;
       allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User push tokens subcollection
+    // - Users can manage their own FCM tokens
+    match /users/{userId}/pushTokens/{tokenId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['token', 'userId', 'createdAt', 'updatedAt', 'platform'])
+        && request.resource.data.userId == userId
+        && request.resource.data.token is string
+        && request.resource.data.platform is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && resource.data.userId == userId
+        && request.resource.data.userId == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Topic mappings (semantic topic -> bucket)
+    // Allow authenticated users to create/read mappings; updates are idempotent writes
+    match /topicMappings/{topicId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['semanticTopic', 'bucket', 'createdAt'])
+        && request.resource.data.semanticTopic is string
+        && request.resource.data.bucket is string
+        && request.resource.data.createdAt is timestamp;
+      allow update: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['semanticTopic', 'bucket', 'createdAt'])
+        && request.resource.data.semanticTopic is string
+        && request.resource.data.bucket is string
+        && request.resource.data.createdAt is timestamp;
+      allow delete: if false;
     }
     
     // Value Contributions collection
@@ -230,7 +258,9 @@ service cloud.firestore {
         && request.resource.data.sources.size() > 0
         && request.resource.data.sources.size() <= 10
         && request.resource.data.createdAt is timestamp
-        && (!request.resource.data.keys().hasAny(['context']) || (request.resource.data.context is string && request.resource.data.context.size() <= 500));
+        && request.resource.data.context is string
+        && request.resource.data.context.size() >= 20
+        && request.resource.data.context.size() <= 500;
       allow update: if false;
       allow delete: if false;
     }

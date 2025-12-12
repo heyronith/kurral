@@ -60,6 +60,12 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
       return;
     }
 
+    const trimmedContext = context.trim();
+    if (trimmedContext.length < 20) {
+      setError('Please provide at least 20 characters of context');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -69,7 +75,7 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
         currentUser.id,
         action,
         sourcesArray,
-        context.trim() || undefined
+        trimmedContext
       );
       
       // Reset form
@@ -182,10 +188,10 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
               </div>
             </div>
 
-            {/* Optional Context */}
+            {/* Required Context */}
             <div>
               <label htmlFor="context" className="block text-sm font-medium text-textPrimary mb-2">
-                Additional context (optional)
+                Additional context (required, min 20 chars)
               </label>
               <textarea
                 id="context"
@@ -196,6 +202,7 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
                 rows={3}
                 maxLength={500}
                 disabled={loading}
+                required
               />
               <div className="mt-1 text-xs text-textMuted text-right">
                 {context.length}/500 characters
@@ -220,7 +227,7 @@ const ReviewContextModal = ({ open, onClose, chirp, onSubmitted }: ReviewContext
                     ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-yellow-600 hover:bg-yellow-700'
                 }`}
-                disabled={loading || !action || !sources.trim()}
+                disabled={loading || !action || !sources.trim() || context.trim().length < 20}
               >
                 {loading ? 'Submitting...' : action ? `Submit ${action === 'validate' ? 'Validation' : 'Invalidation'}` : 'Select Action'}
               </button>

@@ -4,6 +4,7 @@ import { useUserStore } from '../store/useUserStore';
 import { useThemeStore } from '../store/useThemeStore';
 import ChirpCard from './ChirpCard';
 import FollowSuggestionsModal from './FollowSuggestionsModal';
+import { filterChirpsForViewer } from '../lib/utils/chirpVisibility';
 
 const LatestFeed = () => {
   const chirps = useFeedStore((state) => state.chirps);
@@ -13,11 +14,13 @@ const LatestFeed = () => {
   
   // Filter to followed users only (excluding own chirps), sort by createdAt DESC
   const latestChirps = currentUser
-    ? chirps
-        .filter((chirp) => 
-          chirp.authorId !== currentUser.id && currentUser.following.includes(chirp.authorId)
-        )
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    ? filterChirpsForViewer(
+        chirps.filter((chirp) =>
+          chirp.authorId !== currentUser.id &&
+          (currentUser.following || []).includes(chirp.authorId)
+        ),
+        currentUser.id
+      ).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     : [];
 
   if (latestChirps.length === 0) {

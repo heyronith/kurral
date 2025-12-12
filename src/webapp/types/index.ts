@@ -1,14 +1,21 @@
 // Core Data Types
 
-export type Topic =
-  | 'dev'
-  | 'startups'
-  | 'music'
-  | 'sports'
-  | 'productivity'
-  | 'design'
-  | 'politics'
-  | 'crypto';
+// Legacy topic buckets (fixed set)
+export const LEGACY_TOPICS = [
+  'dev',
+  'startups',
+  'music',
+  'sports',
+  'productivity',
+  'design',
+  'politics',
+  'crypto',
+] as const;
+
+export type LegacyTopic = typeof LEGACY_TOPICS[number];
+
+// Topic can be a legacy bucket or a dynamically created bucket name
+export type Topic = LegacyTopic | string;
 
 export type TopicName = string;
 
@@ -154,6 +161,7 @@ export type Chirp = {
   text: string;
   topic: Topic;
   semanticTopics?: string[];
+  semanticTopicBuckets?: Record<string, string>; // semantic topic -> bucket mapping
   entities?: string[];
   intent?: string;
   analyzedAt?: Date;
@@ -219,16 +227,21 @@ export const DEFAULT_FOR_YOU_CONFIG: ForYouConfig = {
 
 export type FeedType = 'latest' | 'forYou';
 
-export const ALL_TOPICS: Topic[] = [
-  'dev',
-  'startups',
-  'music',
-  'sports',
-  'productivity',
-  'design',
-  'politics',
-  'crypto',
-];
+export const ALL_TOPICS: LegacyTopic[] = [...LEGACY_TOPICS];
+
+// Helpers to validate topic values
+export const isLegacyTopic = (value?: string): value is LegacyTopic => {
+  if (!value) return false;
+  return LEGACY_TOPICS.includes(value as LegacyTopic);
+};
+
+export const isValidTopic = (value?: string): value is Topic => {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  if (isLegacyTopic(normalized)) return true;
+  // Allow dynamic buckets: lowercase, alphanumeric + hyphen, 2-50 chars
+  return /^[a-z0-9-]{2,50}$/.test(normalized);
+};
 
 // Topic metadata for engagement tracking
 export type TopicMetadata = {

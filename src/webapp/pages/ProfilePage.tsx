@@ -12,6 +12,7 @@ import AppLayout from '../components/AppLayout';
 import EditProfileModal from '../components/EditProfileModal';
 import FollowersFollowingModal from '../components/FollowersFollowingModal';
 import ProfileSummaryModal from '../components/ProfileSummaryModal';
+import { filterChirpsForViewer } from '../lib/utils/chirpVisibility';
 
 const getKurralTier = (score: number): string => {
   if (score >= 88) return 'Excellent';
@@ -126,7 +127,13 @@ const ProfilePage = () => {
       try {
         setIsLoadingContent(true);
         const chirps = await chirpService.getChirpsByAuthor(profileUser.id);
-        setUserChirps(chirps);
+        const allowBlocked = currentUser?.id === profileUser.id;
+        const visibleChirps = filterChirpsForViewer(
+          chirps,
+          currentUser?.id,
+          allowBlocked ? { profileOwnerId: profileUser.id } : undefined
+        );
+        setUserChirps(visibleChirps);
         
         // Load authors for chirps
         const authorIds = new Set(chirps.map(c => c.authorId));
@@ -147,7 +154,7 @@ const ProfilePage = () => {
     };
 
     loadContent();
-  }, [profileUser, users, loadUser]);
+  }, [profileUser, users, loadUser, currentUser?.id]);
 
   const handleFollow = async () => {
     if (!profileUser || !currentUser) return;

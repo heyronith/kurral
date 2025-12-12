@@ -5,7 +5,7 @@ import { useThemeStore } from '../store/useThemeStore';
 import { reviewRequestService } from '../lib/services/reviewRequestService';
 import { reviewContextService } from '../lib/firestore';
 import type { Chirp } from '../types';
-import ReviewContextModal from './ReviewContextModal';
+import ComprehensiveReviewModal from './ComprehensiveReviewModal';
 
 interface ReviewRequest {
   chirp: Chirp;
@@ -46,10 +46,6 @@ const ReviewRequestsPanel = () => {
     setShowReviewModal(true);
   };
 
-  const handleViewPost = (chirpId: string) => {
-    navigate(`/post/${chirpId}`);
-  };
-
   const handleReviewSubmitted = async () => {
     await loadReviewRequests();
     setShowReviewModal(false);
@@ -88,29 +84,32 @@ const ReviewRequestsPanel = () => {
     return null;
   }
 
-  // Only show to users with high kurralScore
+  // KurralScore threshold: 70 out of 100 (0-100 scale)
+  const KURRAL_SCORE_THRESHOLD = 70;
   const kurralScore = currentUser.kurralScore?.score ?? 0;
-  if (kurralScore < 700) {
-    return null;
-  }
+  const meetsThreshold = kurralScore >= KURRAL_SCORE_THRESHOLD;
 
   return (
     <div className={`rounded-xl border ${theme === 'dark' ? 'border-darkBorder bg-darkBgElevated/30' : 'border-border bg-backgroundElevated'} p-4 mb-4`}>
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">🔍</span>
           <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>
             Review Requests
           </h3>
-        </div>
-        {reviewRequests.length > 0 && (
+        {meetsThreshold && reviewRequests.length > 0 && (
           <span className={`text-xs font-medium px-2 py-1 rounded-full ${theme === 'dark' ? 'bg-accent/20 text-accent' : 'bg-accent/10 text-accent'}`}>
             {reviewRequests.length}
           </span>
         )}
       </div>
 
-      {isLoading ? (
+      {!meetsThreshold ? (
+        <div className={`text-center py-4 text-sm ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>
+          <p className="mb-2">This panel shows posts that need review. You'll be able to review posts once your kurralScore reaches {KURRAL_SCORE_THRESHOLD}.</p>
+          <p className="text-xs">
+            Your current score: <span className={`font-semibold ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>{kurralScore}/100</span>
+          </p>
+        </div>
+      ) : isLoading ? (
         <div className={`text-center py-4 text-sm ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}>
           Loading review requests...
         </div>
@@ -124,8 +123,7 @@ const ReviewRequestsPanel = () => {
           {reviewRequests.map((request) => (
             <div
               key={request.chirp.id}
-              className={`rounded-lg border p-3 ${getPriorityColor(request.priority)} transition-all hover:opacity-80 cursor-pointer`}
-              onClick={() => handleViewPost(request.chirp.id)}
+              className={`rounded-lg border p-3 ${getPriorityColor(request.priority)} transition-all hover:opacity-80`}
             >
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex-1 min-w-0">
@@ -158,32 +156,16 @@ const ReviewRequestsPanel = () => {
                 </div>
               </div>
               
-              <div className="flex gap-2 mt-2">
+              <div className="mt-2">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleReviewClick(request.chirp);
-                  }}
-                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  onClick={() => handleReviewClick(request.chirp)}
+                  className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     theme === 'dark'
                       ? 'bg-accent/20 text-accent hover:bg-accent/30'
                       : 'bg-accent/10 text-accent hover:bg-accent/20'
                   }`}
                 >
                   Review Now
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleViewPost(request.chirp.id);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    theme === 'dark'
-                      ? 'bg-white/10 text-darkTextPrimary hover:bg-white/20'
-                      : 'bg-backgroundElevated text-textPrimary hover:bg-backgroundElevated/80'
-                  }`}
-                >
-                  View
                 </button>
               </div>
             </div>
@@ -192,7 +174,7 @@ const ReviewRequestsPanel = () => {
       )}
 
       {selectedChirp && (
-        <ReviewContextModal
+        <ComprehensiveReviewModal
           open={showReviewModal}
           onClose={() => {
             setShowReviewModal(false);

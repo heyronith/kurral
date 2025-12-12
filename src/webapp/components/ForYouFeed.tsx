@@ -7,6 +7,7 @@ import { useThemeStore } from '../store/useThemeStore';
 import ChirpCard from './ChirpCard';
 import { useNavigate } from 'react-router-dom';
 import { useTopicStore } from '../store/useTopicStore';
+import { shouldDisplayChirp } from '../lib/utils/chirpVisibility';
 
 const ForYouFeed = () => {
   const chirps = useFeedStore((state) => state.chirps);
@@ -26,17 +27,24 @@ const ForYouFeed = () => {
     return generateForYouFeed(chirps, currentUser, config, getUser);
   }, [chirps, currentUser, config, getUser]);
 
+  const visibleScoredChirps = useMemo(() => {
+    if (!currentUser) return [];
+    return scoredChirps.filter((scoredChirp) =>
+      shouldDisplayChirp(scoredChirp.chirp, currentUser?.id)
+    );
+  }, [scoredChirps, currentUser?.id]);
+
   const prevConfigRef = useRef(config);
-  const prevCountRef = useRef(scoredChirps.length);
+  const prevCountRef = useRef(visibleScoredChirps.length);
 
   useEffect(() => {
     const configChanged = JSON.stringify(prevConfigRef.current) !== JSON.stringify(config);
-    const countChanged = prevCountRef.current !== scoredChirps.length;
+    const countChanged = prevCountRef.current !== visibleScoredChirps.length;
     
     if (configChanged) {
       console.log('[ForYouFeed] Feed recalculated due to config change:', {
         config,
-        postCount: scoredChirps.length,
+        postCount: visibleScoredChirps.length,
         previousCount: prevCountRef.current,
       });
       prevConfigRef.current = config;
@@ -45,12 +53,12 @@ const ForYouFeed = () => {
     if (countChanged && !configChanged) {
       console.log('[ForYouFeed] Post count changed:', {
         previous: prevCountRef.current,
-        current: scoredChirps.length,
+        current: visibleScoredChirps.length,
       });
     }
     
-    prevCountRef.current = scoredChirps.length;
-  }, [config, scoredChirps.length]);
+    prevCountRef.current = visibleScoredChirps.length;
+  }, [config, visibleScoredChirps.length]);
 
   const emptyReason = useMemo(() => {
     if (!currentUser) {
@@ -80,7 +88,7 @@ const ForYouFeed = () => {
     selectTopic(firstTrending);
   };
 
-  if (scoredChirps.length === 0) {
+  if (visibleScoredChirps.length === 0) {
     return (
       <div className="p-8 space-y-4">
         <div className={`text-center ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
@@ -108,7 +116,7 @@ const ForYouFeed = () => {
 
   return (
     <div className="px-4 py-4">
-      {scoredChirps.map((scoredChirp) => (
+      {visibleScoredChirps.map((scoredChirp) => (
         <div key={scoredChirp.chirp.id} className="mb-4">
           <div className={`mb-2 px-3 py-2 text-xs ${theme === 'dark' ? 'text-white/70 bg-transparent border border-white/20 rounded-lg' : 'text-textMuted'}`}>
             <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-textLabel'}`}>Why this post:</span>{' '}

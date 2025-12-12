@@ -79,9 +79,12 @@ const PostDetailView = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [postId]);
     // Keep local chirp state in sync with store updates (e.g., new comments)
+    // Also check if chirp becomes blocked while viewing
     useEffect(() => {
         if (storedChirp) {
             setChirp(storedChirp);
+            // If chirp becomes blocked and user is not author, they should be redirected
+            // This is handled in the render check below
         }
     }, [storedChirp]);
     // Track chirp view for tuning service
@@ -222,6 +225,10 @@ const PostDetailView = () => {
     }
     if (!chirp) {
         return (_jsx(AppLayout, { wrapContent: false, children: _jsx("div", { className: "min-h-screen flex items-center justify-center", children: _jsx("div", { className: "text-textMuted", children: "Post not found" }) }) }));
+    }
+    const isAuthor = currentUser?.id === chirp.authorId;
+    if (chirp.factCheckStatus === 'blocked' && !isAuthor) {
+        return (_jsx(AppLayout, { wrapContent: false, children: _jsx("div", { className: `min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`, children: _jsxs("div", { className: `max-w-md p-8 rounded-2xl border ${theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-border bg-backgroundElevated'} text-center`, children: [_jsx("p", { className: `text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`, children: "Post unavailable" }), _jsx("p", { className: `mt-2 text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`, children: "This post was blocked by the fact-checking system and can only be viewed by the author on their profile." })] }) }) }));
     }
     const author = getUser(chirp.authorId);
     if (!author)

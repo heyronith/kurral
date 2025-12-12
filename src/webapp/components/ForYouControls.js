@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { useConfigStore } from '../store/useConfigStore';
 import { useUserStore } from '../store/useUserStore';
 import { useThemeStore } from '../store/useThemeStore';
-import { ALL_TOPICS } from '../types';
+import { ALL_TOPICS, isLegacyTopic } from '../types';
 import { instructionService } from '../lib/services/instructionService';
 const SMART_PRESETS = [
     {
@@ -44,7 +44,7 @@ const ForYouControls = () => {
             return ALL_TOPICS;
         return currentUser.topics
             .map((t) => t.trim().toLowerCase())
-            .filter((t) => ALL_TOPICS.includes(t))
+            .filter(isLegacyTopic)
             .filter((t, i, arr) => arr.indexOf(t) === i);
     }, [currentUser]);
     const [instructionInput, setInstructionInput] = useState('');

@@ -36,19 +36,27 @@ async function callOpenAIProxy(endpoint, body) {
             const errorData = await response.json().catch(() => ({}));
             const error = new Error(errorData.message || `HTTP ${response.status}`);
             error.status = response.status;
+            error.errorData = errorData;
             // Help devs understand missing proxy during local dev
             if (response.status === 404) {
                 error.message =
                     'OpenAI proxy endpoint not found. In local dev set VITE_OPENAI_PROXY_URL to a deployed /api/openai-proxy.';
+            }
+            // Preserve the actual error message from server for 500 errors
+            if (response.status === 500 && errorData.message) {
+                error.message = errorData.message;
+                if (errorData.details) {
+                    error.message += ` ${errorData.details}`;
+                }
             }
             throw error;
         }
         return await response.json();
     }
     catch (error) {
-        // Re-throw with better error handling
-        if (error.status === 500) {
-            throw new Error('Server error: OpenAI proxy is not configured. Please contact support.');
+        // Preserve the error message if it was already set
+        if (error.status === 500 && !error.message.includes('OpenAI')) {
+            throw new Error(`Server error: ${error.message || 'OpenAI proxy is not configured. Please contact support.'}`);
         }
         throw error;
     }

@@ -1,16 +1,19 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useMemo, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../store/useUserStore';
 import { useSearchStore } from '../store/useSearchStore';
 import { useTopicStore } from '../store/useTopicStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { userService } from '../lib/firestore';
 import TrendingNewsSection from './TrendingNewsSection';
+import ReviewRequestsPanel from './ReviewRequestsPanel';
 const RightPanel = () => {
     const { users, currentUser, followUser, unfollowUser, isFollowing } = useUserStore();
     const { query, setQuery } = useSearchStore();
     const { theme } = useThemeStore();
+    const navigate = useNavigate();
+    const location = useLocation();
     const { trendingTopics, isLoading: topicsLoading, loadTrendingTopics, startScheduledRefresh, selectTopic } = useTopicStore();
     // Load trending topics on mount and start scheduled refresh
     useEffect(() => {
@@ -106,7 +109,13 @@ const RightPanel = () => {
     const peopleToFollow = suggestedUsers;
     return (_jsxs("aside", { className: "sticky top-20 hidden xl:flex w-80 flex-col gap-5", children: [_jsxs("div", { className: `rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`, children: [_jsx("label", { className: `mb-3 block text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: "Search Kural" }), _jsxs("div", { className: "relative", children: [_jsx("input", { type: "text", value: query, onChange: (e) => setQuery(e.target.value), placeholder: "Search topics or people", className: `w-full rounded-xl px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-accent/20 ${theme === 'dark'
                                     ? 'bg-white/5 border border-darkBorder text-darkTextPrimary placeholder:text-darkTextMuted focus:border-accent/60'
-                                    : 'bg-backgroundSubtle text-textPrimary placeholder:text-textMuted focus:border-accent/60 focus:border'}` }), _jsx("span", { className: `absolute right-3 top-2.5 text-xs font-medium ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: "\u2318 K" })] })] }), _jsx(TrendingNewsSection, {}), _jsxs("div", { className: `rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`, children: [_jsx("h3", { className: `mb-4 text-sm font-bold ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`, children: "Trending Topics" }), topicsLoading ? (_jsx("div", { className: "py-4 text-center", children: _jsx("p", { className: `text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: "Loading trending topics..." }) })) : displayTrendingTopics.length === 0 ? (_jsx("div", { className: "py-4 text-center", children: _jsx("p", { className: `text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: "No trending topics yet" }) })) : (_jsx("div", { className: "flex flex-wrap gap-2", children: displayTrendingTopics.map((item) => (_jsx("button", { onClick: () => selectTopic(item.topic), className: `inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 active:scale-95 cursor-pointer ${item.matchesInterest
+                                    : 'bg-backgroundSubtle text-textPrimary placeholder:text-textMuted focus:border-accent/60 focus:border'}` }), _jsx("span", { className: `absolute right-3 top-2.5 text-xs font-medium ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: "\u2318 K" })] })] }), _jsx(ReviewRequestsPanel, {}), _jsx(TrendingNewsSection, {}), _jsxs("div", { className: `rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`, children: [_jsx("h3", { className: `mb-4 text-sm font-bold ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`, children: "Trending Topics" }), topicsLoading ? (_jsx("div", { className: "py-4 text-center", children: _jsx("p", { className: `text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: "Loading trending topics..." }) })) : displayTrendingTopics.length === 0 ? (_jsx("div", { className: "py-4 text-center", children: _jsx("p", { className: `text-xs ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: "No trending topics yet" }) })) : (_jsx("div", { className: "flex flex-wrap gap-2", children: displayTrendingTopics.map((item) => (_jsx("button", { onClick: () => {
+                                selectTopic(item.topic);
+                                // Navigate to home if not already there
+                                if (location.pathname !== '/') {
+                                    navigate('/');
+                                }
+                            }, className: `inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 active:scale-95 cursor-pointer ${item.matchesInterest
                                 ? 'bg-accent/10 hover:bg-accent/20 text-accent'
                                 : theme === 'dark'
                                     ? 'bg-white/5 hover:bg-white/10 text-darkTextPrimary'

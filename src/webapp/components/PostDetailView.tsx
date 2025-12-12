@@ -83,9 +83,12 @@ const PostDetailView = () => {
   }, [postId]);
 
   // Keep local chirp state in sync with store updates (e.g., new comments)
+  // Also check if chirp becomes blocked while viewing
   useEffect(() => {
     if (storedChirp) {
       setChirp(storedChirp);
+      // If chirp becomes blocked and user is not author, they should be redirected
+      // This is handled in the render check below
     }
   }, [storedChirp]);
 
@@ -250,6 +253,22 @@ const PostDetailView = () => {
       <AppLayout wrapContent={false}>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-textMuted">Post not found</div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const isAuthor = currentUser?.id === chirp.authorId;
+  if (chirp.factCheckStatus === 'blocked' && !isAuthor) {
+    return (
+      <AppLayout wrapContent={false}>
+        <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`}>
+          <div className={`max-w-md p-8 rounded-2xl border ${theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-border bg-backgroundElevated'} text-center`}>
+            <p className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>Post unavailable</p>
+            <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
+              This post was blocked by the fact-checking system and can only be viewed by the author on their profile.
+            </p>
+          </div>
         </div>
       </AppLayout>
     );

@@ -1,15 +1,18 @@
 // Search Results Component
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchStore } from '../store/useSearchStore';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
+import type { SearchResult } from '../lib/agents/searchAgent';
 import { getSearchAgent } from '../lib/agents/searchAgent';
 import ChirpCard from './ChirpCard';
+import { shouldDisplayChirp } from '../lib/utils/chirpVisibility';
 
 const SearchResults = () => {
   const { query, results, isSearching, setResults, setIsSearching } = useSearchStore();
   const { chirps } = useFeedStore();
-  const { getUser } = useUserStore();
+  const getUser = useUserStore((state) => state.getUser);
+  const currentUser = useUserStore((state) => state.currentUser);
   const [error, setError] = useState<string | null>(null);
   
   // Use ref to avoid including getUser in dependencies (it changes on every render)
@@ -17,6 +20,11 @@ const SearchResults = () => {
   useEffect(() => {
     getUserRef.current = getUser;
   }, [getUser]);
+
+  const setFilteredResults = (items: SearchResult[]) => {
+    const filtered = items.filter((result) => shouldDisplayChirp(result.chirp, currentUser?.id));
+    setResults(filtered);
+  };
 
   useEffect(() => {
     const performSearch = async () => {
@@ -68,23 +76,23 @@ const SearchResults = () => {
 
           if (response.success && response.data && response.data.length > 0) {
             console.log('[SearchResults] Setting AI search results:', response.data.length);
-            setResults(response.data);
+            setFilteredResults(response.data);
           } else if (response.fallback && response.fallback.length > 0) {
             console.log('[SearchResults] Using AI fallback results:', response.fallback.length);
-            setResults(response.fallback);
+            setFilteredResults(response.fallback);
           } else {
             // Fallback to keyword search
             console.log('[SearchResults] AI search returned no results, using keyword fallback');
             const keywordResults = performKeywordSearch(query, chirps);
             console.log('[SearchResults] Keyword search results:', keywordResults.length);
-            setResults(keywordResults);
+            setFilteredResults(keywordResults);
           }
         } else {
           // Fallback to keyword search if AI is not available
           console.log('[SearchResults] AI not available, using keyword search');
           const keywordResults = performKeywordSearch(query, chirps);
           console.log('[SearchResults] Keyword search results:', keywordResults.length);
-          setResults(keywordResults);
+          setFilteredResults(keywordResults);
         }
       } catch (err: any) {
         console.error('[SearchResults] Search error:', err);
@@ -93,7 +101,7 @@ const SearchResults = () => {
           const keywordResults = performKeywordSearch(query, chirps);
           console.log('[SearchResults] Error fallback keyword results:', keywordResults.length);
           if (keywordResults.length > 0) {
-            setResults(keywordResults);
+            setFilteredResults(keywordResults);
             setError(null); // Clear error if fallback worked
           } else {
             setError(err.message || 'Failed to perform search');
@@ -135,7 +143,13 @@ const SearchResults = () => {
     // Debounce search
     const timeoutId = setTimeout(performSearch, 500);
     return () => clearTimeout(timeoutId);
-  }, [query, chirps, setResults, setIsSearching]); // Depend on query and chirps array
+  }, [query, chirps, setResults, setIsSearching, currentUser?.id]); // Depend on query, chirps and viewer
+
+  // Results are already filtered in setFilteredResults, but filter again in case currentUser changes
+  const visibleResults = useMemo(
+    () => results.filter((result) => shouldDisplayChirp(result.chirp, currentUser?.id)),
+    [results, currentUser?.id]
+  );
 
   if (!query.trim() || query.length < 2) {
     return null;
@@ -157,7 +171,7 @@ const SearchResults = () => {
     );
   }
 
-  if (results.length === 0) {
+  if (visibleResults.length === 0) {
     return (
       <div className="p-8 text-center text-textMuted">
         <p>No results found for "{query}"</p>
@@ -169,11 +183,11 @@ const SearchResults = () => {
     <div className="border-t border-border">
       <div className="px-4 py-3 bg-background/30 border-b border-border">
         <p className="text-sm text-textMuted">
-          Found {results.length} result{results.length !== 1 ? 's' : ''} for "{query}"
+          Found {visibleResults.length} result{visibleResults.length !== 1 ? 's' : ''} for "{query}"
         </p>
       </div>
       <div>
-        {results.map((result) => (
+        {visibleResults.map((result) => (
           <div key={result.chirp.id}>
             <div className="px-4 py-2 text-xs text-textMuted border-b border-border bg-background/30">
               {result.explanation} (Relevance: {(result.relevanceScore * 100).toFixed(0)}%)

@@ -1,17 +1,20 @@
 import { useMemo, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../store/useUserStore';
 import { useSearchStore } from '../store/useSearchStore';
 import { useTopicStore } from '../store/useTopicStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { userService } from '../lib/firestore';
 import TrendingNewsSection from './TrendingNewsSection';
+import ReviewRequestsPanel from './ReviewRequestsPanel';
 import type { User } from '../types';
 
 const RightPanel = () => {
   const { users, currentUser, followUser, unfollowUser, isFollowing } = useUserStore();
   const { query, setQuery } = useSearchStore();
   const { theme } = useThemeStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { 
     trendingTopics, 
     isLoading: topicsLoading, 
@@ -148,6 +151,8 @@ const RightPanel = () => {
         </div>
       </div>
 
+      <ReviewRequestsPanel />
+
       <TrendingNewsSection />
 
       <div className={`rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`}>
@@ -165,7 +170,13 @@ const RightPanel = () => {
             {displayTrendingTopics.map((item) => (
               <button
                 key={item.topic}
-                onClick={() => selectTopic(item.topic)}
+                onClick={() => {
+                  selectTopic(item.topic);
+                  // Navigate to home if not already there
+                  if (location.pathname !== '/') {
+                    navigate('/');
+                  }
+                }}
                 className={`inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 active:scale-95 cursor-pointer ${
                   item.matchesInterest
                     ? 'bg-accent/10 hover:bg-accent/20 text-accent'

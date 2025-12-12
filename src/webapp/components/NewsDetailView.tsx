@@ -3,13 +3,16 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNewsStore } from '../store/useNewsStore';
 import { useFeedStore } from '../store/useFeedStore';
 import { useThemeStore } from '../store/useThemeStore';
+import { useUserStore } from '../store/useUserStore';
 import { chirpService } from '../lib/firestore';
 import ChirpCard from './ChirpCard';
 import Composer from './Composer';
+import { shouldDisplayChirp } from '../lib/utils/chirpVisibility';
 import type { Chirp } from '../types';
 
 const NewsDetailView = () => {
   const { selectedNews, clearSelection } = useNewsStore();
+  const currentUser = useUserStore((state) => state.currentUser);
   const { chirps } = useFeedStore();
   const { theme } = useThemeStore();
   const [activeTab, setActiveTab] = useState<'top' | 'latest'>('top');
@@ -64,6 +67,9 @@ const NewsDetailView = () => {
     chirps.forEach((post) => availablePosts.set(post.id, post));
     fetchedStoryPosts.forEach((post) => availablePosts.set(post.id, post));
 
+    const ensureVisible = (posts: Chirp[]): Chirp[] =>
+      posts.filter((post) => shouldDisplayChirp(post, currentUser?.id));
+
     const sortByTab = (posts: Chirp[]): Chirp[] => {
       if (activeTab === 'top') {
         return [...posts].sort((a, b) => {
@@ -81,7 +87,7 @@ const NewsDetailView = () => {
         .map((id) => availablePosts.get(id))
         .filter((post): post is Chirp => Boolean(post));
       if (ordered.length > 0) {
-        return sortByTab(ordered);
+        return ensureVisible(sortByTab(ordered));
       }
     }
 
@@ -101,8 +107,8 @@ const NewsDetailView = () => {
       return matchesKeyword || matchesTitleWord || matchesTopic;
     });
 
-    return sortByTab(matched);
-  }, [selectedNews, chirps, fetchedStoryPosts, activeTab]);
+    return ensureVisible(sortByTab(matched));
+  }, [selectedNews, chirps, fetchedStoryPosts, activeTab, currentUser?.id]);
 
   // Format relative time
   const formatTimeAgo = (date: Date | null | undefined): string => {

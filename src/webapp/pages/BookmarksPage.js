@@ -4,6 +4,7 @@ import { useUserStore } from '../store/useUserStore';
 import { useFeedStore } from '../store/useFeedStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { chirpService } from '../lib/firestore';
+import { filterChirpsForViewer } from '../lib/utils/chirpVisibility';
 import ChirpCard from '../components/ChirpCard';
 import AppLayout from '../components/AppLayout';
 const BookmarksPage = () => {
@@ -32,9 +33,11 @@ const BookmarksPage = () => {
                 const validChirps = chirps
                     .filter((chirp) => chirp !== null)
                     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-                setBookmarkedChirps(validChirps);
+                const visibleChirps = filterChirpsForViewer(validChirps, currentUser?.id);
+                setBookmarkedChirps(visibleChirps);
+                // Load all chirps (including blocked) into store for potential author access
                 loadChirps(validChirps);
-                // Load authors for chirps
+                // Load authors for chirps (use validChirps to ensure we load all authors)
                 const authorIds = new Set(validChirps.map((c) => c.authorId));
                 const { loadUser } = useUserStore.getState();
                 for (const authorId of authorIds) {

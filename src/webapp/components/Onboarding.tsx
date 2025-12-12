@@ -729,11 +729,7 @@ const Onboarding = () => {
         </aside>
 
         <div className="flex flex-1 flex-col justify-center px-4 py-8 sm:px-6 lg:px-10">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <div className="inline-flex items-center gap-2 text-sm font-semibold text-textMuted">
-              <span className="text-base font-bold text-textPrimary">Kural</span>
-              <img src="/quotation-marks.png" alt="Kural logo" className="h-5 w-auto" />
-            </div>
+          <div className="mb-6 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => navigate('/signup')}

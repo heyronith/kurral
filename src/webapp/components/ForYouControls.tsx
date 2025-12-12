@@ -2,7 +2,7 @@ import { useState, useMemo, type KeyboardEvent } from 'react';
 import { useConfigStore } from '../store/useConfigStore';
 import { useUserStore } from '../store/useUserStore';
 import { useThemeStore } from '../store/useThemeStore';
-import { ALL_TOPICS, type Topic } from '../types';
+import { ALL_TOPICS, isLegacyTopic, type Topic } from '../types';
 import { instructionService } from '../lib/services/instructionService';
 
 interface SmartPreset {
@@ -53,8 +53,8 @@ const ForYouControls = () => {
     if (!currentUser?.topics?.length) return ALL_TOPICS;
     return currentUser.topics
       .map((t) => t.trim().toLowerCase())
-      .filter((t): t is Topic => ALL_TOPICS.includes(t as Topic))
-      .filter((t, i, arr) => arr.indexOf(t) === i) as Topic[];
+      .filter(isLegacyTopic)
+      .filter((t, i, arr) => arr.indexOf(t) === i);
   }, [currentUser]);
 
   const [instructionInput, setInstructionInput] = useState('');

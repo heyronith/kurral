@@ -1,21 +1,27 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // Search Results Component
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchStore } from '../store/useSearchStore';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
 import { getSearchAgent } from '../lib/agents/searchAgent';
 import ChirpCard from './ChirpCard';
+import { shouldDisplayChirp } from '../lib/utils/chirpVisibility';
 const SearchResults = () => {
     const { query, results, isSearching, setResults, setIsSearching } = useSearchStore();
     const { chirps } = useFeedStore();
-    const { getUser } = useUserStore();
+    const getUser = useUserStore((state) => state.getUser);
+    const currentUser = useUserStore((state) => state.currentUser);
     const [error, setError] = useState(null);
     // Use ref to avoid including getUser in dependencies (it changes on every render)
     const getUserRef = useRef(getUser);
     useEffect(() => {
         getUserRef.current = getUser;
     }, [getUser]);
+    const setFilteredResults = (items) => {
+        const filtered = items.filter((result) => shouldDisplayChirp(result.chirp, currentUser?.id));
+        setResults(filtered);
+    };
     useEffect(() => {
         const performSearch = async () => {
             console.log('[SearchResults] performSearch called', {
@@ -54,18 +60,18 @@ const SearchResults = () => {
                     });
                     if (response.success && response.data && response.data.length > 0) {
                         console.log('[SearchResults] Setting AI search results:', response.data.length);
-                        setResults(response.data);
+                        setFilteredResults(response.data);
                     }
                     else if (response.fallback && response.fallback.length > 0) {
                         console.log('[SearchResults] Using AI fallback results:', response.fallback.length);
-                        setResults(response.fallback);
+                        setFilteredResults(response.fallback);
                     }
                     else {
                         // Fallback to keyword search
                         console.log('[SearchResults] AI search returned no results, using keyword fallback');
                         const keywordResults = performKeywordSearch(query, chirps);
                         console.log('[SearchResults] Keyword search results:', keywordResults.length);
-                        setResults(keywordResults);
+                        setFilteredResults(keywordResults);
                     }
                 }
                 else {
@@ -73,7 +79,7 @@ const SearchResults = () => {
                     console.log('[SearchResults] AI not available, using keyword search');
                     const keywordResults = performKeywordSearch(query, chirps);
                     console.log('[SearchResults] Keyword search results:', keywordResults.length);
-                    setResults(keywordResults);
+                    setFilteredResults(keywordResults);
                 }
             }
             catch (err) {
@@ -83,7 +89,7 @@ const SearchResults = () => {
                     const keywordResults = performKeywordSearch(query, chirps);
                     console.log('[SearchResults] Error fallback keyword results:', keywordResults.length);
                     if (keywordResults.length > 0) {
-                        setResults(keywordResults);
+                        setFilteredResults(keywordResults);
                         setError(null); // Clear error if fallback worked
                     }
                     else {
@@ -124,7 +130,9 @@ const SearchResults = () => {
         // Debounce search
         const timeoutId = setTimeout(performSearch, 500);
         return () => clearTimeout(timeoutId);
-    }, [query, chirps, setResults, setIsSearching]); // Depend on query and chirps array
+    }, [query, chirps, setResults, setIsSearching, currentUser?.id]); // Depend on query, chirps and viewer
+    // Results are already filtered in setFilteredResults, but filter again in case currentUser changes
+    const visibleResults = useMemo(() => results.filter((result) => shouldDisplayChirp(result.chirp, currentUser?.id)), [results, currentUser?.id]);
     if (!query.trim() || query.length < 2) {
         return null;
     }
@@ -134,9 +142,9 @@ const SearchResults = () => {
     if (error) {
         return (_jsx("div", { className: "p-8 text-center", children: _jsx("p", { className: "text-red-500 text-sm", children: error }) }));
     }
-    if (results.length === 0) {
+    if (visibleResults.length === 0) {
         return (_jsx("div", { className: "p-8 text-center text-textMuted", children: _jsxs("p", { children: ["No results found for \"", query, "\""] }) }));
     }
-    return (_jsxs("div", { className: "border-t border-border", children: [_jsx("div", { className: "px-4 py-3 bg-background/30 border-b border-border", children: _jsxs("p", { className: "text-sm text-textMuted", children: ["Found ", results.length, " result", results.length !== 1 ? 's' : '', " for \"", query, "\""] }) }), _jsx("div", { children: results.map((result) => (_jsxs("div", { children: [_jsxs("div", { className: "px-4 py-2 text-xs text-textMuted border-b border-border bg-background/30", children: [result.explanation, " (Relevance: ", (result.relevanceScore * 100).toFixed(0), "%)"] }), _jsx(ChirpCard, { chirp: result.chirp })] }, result.chirp.id))) })] }));
+    return (_jsxs("div", { className: "border-t border-border", children: [_jsx("div", { className: "px-4 py-3 bg-background/30 border-b border-border", children: _jsxs("p", { className: "text-sm text-textMuted", children: ["Found ", visibleResults.length, " result", visibleResults.length !== 1 ? 's' : '', " for \"", query, "\""] }) }), _jsx("div", { children: visibleResults.map((result) => (_jsxs("div", { children: [_jsxs("div", { className: "px-4 py-2 text-xs text-textMuted border-b border-border bg-background/30", children: [result.explanation, " (Relevance: ", (result.relevanceScore * 100).toFixed(0), "%)"] }), _jsx(ChirpCard, { chirp: result.chirp })] }, result.chirp.id))) })] }));
 };
 export default SearchResults;
