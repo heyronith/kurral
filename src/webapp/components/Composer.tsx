@@ -46,10 +46,19 @@ const detectIntentFromContent = (text: string): string => {
 };
 
 const normalizeSemanticTopics = (topics: string[]): string[] => {
+  const normalizeTopic = (topic: string): string => {
+    if (!topic) return '';
+    let normalized = topic.replace(/#/g, '').trim().toLowerCase();
+    normalized = normalized.replace(/[^a-z0-9-]+/g, '-');
+    normalized = normalized.replace(/-+/g, '-');
+    normalized = normalized.replace(/^-+|-+$/g, '');
+    return normalized.slice(0, 50);
+  };
+
   return Array.from(
     new Set(
       topics
-        .map((topic) => topic.replace(/#/g, '').trim().toLowerCase())
+        .map(normalizeTopic)
         .filter((topic) => topic.length > 0)
     )
   );
