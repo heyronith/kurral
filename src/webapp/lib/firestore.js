@@ -2016,6 +2016,7 @@ export const topicService = {
                         postsLast48h: count48h,
                         postsLast4h: count4h,
                         postsLast1h: count1h,
+                        totalUsers: 0, // Required by Firestore rules for create
                         averageVelocity1h: averageVelocity,
                         isTrending,
                         lastEngagementUpdate: Timestamp.now(),

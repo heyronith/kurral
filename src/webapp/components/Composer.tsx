@@ -938,7 +938,14 @@ const Composer = () => {
           semanticTopics = analysis.semanticTopics || [];
           entities = analysis.entities || [];
           intentValue = analysis.intent;
-          bucketFromAI = analysis.suggestedBucket;
+          // Sanitize AI's suggested bucket (remove # prefix and normalize)
+          const rawBucket = analysis.suggestedBucket;
+          if (rawBucket) {
+            const sanitized = rawBucket.trim().replace(/^#+/, '').toLowerCase();
+            bucketFromAI = isValidTopic(sanitized) ? (sanitized as Topic) : null;
+          } else {
+            bucketFromAI = null;
+          }
           analysisTimestamp = new Date();
         } catch (analysisError) {
           console.warn('[Composer] Semantic analysis failed, using fallback keywords.', analysisError);
@@ -1016,7 +1023,7 @@ const Composer = () => {
 
       const resolvedTopic: Topic =
         (selectedTopic && isValidTopic(selectedTopic) ? selectedTopic : null) ||
-        bucketFromAI ||
+        (bucketFromAI && isValidTopic(bucketFromAI) ? bucketFromAI : null) ||
         (userTopics.find((topic) => isValidTopic(topic)) as Topic | undefined) ||
         'dev';
 
