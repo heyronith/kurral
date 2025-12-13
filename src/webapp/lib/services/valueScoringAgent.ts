@@ -40,10 +40,140 @@ type ValueResponse = {
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
+/**
+ * Sanitizes user input to prevent prompt injection attacks
+ * Detects and neutralizes common injection patterns while preserving legitimate content
+ */
+const sanitizeForPrompt = (value: string): string => {
+  if (!value) return '';
+  
+  let sanitized = value;
+  
+  // Remove null bytes and control characters (except newlines and tabs for readability)
+  sanitized = sanitized.replace(/\u0000/g, '');
+  sanitized = sanitized.replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+  
+  // Remove code fences and code blocks that could contain instructions
+  sanitized = sanitized.replace(/```[\s\S]*?```/g, '[code block removed]');
+  sanitized = sanitized.replace(/`[^`]+`/g, '[code removed]');
+  
+  // Remove special tokens used in LLM training
+  sanitized = sanitized.replace(/<\|[^|]+\|>/g, '');
+  sanitized = sanitized.replace(/\[INST\]/gi, '');
+  sanitized = sanitized.replace(/\[\/INST\]/gi, '');
+  sanitized = sanitized.replace(/<\|im_start\|>/gi, '');
+  sanitized = sanitized.replace(/<\|im_end\|>/gi, '');
+  
+  // Detect and neutralize common prompt injection patterns
+  // Pattern: Instructions to ignore previous/system prompts
+  const ignorePatterns = [
+    /ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|directions?|rules?)/gi,
+    /disregard\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|directions?)/gi,
+    /forget\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?)/gi,
+    /override\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?)/gi,
+    /system\s*:\s*ignore/gi,
+    /you\s+are\s+now/gi,
+    /from\s+now\s+on/gi,
+    /new\s+instructions?\s*:/gi,
+  ];
+  
+  for (const pattern of ignorePatterns) {
+    sanitized = sanitized.replace(pattern, '[instruction removed]');
+  }
+  
+  // Pattern: Role-playing and persona hijacking attempts
+  const rolePatterns = [
+    /you\s+are\s+(now\s+)?(a|an)\s+[^\.]+(\.|,|;)/gi,
+    /act\s+as\s+(if\s+you\s+are\s+)?(a|an)\s+[^\.]+(\.|,|;)/gi,
+    /pretend\s+(to\s+be|that\s+you\s+are)\s+(a|an)\s+[^\.]+/gi,
+    /role\s*:\s*[^\n]+/gi,
+    /persona\s*:\s*[^\n]+/gi,
+  ];
+  
+  for (const pattern of rolePatterns) {
+    sanitized = sanitized.replace(pattern, '[role instruction removed]');
+  }
+  
+  // Pattern: Output format manipulation
+  const outputPatterns = [
+    /output\s+(format|style|mode)\s*:\s*[^\n]+/gi,
+    /respond\s+(in|as|with)\s+(the\s+following|this|json|xml|markdown|html)/gi,
+    /use\s+(the\s+following|this)\s+(format|structure|template)/gi,
+    /return\s+([^\.]+)\s+instead/gi,
+  ];
+  
+  for (const pattern of outputPatterns) {
+    sanitized = sanitized.replace(pattern, '[format instruction removed]');
+  }
+  
+  // Pattern: Context confusion attacks (delimiters that could break context)
+  const delimiterPatterns = [
+    /---+\s*new\s+(instruction|prompt|context|task)/gi,
+    /===+\s*new\s+(instruction|prompt|context|task)/gi,
+    /###+\s*new\s+(instruction|prompt|context|task)/gi,
+    /<\|begin_of_text\|>/gi,
+    /<\|end_of_text\|>/gi,
+    /\[BEGIN\s+INSTRUCTION\]/gi,
+    /\[END\s+INSTRUCTION\]/gi,
+    /\[BEGIN\s+PROMPT\]/gi,
+    /\[END\s+PROMPT\]/gi,
+  ];
+  
+  for (const pattern of delimiterPatterns) {
+    sanitized = sanitized.replace(pattern, '[delimiter removed]');
+  }
+  
+  // Pattern: Direct instruction injections
+  const directInstructionPatterns = [
+    /(^|\n)\s*instruction\s*[:\-]\s*/gim,
+    /(^|\n)\s*command\s*[:\-]\s*/gim,
+    /(^|\n)\s*execute\s*[:\-]\s*/gim,
+    /(^|\n)\s*do\s+this\s*[:\-]\s*/gim,
+  ];
+  
+  for (const pattern of directInstructionPatterns) {
+    sanitized = sanitized.replace(pattern, '$1[instruction header removed]: ');
+  }
+  
+  // Limit length to prevent resource exhaustion attacks
+  const MAX_LENGTH = 2000;
+  if (sanitized.length > MAX_LENGTH) {
+    sanitized = sanitized.slice(0, MAX_LENGTH) + ' [truncated]';
+  }
+  
+  // Final cleanup: remove excessive whitespace introduced by replacements
+  sanitized = sanitized.replace(/\s+/g, ' ');
+  sanitized = sanitized.replace(/\n\s*\n\s*\n/g, '\n\n'); // Max 2 consecutive newlines
+  
+  return sanitized.trim();
+};
+
+const resolveDominantDomain = (chirp: Chirp, claims: Claim[]): string => {
+  const normalizedTopic = chirp.topic?.toLowerCase?.() || 'general';
+  const semanticTopics =
+    chirp.semanticTopics?.map((t) => t.toLowerCase().trim()).filter(Boolean) || [];
+
+  // Count domains, favoring non-general and higher-risk claims
+  const domainCounts = new Map<string, number>();
+  for (const claim of claims) {
+    const domain = claim.domain?.toLowerCase();
+    if (!domain || domain === 'general') continue;
+    const weight = claim.riskLevel === 'high' ? 2 : claim.riskLevel === 'medium' ? 1.5 : 1;
+    domainCounts.set(domain, (domainCounts.get(domain) || 0) + weight);
+  }
+
+  const topDomain =
+    [...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || normalizedTopic;
+
+  const isConsistentWithTopic =
+    topDomain === normalizedTopic ||
+    semanticTopics.some((topic) => topic.includes(topDomain) || topDomain.includes(topic));
+
+  return isConsistentWithTopic ? topDomain : normalizedTopic;
+};
+
 const getDimensionWeights = (chirp: Chirp, claims: Claim[]): Record<keyof ValueVector, number> => {
-  const normalizedTopic = chirp.topic.toLowerCase();
-  const dominantDomain =
-    claims.find((claim) => claim.domain && claim.domain !== 'general')?.domain?.toLowerCase() || normalizedTopic;
+  const dominantDomain = resolveDominantDomain(chirp, claims);
 
   if (dominantDomain === 'health' || dominantDomain === 'politics') {
     return {
@@ -55,7 +185,7 @@ const getDimensionWeights = (chirp: Chirp, claims: Claim[]): Record<keyof ValueV
     };
   }
 
-  if (dominantDomain === 'technology' || normalizedTopic === 'startups') {
+  if (dominantDomain === 'technology' || dominantDomain === 'startups' || dominantDomain === 'ai') {
     return {
       epistemic: 0.25,
       insight: 0.35,
@@ -65,7 +195,7 @@ const getDimensionWeights = (chirp: Chirp, claims: Claim[]): Record<keyof ValueV
     };
   }
 
-  if (normalizedTopic === 'productivity' || normalizedTopic === 'design') {
+  if (dominantDomain === 'productivity' || dominantDomain === 'design') {
     return {
       epistemic: 0.2,
       insight: 0.25,
@@ -112,12 +242,47 @@ const buildSummary = (
     : '0 scored comments';
 
   return [
-    `Post text: """${chirp.text.slice(0, 700)}"""`,
+    `Post text: """${sanitizeForPrompt(chirp.text).slice(0, 700)}"""`,
     claimSummary,
     factSummary,
     discussionSummary,
     commentsSummary,
   ].join('\n');
+};
+
+const applyFactCheckPenalty = (vector: ValueVector, factChecks: FactCheck[]): ValueVector => {
+  if (!factChecks || factChecks.length === 0) {
+    // If we have claims but no fact-checks, keep epistemic conservative
+    return { ...vector, epistemic: Math.min(vector.epistemic, 0.35) };
+  }
+
+  const confidentFalseCount = factChecks.filter(
+    (check) => check.verdict === 'false' && check.confidence > 0.7
+  ).length;
+  if (confidentFalseCount === 0) {
+    return vector;
+  }
+
+  const penalty = Math.min(0.8, confidentFalseCount * 0.25);
+  const penalizedEpistemic = clamp01(vector.epistemic * (1 - penalty));
+  const cappedInsight = clamp01(vector.insight * (1 - penalty * 0.3));
+
+  return {
+    ...vector,
+    epistemic: penalizedEpistemic,
+    insight: cappedInsight,
+  };
+};
+
+const validateVector = (vector: ValueVector): ValueVector => {
+  const safe = (value: number): number => (Number.isFinite(value) ? clamp01(value) : 0.5);
+  return {
+    epistemic: safe(vector.epistemic),
+    insight: safe(vector.insight),
+    practical: safe(vector.practical),
+    relational: safe(vector.relational),
+    effort: safe(vector.effort),
+  };
 };
 
 export async function scoreChirpValue(
@@ -155,13 +320,19 @@ Instructions:
 
   try {
     const response = await agent.generateJSON<ValueResponse>(prompt, 'Value scoring agent', VALUE_SCHEMA);
-    const vector: ValueVector = {
+
+    // Initial clamp
+    let vector: ValueVector = {
       epistemic: clamp01(response.scores.epistemic),
       insight: clamp01(response.scores.insight),
       practical: clamp01(response.scores.practical),
       relational: clamp01(response.scores.relational),
       effort: clamp01(response.scores.effort),
     };
+
+    // Apply fact-check-aware penalties and validate
+    vector = applyFactCheckPenalty(vector, factChecks);
+    vector = validateVector(vector);
 
     const weights = getDimensionWeights(chirp, claims);
     const total =
@@ -173,7 +344,7 @@ Instructions:
 
     return {
       ...vector,
-      total,
+      total: clamp01(total),
       confidence: clamp01(response.confidence),
       updatedAt: new Date(),
       drivers: response.drivers?.filter((driver) => driver.trim().length > 0),

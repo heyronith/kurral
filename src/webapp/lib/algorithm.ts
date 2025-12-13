@@ -16,6 +16,7 @@ const AUTHOR_TOP_WINDOW_COUNT = 20;
 const AUTHOR_TOP_WINDOW_LIMIT = 3;
 const AUTHOR_TOTAL_LIMIT = 5;
 const MAX_TIME_WINDOW_DAYS = 30;
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 const clampTimeWindowDays = (value?: number): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -289,6 +290,31 @@ export const scoreChirpForViewer = (
   const hoursAgo = (Date.now() - chirp.createdAt.getTime()) / (1000 * 60 * 60);
   const recencyScore = Math.max(0, 15 - hoursAgo * 0.5); // Decay over 30 hours
   score += recencyScore;
+
+  // Value score integration (quality-aware boost/penalty)
+  if (chirp.valueScore) {
+    const valueTotal = clamp01(chirp.valueScore.total);
+    const confidence = clamp01(chirp.valueScore.confidence ?? 0);
+    const qualityBoost = valueTotal * 40 * Math.max(0.5, confidence);
+    score += qualityBoost;
+
+    if (valueTotal >= 0.7) {
+      reasons.push('high value content');
+    } else if (valueTotal < 0.35) {
+      const lowPenalty = (0.35 - valueTotal) * 30;
+      score -= lowPenalty;
+      reasons.push('low value content');
+    }
+  }
+
+  // Fact-check status penalties (keeps in sync with value scoring signals)
+  if (chirp.factCheckStatus === 'blocked') {
+    score -= 50;
+    reasons.push('blocked by fact-check');
+  } else if (chirp.factCheckStatus === 'needs_review') {
+    score -= 20;
+    reasons.push('fact-check needs review');
+  }
 
   // Generate explanation
   let explanation = 'Because: ';
