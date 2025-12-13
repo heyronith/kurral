@@ -358,7 +358,7 @@ const Onboarding = () => {
       }
 
       // Navigate immediately - don't wait for AI operations
-      navigate('/');
+      navigate('/app');
 
       // Generate profile summary in background (NON-CRITICAL)
       // This happens asynchronously and doesn't block the user

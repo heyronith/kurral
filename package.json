@@ -33,6 +33,8 @@
     "verify:posts": "node scripts/verify-user-posts.js",
     "cleanup:users": "node scripts/cleanup-test-users.js",
     "create:users": "node scripts/create-5-users-with-posts.js",
+    "create:platform": "node scripts/create-platform-accounts.js",
+    "verify:platform": "node scripts/verify-platform-accounts.js",
     "test:all": "bash scripts/test-all.sh"
   },
   "dependencies": {

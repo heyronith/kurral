@@ -322,7 +322,7 @@ const PostDetailView = () => {
             {/* Author info */}
             <div className="flex items-start justify-between mb-3 relative">
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <Link to={`/profile/${author.id}`} className="flex-shrink-0">
+                <Link to={`/app/profile/${author.id}`} className="flex-shrink-0">
                   {author.profilePictureUrl ? (
                     <img
                       src={author.profilePictureUrl}
@@ -340,13 +340,13 @@ const PostDetailView = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link
-                      to={`/profile/${author.id}`}
+                      to={`/app/profile/${author.id}`}
                       className={`font-bold text-[15px] ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} hover:underline`}
                     >
                       {author.name}
                     </Link>
                     <Link
-                      to={`/profile/${author.id}`}
+                      to={`/app/profile/${author.id}`}
                       className={`text-[15px] ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'} hover:underline`}
                     >
                       @{author.handle}

@@ -1,3 +1,5 @@
+import { auth } from '../firebase';
+
 /**
  * BaseAgent - Secure OpenAI Client
  * 
@@ -32,10 +34,17 @@ export interface AgentResponse<T> {
  */
 async function callOpenAIProxy(endpoint: string, body: any): Promise<any> {
   try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('You must be signed in to use the AI assistant.');
+    }
+
+    const idToken = await currentUser.getIdToken();
     const response = await fetch(PROXY_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
       },
       body: JSON.stringify({
         endpoint,

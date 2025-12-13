@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children }) => {
     }
     // Redirect away from onboarding if already completed
     if (currentUser.onboardingCompleted && location.pathname === '/onboarding') {
-        return _jsx(Navigate, { to: "/", replace: true });
+        return _jsx(Navigate, { to: "/app", replace: true });
     }
     return _jsx(_Fragment, { children: children });
 };

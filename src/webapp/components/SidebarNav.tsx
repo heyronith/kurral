@@ -15,8 +15,8 @@ const SidebarNav = () => {
   };
 
   const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/' || location.pathname === '/app';
+    if (path === '/app') {
+      return location.pathname === '/app';
     }
     return location.pathname.startsWith(path);
   };
@@ -25,9 +25,9 @@ const SidebarNav = () => {
     <aside className="sticky top-24 hidden lg:flex w-20 flex-col items-center gap-4 py-4 z-30">
       {/* Home */}
       <Link
-        to="/"
+        to="/app"
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
-          isActive('/')
+          isActive('/app')
             ? 'bg-primary/20 text-primary shadow-subtle'
             : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
@@ -38,9 +38,9 @@ const SidebarNav = () => {
 
       {/* Profile */}
       <Link
-        to={`/profile/${currentUser?.id || ''}`}
+        to={`/app/profile/${currentUser?.id || ''}`}
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
-          isActive('/profile')
+          isActive('/app/profile')
             ? 'bg-primary/20 text-primary shadow-subtle'
             : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
@@ -51,9 +51,9 @@ const SidebarNav = () => {
 
       {/* Bookmarks */}
       <Link
-        to="/bookmarks"
+        to="/app/bookmarks"
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
-          isActive('/bookmarks')
+          isActive('/app/bookmarks')
             ? 'bg-primary/20 text-primary shadow-subtle'
             : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}
@@ -64,9 +64,9 @@ const SidebarNav = () => {
 
       {/* Settings */}
       <Link
-        to="/settings"
+        to="/app/settings"
         className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
-          isActive('/settings')
+          isActive('/app/settings')
             ? 'bg-primary/20 text-primary shadow-subtle'
             : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`
         }`}

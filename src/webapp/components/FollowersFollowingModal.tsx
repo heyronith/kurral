@@ -219,7 +219,7 @@ const FollowersFollowingModal = ({ open, onClose, userId, mode }: FollowersFollo
                   >
                     <div className="flex items-center justify-between gap-3">
                       <Link
-                        to={`/profile/${user.id}`}
+                        to={`/app/profile/${user.id}`}
                         onClick={onClose}
                         className="flex items-center gap-3 flex-1 min-w-0"
                       >

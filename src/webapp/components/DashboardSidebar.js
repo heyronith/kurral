@@ -12,7 +12,7 @@ const DashboardSidebar = ({ className = '', isCompact = false }) => {
             label: 'News Feed',
             hint: 'Your main timeline',
             Icon: HomeIcon,
-            to: '/',
+            to: '/app',
         },
         {
             id: 'messages',
@@ -51,7 +51,7 @@ const DashboardSidebar = ({ className = '', isCompact = false }) => {
             label: 'Settings',
             hint: 'App preferences',
             Icon: SettingsIcon,
-            to: '/settings',
+            to: '/app/settings',
         },
     ];
     const profileName = currentUser?.name ?? 'User';

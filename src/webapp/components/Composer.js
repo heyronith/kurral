@@ -47,7 +47,7 @@ const normalizeSemanticTopics = (topics) => {
         return normalized.slice(0, 50);
     };
     return Array.from(new Set(topics
-        .map((topic) => normalizeTopic(topic))
+        .map(normalizeTopic)
         .filter((topic) => topic.length > 0)));
 };
 const createMissingTopics = async (topics, existingTopics) => {

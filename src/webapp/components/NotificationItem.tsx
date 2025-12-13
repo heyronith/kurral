@@ -107,11 +107,11 @@ const NotificationItem = ({ notification }: NotificationItemProps) => {
     const profileTargetId = actor?.id ?? notification.actorId;
     
     if (notification.chirpId && notification.commentId) {
-      navigate(`/post/${notification.chirpId}#comment-${notification.commentId}`);
+      navigate(`/app/post/${notification.chirpId}#comment-${notification.commentId}`);
     } else if (notification.chirpId) {
-      navigate(`/post/${notification.chirpId}`);
+      navigate(`/app/post/${notification.chirpId}`);
     } else if (notification.type === 'follow' && profileTargetId) {
-      navigate(`/profile/${profileTargetId}`);
+      navigate(`/app/profile/${profileTargetId}`);
     }
   };
 

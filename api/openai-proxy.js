@@ -23,7 +23,53 @@
  *   }
  */
 
+import {
+  enforceRateLimit,
+  RateLimitExceededError,
+  RATE_LIMIT_CONFIG,
+  verifyFirebaseIdToken,
+} from './openai-proxy-utils.js';
+
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
+const AUTH_HEADER_NAME = 'authorization';
+const BEARER_PREFIX = 'Bearer ';
+
+const getClientIp = (req) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+
+  return req.socket?.remoteAddress || 'unknown';
+};
+
+const extractBearerToken = (req) => {
+  const rawHeader = req.headers[AUTH_HEADER_NAME];
+  if (!rawHeader) {
+    return null;
+  }
+
+  const value = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  if (!value.startsWith(BEARER_PREFIX)) {
+    return null;
+  }
+
+  return value.substring(BEARER_PREFIX.length).trim();
+};
+
+const handleRateLimitError = (res, error) => {
+  if (error instanceof RateLimitExceededError) {
+    const retryAfterSeconds = Math.max(1, Math.ceil(error.retryAfterMs / 1000));
+    res.setHeader('Retry-After', retryAfterSeconds.toString());
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: 'You sent too many requests. Please wait before retrying.',
+      retryAfterSeconds,
+    });
+    return true;
+  }
+  return false;
+};
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -49,6 +95,29 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Authenticate & rate limit
+    const idToken = extractBearerToken(req);
+    if (!idToken) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Missing Firebase ID token. Please sign in and include the Authorization header.',
+      });
+    }
+
+    const decodedUser = await verifyFirebaseIdToken(idToken);
+    const clientIp = getClientIp(req);
+    try {
+      enforceRateLimit(`user:${decodedUser.userId}`, RATE_LIMIT_CONFIG.user);
+      if (clientIp && clientIp !== 'unknown') {
+        enforceRateLimit(`ip:${clientIp}`, RATE_LIMIT_CONFIG.ip);
+      }
+    } catch (rateLimitError) {
+      if (handleRateLimitError(res, rateLimitError)) {
+        return;
+      }
+      throw rateLimitError;
+    }
+
     // Extract request details from client
     const { endpoint, method = 'POST', body, headers: customHeaders } = req.body;
 
@@ -71,7 +140,7 @@ export default async function handler(req, res) {
       ...customHeaders, // Allow client to pass additional headers if needed
     };
 
-    console.log(`[openai-proxy] Proxying ${method} request to: ${url}`);
+    console.log(`[openai-proxy] Proxying ${method} request to: ${url} for user ${decodedUser.userId}`);
 
     // Forward the request to OpenAI
     const response = await fetch(url, {

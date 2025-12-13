@@ -32,7 +32,7 @@ const DocumentTitle = () => {
     const pathname = location.pathname;
     let title = 'Kural';
 
-    if (pathname === '/info') {
+    if (pathname === '/' || pathname === '/info') {
       title = 'Kural';
     } else if (pathname === '/login') {
       title = 'Login';
@@ -40,19 +40,19 @@ const DocumentTitle = () => {
       title = 'Sign Up';
     } else if (pathname === '/onboarding') {
       title = 'Onboarding';
-    } else if (pathname === '/' || pathname === '/app') {
+    } else if (pathname === '/app') {
       title = 'Kurals';
-    } else if (pathname.startsWith('/post/')) {
+    } else if (pathname.startsWith('/app/post/')) {
       title = 'Post';
-    } else if (pathname.startsWith('/profile/')) {
+    } else if (pathname.startsWith('/app/profile/')) {
       title = 'Profile';
-    } else if (pathname === '/bookmarks') {
+    } else if (pathname === '/app/bookmarks') {
       title = 'Bookmarks';
-    } else if (pathname === '/settings') {
+    } else if (pathname === '/app/settings') {
       title = 'Settings';
-    } else if (pathname === '/notifications') {
+    } else if (pathname === '/app/notifications') {
       title = 'Notifications';
-    } else if (pathname === '/dashboard') {
+    } else if (pathname === '/app/dashboard') {
       title = 'Dashboard';
     }
 
@@ -91,6 +91,7 @@ const App = () => {
       <FaviconUpdater />
       <Suspense fallback={<PageLoader />}>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/info" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
@@ -104,10 +105,6 @@ const App = () => {
         />
         <Route
           path="/app"
-          element={<Navigate to="/" replace />}
-        />
-        <Route
-          path="/"
           element={
             <ProtectedRoute>
               <ChirpApp />
@@ -115,7 +112,7 @@ const App = () => {
           }
         />
         <Route
-          path="/post/:postId"
+          path="/app/post/:postId"
           element={
             <ProtectedRoute>
               <PostDetailView />
@@ -123,7 +120,7 @@ const App = () => {
           }
         />
         <Route
-          path="/profile/:userId"
+          path="/app/profile/:userId"
           element={
             <ProtectedRoute>
               <ProfilePage />
@@ -131,7 +128,7 @@ const App = () => {
           }
         />
         <Route
-          path="/bookmarks"
+          path="/app/bookmarks"
           element={
             <ProtectedRoute>
               <BookmarksPage />
@@ -139,7 +136,7 @@ const App = () => {
           }
         />
         <Route
-          path="/settings"
+          path="/app/settings"
           element={
             <ProtectedRoute>
               <SettingsPage />
@@ -147,7 +144,7 @@ const App = () => {
           }
         />
         <Route
-          path="/notifications"
+          path="/app/notifications"
           element={
             <ProtectedRoute>
               <NotificationsPage />
@@ -155,7 +152,7 @@ const App = () => {
           }
         />
         <Route
-          path="/dashboard"
+          path="/app/dashboard"
           element={
             <ProtectedRoute>
               <DashboardPage />

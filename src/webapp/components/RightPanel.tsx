@@ -226,7 +226,7 @@ const RightPanel = () => {
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <Link
-                        to={`/profile/${person.id}`}
+                        to={`/app/profile/${person.id}`}
                         className={`flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-primary/20 flex items-center justify-center transition-colors ${theme === 'dark' ? '' : ''}`}
                       >
                         {person.profilePictureUrl ? (
@@ -241,13 +241,13 @@ const RightPanel = () => {
                       </Link>
                       <div className="flex-1 min-w-0">
                         <Link
-                          to={`/profile/${person.id}`}
+                          to={`/app/profile/${person.id}`}
                           className={`block text-sm font-bold truncate hover:text-accent transition-colors ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}
                         >
                           {person.name}
                         </Link>
                         <Link
-                          to={`/profile/${person.id}`}
+                          to={`/app/profile/${person.id}`}
                           className={`block text-xs truncate hover:text-accent transition-colors ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}
                         >
                           @{person.handle}

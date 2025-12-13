@@ -20,18 +20,18 @@ const LeftSidebar = () => {
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/' || location.pathname === '/app';
+    if (path === '/app') {
+      return location.pathname === '/app';
     }
     return location.pathname.startsWith(path);
   };
 
   const menuItems = [
-    { path: '/', label: 'Kurals', icon: NewspaperIcon, notificationCount: null, onClick: null },
-    { path: '/dashboard', label: 'Dashboard', icon: DashboardIcon, notificationCount: null, onClick: null },
-    { path: '/notifications', label: 'Notifications', icon: BellIcon, notificationCount: unreadCount > 0 ? unreadCount : null, onClick: null },
-    { path: '/bookmarks', label: 'Bookmarks', icon: BookmarkIcon, notificationCount: null, onClick: null },
-    { path: '/settings', label: 'Settings', icon: SettingsIcon, notificationCount: null, onClick: null },
+    { path: '/app', label: 'Kurals', icon: NewspaperIcon, notificationCount: null, onClick: null },
+    { path: '/app/dashboard', label: 'Dashboard', icon: DashboardIcon, notificationCount: null, onClick: null },
+    { path: '/app/notifications', label: 'Notifications', icon: BellIcon, notificationCount: unreadCount > 0 ? unreadCount : null, onClick: null },
+    { path: '/app/bookmarks', label: 'Bookmarks', icon: BookmarkIcon, notificationCount: null, onClick: null },
+    { path: '/app/settings', label: 'Settings', icon: SettingsIcon, notificationCount: null, onClick: null },
     { path: '', label: 'Our Approach', icon: ShieldCheckIcon, notificationCount: null, onClick: () => setShowIntegrityModal(true) },
   ];
 
@@ -89,7 +89,7 @@ const LeftSidebar = () => {
         {/* User Profile Section */}
         <div className="px-4 pt-[48px] pb-4">
           <Link
-            to={`/profile/${currentUser?.id || ''}`}
+            to={`/app/profile/${currentUser?.id || ''}`}
             className="flex items-center gap-3 group"
           >
             <div className="relative flex-shrink-0">

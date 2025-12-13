@@ -22,7 +22,7 @@ export const linkifyMentions = (text: string): string => {
   return text.replace(MENTION_REGEX, (match, handle) => {
     // We use a relative URL with a special @ prefix for handles
     // The ProfilePage needs to be updated to handle this
-    return `<a href="/profile/@${handle}" class="text-accent hover:underline font-medium z-20 relative" onclick="event.stopPropagation()">${match}</a>`;
+    return `<a href="/app/profile/@${handle}" class="text-accent hover:underline font-medium z-20 relative" onclick="event.stopPropagation()">${match}</a>`;
   });
 };
 

@@ -6,6 +6,10 @@ export default defineConfig({
     server: {
         port: 5173,
     },
+    // Configure esbuild to drop console and debugger in production builds
+    esbuild: {
+        drop: ['console', 'debugger'],
+    },
     build: {
         // Code splitting for better landing page performance
         rollupOptions: {
@@ -22,5 +26,7 @@ export default defineConfig({
         target: 'es2020',
         // Increase chunk size warning limit slightly
         chunkSizeWarningLimit: 600,
+        // Minify with esbuild
+        minify: 'esbuild',
     },
 });

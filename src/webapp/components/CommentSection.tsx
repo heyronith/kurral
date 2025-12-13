@@ -384,7 +384,7 @@ const RichCommentEditor = ({ placeholder, onSubmit, onCancel, replyToUser, initi
           <div className="mb-2 text-xs text-textMuted">
             <span>Replying to </span>
             <Link
-              to={`/profile/${replyToUser.id}`}
+              to={`/app/profile/${replyToUser.id}`}
               className="text-primary hover:text-accent font-medium"
             >
               @{replyToUser.handle}
@@ -1109,13 +1109,13 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <Link
-                  to={`/profile/${author.id}`}
+                  to={`/app/profile/${author.id}`}
                   className="text-sm font-semibold text-textPrimary hover:text-primary transition-colors"
                 >
                   {author.name}
                 </Link>
                 <Link
-                  to={`/profile/${author.id}`}
+                  to={`/app/profile/${author.id}`}
                   className="text-xs text-textMuted hover:text-primary transition-colors"
                 >
                   @{author.handle}

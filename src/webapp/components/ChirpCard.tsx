@@ -172,7 +172,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
   };
 
   const handleCardClick = () => {
-    navigate(`/post/${chirp.id}`);
+    navigate(`/app/post/${chirp.id}`);
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
@@ -290,7 +290,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             {/* Profile picture */}
             <Link 
-              to={`/profile/${author.id}`} 
+              to={`/app/profile/${author.id}`} 
               className="flex-shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
@@ -309,14 +309,14 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
               )}
             </Link>
             <Link
-              to={`/profile/${author.id}`}
+              to={`/app/profile/${author.id}`}
               className={`font-semibold text-sm hover:text-accent transition-colors duration-200 ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}
               onClick={(e) => e.stopPropagation()}
             >
               {author.name}
             </Link>
             <Link
-              to={`/profile/${author.id}`}
+              to={`/app/profile/${author.id}`}
               className={`text-xs hover:text-accent transition-colors duration-200 ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`}
               onClick={(e) => e.stopPropagation()}
             >
@@ -381,7 +381,7 @@ const ChirpCard = ({ chirp }: ChirpCardProps) => {
               className={`mt-2 mb-3 rounded-xl border p-3 cursor-pointer hover:bg-opacity-80 transition-colors ${theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-border/60 bg-backgroundElevated/30'}`}
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/post/${quotedChirp.id}`);
+                navigate(`/app/post/${quotedChirp.id}`);
               }}
             >
               <div className="flex items-center gap-2 mb-2">
