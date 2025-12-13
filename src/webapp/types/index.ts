@@ -203,6 +203,11 @@ export type Comment = {
   imageUrl?: string; // Optional image URL
   scheduledAt?: Date; // Optional scheduled comment time
   formattedText?: string; // Optional formatted text (markdown-style)
+  factCheckingStatus?: 'pending' | 'in_progress' | 'completed' | 'failed'; // Processing status
+  factCheckingStartedAt?: Date; // When processing started
+  claims?: Claim[];
+  factChecks?: FactCheck[];
+  factCheckStatus?: 'clean' | 'needs_review' | 'blocked';
 };
 
 export type FollowingWeight = 'none' | 'light' | 'medium' | 'heavy';
@@ -263,9 +268,10 @@ export type FirestoreChirp = Omit<Chirp, 'createdAt' | 'scheduledAt' | 'analyzed
   analyzedAt?: any;
 };
 
-export type FirestoreComment = Omit<Comment, 'createdAt' | 'scheduledAt'> & {
+export type FirestoreComment = Omit<Comment, 'createdAt' | 'scheduledAt' | 'factCheckingStartedAt'> & {
   createdAt: any; // Firestore Timestamp
   scheduledAt?: any; // Firestore Timestamp
+  factCheckingStartedAt?: any; // Firestore Timestamp
 };
 
 // Comment tree structure for UI rendering

@@ -368,12 +368,15 @@ const chirpFromFirestore = (doc: any): Chirp => {
 
 const commentFromFirestore = (doc: any): Comment => {
   const data = doc.data();
+  const createdAt = toDate(data.createdAt);
+  const claims = normalizeClaims(data.claims, createdAt);
+  const factChecks = normalizeFactChecks(data.factChecks, createdAt);
   return {
     id: doc.id,
     chirpId: data.chirpId,
     authorId: data.authorId,
     text: data.text,
-    createdAt: toDate(data.createdAt),
+    createdAt: createdAt,
     parentCommentId: data.parentCommentId || undefined,
     replyToUserId: data.replyToUserId || undefined,
     depth: data.depth !== undefined ? data.depth : undefined,
@@ -383,6 +386,11 @@ const commentFromFirestore = (doc: any): Comment => {
     imageUrl: data.imageUrl || undefined,
     formattedText: data.formattedText || undefined,
     scheduledAt: data.scheduledAt ? toDate(data.scheduledAt) : undefined,
+    factCheckingStatus: data.factCheckingStatus,
+    factCheckingStartedAt: data.factCheckingStartedAt ? toDate(data.factCheckingStartedAt) : undefined,
+    claims,
+    factChecks,
+    factCheckStatus: data.factCheckStatus,
   };
 };
 
@@ -628,6 +636,46 @@ export const chirpService = {
       return snapshot.docs.map(chirpFromFirestore);
     } catch (error) {
       console.error('Error getting chirps needing fact check:', error);
+      return [];
+    }
+  },
+
+  // Get all rechirps (reposts) of a specific original chirp
+  async getRechirpsOfOriginal(originalChirpId: string): Promise<Chirp[]> {
+    try {
+      const q = query(
+        collection(db, 'chirps'),
+        where('rechirpOfId', '==', originalChirpId),
+        orderBy('createdAt', 'desc')
+      );
+
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(chirpFromFirestore);
+    } catch (error) {
+      console.error('Error getting rechirps of original:', error);
+      return [];
+    }
+  },
+
+  // Get all pending rechirps waiting for their original to complete fact-checking
+  // Note: Firestore doesn't support != null queries, so we query by status and filter client-side
+  async getPendingRechirps(limitCount: number = 50): Promise<Chirp[]> {
+    try {
+      const q = query(
+        collection(db, 'chirps'),
+        where('factCheckingStatus', '==', 'pending'),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount * 2) // Get more to filter, since some might not be rechirps
+      );
+
+      const snapshot = await getDocs(q);
+      // Filter to only rechirps (those with rechirpOfId)
+      return snapshot.docs
+        .map(chirpFromFirestore)
+        .filter(chirp => !!chirp.rechirpOfId)
+        .slice(0, limitCount);
+    } catch (error) {
+      console.error('Error getting pending rechirps:', error);
       return [];
     }
   },
@@ -1632,6 +1680,10 @@ export const commentService = {
         createdAt: Timestamp.now(),
       };
       
+      // Initialize fact checking status for resume capability
+      commentData.factCheckingStatus = 'pending';
+      commentData.factCheckingStartedAt = Timestamp.now();
+      
       // Only include optional fields if they have values
       if (comment.parentCommentId) {
         commentData.parentCommentId = comment.parentCommentId;
@@ -1653,6 +1705,17 @@ export const commentService = {
       }
       if (comment.scheduledAt) {
         commentData.scheduledAt = Timestamp.fromDate(comment.scheduledAt);
+      }
+      
+      // Include fact-check fields if provided (for migration/resume)
+      if (comment.claims && comment.claims.length > 0) {
+        commentData.claims = serializeClaims(comment.claims);
+      }
+      if (comment.factChecks && comment.factChecks.length > 0) {
+        commentData.factChecks = serializeFactChecks(comment.factChecks);
+      }
+      if (comment.factCheckStatus) {
+        commentData.factCheckStatus = comment.factCheckStatus;
       }
 
       const docRef = await addDoc(collection(db, 'comments'), commentData);
@@ -1770,6 +1833,11 @@ export const commentService = {
     updates: {
       discussionRole?: Comment['discussionRole'];
       valueContribution?: ValueVector & { total: number };
+      claims?: Claim[];
+      factChecks?: FactCheck[];
+      factCheckStatus?: 'clean' | 'needs_review' | 'blocked';
+      factCheckingStatus?: 'pending' | 'in_progress' | 'completed' | 'failed';
+      factCheckingStartedAt?: Date;
     }
   ): Promise<void> {
     const firestoreUpdates: Record<string, any> = {};
@@ -1778,6 +1846,31 @@ export const commentService = {
     }
     if (updates.valueContribution) {
       firestoreUpdates.valueContribution = serializeValueContribution(updates.valueContribution);
+    }
+    if (updates.claims !== undefined) {
+      const serialized = serializeClaims(updates.claims);
+      if (serialized !== undefined && serialized !== null) {
+        firestoreUpdates.claims = serialized;
+      } else {
+        firestoreUpdates.claims = null; // Allow clearing claims
+      }
+    }
+    if (updates.factChecks !== undefined) {
+      const serialized = serializeFactChecks(updates.factChecks);
+      if (serialized !== undefined && serialized !== null) {
+        firestoreUpdates.factChecks = serialized;
+      } else {
+        firestoreUpdates.factChecks = null; // Allow clearing fact-checks
+      }
+    }
+    if (updates.factCheckStatus !== undefined) {
+      firestoreUpdates.factCheckStatus = updates.factCheckStatus;
+    }
+    if (updates.factCheckingStatus !== undefined) {
+      firestoreUpdates.factCheckingStatus = updates.factCheckingStatus;
+    }
+    if (updates.factCheckingStartedAt !== undefined) {
+      firestoreUpdates.factCheckingStartedAt = updates.factCheckingStartedAt ? Timestamp.fromDate(updates.factCheckingStartedAt) : null;
     }
 
     if (Object.keys(firestoreUpdates).length === 0) {

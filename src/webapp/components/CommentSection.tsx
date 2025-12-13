@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import type { Chirp, CommentTreeNode } from '../types';
+import type { Chirp, CommentTreeNode, Comment } from '../types';
 import { useFeedStore } from '../store/useFeedStore';
 import { useUserStore } from '../store/useUserStore';
 import { useThemeStore } from '../store/useThemeStore';
@@ -15,6 +15,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { uploadImage } from '../lib/storage';
 import { sanitizeHTML } from '../lib/utils/sanitize';
 import { linkifyMentions } from '../lib/utils/mentions';
+import FactCheckStatusPopup from './FactCheckStatusPopup';
 
 interface CommentSectionProps {
   chirp: Chirp;
@@ -980,6 +981,7 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
   const [isReplying, setIsReplying] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFactCheckPopup, setShowFactCheckPopup] = useState(false);
   const { addComment, deleteComment } = useFeedStore();
   const { currentUser, getUser } = useUserStore();
   const { theme } = useThemeStore();
@@ -1088,7 +1090,7 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
           }`}
         >
           {/* Comment header */}
-          <div className="flex items-start gap-2 mb-1.5">
+          <div className="flex items-start gap-2 mb-1.5 relative">
             <div className="flex-shrink-0">
               {author.profilePictureUrl ? (
                 <img
@@ -1122,6 +1124,27 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
                 <span className="text-xs text-textMuted">{formatTime(comment.createdAt)}</span>
               </div>
             </div>
+            
+            {/* Fact-check status icon - top right */}
+            {comment.factCheckStatus && (
+              <button
+                onClick={() => setShowFactCheckPopup(true)}
+                className={`absolute top-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold transition-all hover:scale-110 cursor-pointer z-10 ${
+                  comment.factCheckStatus === 'clean'
+                    ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30'
+                    : comment.factCheckStatus === 'needs_review'
+                    ? 'bg-yellow-500/20 text-yellow-600 hover:bg-yellow-500/30'
+                    : 'bg-red-500/20 text-red-600 hover:bg-red-500/30'
+                }`}
+                title={`Fact-check: ${comment.factCheckStatus.replace('_', ' ')}`}
+              >
+                {comment.factCheckStatus === 'clean'
+                  ? '✓'
+                  : comment.factCheckStatus === 'needs_review'
+                  ? '⚠'
+                  : '✗'}
+              </button>
+            )}
           </div>
           
           {/* Comment text */}
@@ -1259,6 +1282,26 @@ const CommentItem = ({ comment, chirpId, chirpAuthorId, depth, maxDepth = 5 }: C
           </div>
         )}
       </div>
+      
+      {/* Fact-check popup for comment */}
+      {comment.factCheckStatus && (
+        <FactCheckStatusPopup
+          open={showFactCheckPopup}
+          onClose={() => setShowFactCheckPopup(false)}
+          chirp={{
+            id: comment.id,
+            authorId: comment.authorId,
+            text: comment.text,
+            topic: 'general' as any,
+            reachMode: 'forAll',
+            createdAt: comment.createdAt,
+            commentCount: 0,
+            claims: comment.claims,
+            factChecks: comment.factChecks,
+            factCheckStatus: comment.factCheckStatus,
+          } as Chirp}
+        />
+      )}
     </div>
   );
 };
