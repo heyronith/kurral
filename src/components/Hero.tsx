@@ -14,16 +14,16 @@ const Hero = () => {
 
         {/* Subhead - Single scannable line */}
         <p className="text-lg sm:text-xl md:text-2xl text-textMuted max-w-2xl mx-auto">
-          Every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kural Score reflects real impact, not vanity metrics. Quality wins.
+          Social media without the manipulation. Control your feed, target your audience, and get paid for quality.
         </p>
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
           <Link
-            to="/login"
+            to="/signup"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent to-accentLight px-8 py-4 text-base font-semibold text-white transition-all duration-200 hover:from-accentHover hover:to-accent shadow-button hover:shadow-buttonHover active:scale-[0.98]"
           >
-            Sign in now
+            Join the Beta
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
