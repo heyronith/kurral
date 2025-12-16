@@ -1,6 +1,6 @@
 // Firestore service layer - abstracts data access
 // For MVP, we'll use mock data, but structure allows easy swap to Firestore
-import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, increment, Timestamp, onSnapshot, deleteField, writeBatch, startAfter, } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, Timestamp, onSnapshot, deleteField, writeBatch, startAfter, } from 'firebase/firestore';
 import { db } from './firebase';
 import { DEFAULT_FOR_YOU_CONFIG } from '../types';
 import { notificationService } from './services/notificationService';
@@ -858,6 +858,10 @@ export const userService = {
             const docSnap = await getDoc(doc(db, 'users', userId));
             if (!docSnap.exists())
                 return null;
+            const data = docSnap.data();
+            // Don't return deleted users
+            if (data.deleted === true)
+                return null;
             return userFromFirestore(docSnap);
         }
         catch (error) {
@@ -871,6 +875,10 @@ export const userService = {
             const snapshot = await getDocs(q);
             if (snapshot.empty)
                 return null;
+            const data = snapshot.docs[0].data();
+            // Don't return deleted users
+            if (data.deleted === true)
+                return null;
             return userFromFirestore(snapshot.docs[0]);
         }
         catch (error) {
@@ -882,7 +890,9 @@ export const userService = {
         try {
             const botsQuery = query(collection(db, 'users'), where('isBot', '==', true), limit(limitCount));
             const snapshot = await getDocs(botsQuery);
-            return snapshot.docs.map(userFromFirestore);
+            return snapshot.docs
+                .filter(doc => doc.data().deleted !== true) // Filter out deleted users
+                .map(userFromFirestore);
         }
         catch (error) {
             console.error('Error fetching bot profiles:', error);
@@ -895,7 +905,10 @@ export const userService = {
             try {
                 const recentQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(10));
                 const snapshot = await getDocs(recentQuery);
-                return snapshot.docs.map(userFromFirestore).slice(0, limitCount);
+                return snapshot.docs
+                    .filter(doc => doc.data().deleted !== true) // Filter out deleted users
+                    .map(userFromFirestore)
+                    .slice(0, limitCount);
             }
             catch (error) {
                 // If orderBy fails (no index), fallback to simple limit query
@@ -903,7 +916,10 @@ export const userService = {
                     try {
                         const fallbackQuery = query(collection(db, 'users'), limit(10));
                         const snapshot = await getDocs(fallbackQuery);
-                        return snapshot.docs.map(userFromFirestore).slice(0, limitCount);
+                        return snapshot.docs
+                            .filter(doc => doc.data().deleted !== true) // Filter out deleted users
+                            .map(userFromFirestore)
+                            .slice(0, limitCount);
                     }
                     catch (fallbackError) {
                         console.error('Error fetching recent users (fallback):', fallbackError);
@@ -930,6 +946,10 @@ export const userService = {
                 const handleQuery = query(collection(db, 'users'), where('handle', '>=', term), where('handle', '<', term + '\uf8ff'), limit(firestoreLimit));
                 const handleSnapshot = await getDocs(handleQuery);
                 handleSnapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    // Skip deleted users
+                    if (data.deleted === true)
+                        return;
                     const user = userFromFirestore(doc);
                     candidatesSet.set(user.id, user);
                 });
@@ -944,6 +964,10 @@ export const userService = {
                 );
                 const recentSnapshot = await getDocs(recentQuery);
                 recentSnapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    // Skip deleted users
+                    if (data.deleted === true)
+                        return;
                     const user = userFromFirestore(doc);
                     // Only add if not already in set (deduplicate)
                     if (!candidatesSet.has(user.id)) {
@@ -1376,7 +1400,461 @@ export const userService = {
             return [];
         }
     },
+    /**
+     * Delete user account and all associated data
+     * This performs a soft delete (marks account as deleted) and removes all user data
+     * Note: Firebase Auth account deletion requires Admin SDK and will be handled separately
+     */
+    async deleteAccount(userId) {
+        let chirpsDeleted = 0;
+        let commentsDeleted = 0;
+        let imagesDeleted = 0;
+        let referencesCleaned = 0;
+        const deletedChirpIds = [];
+        try {
+            // Step 1: Check if user exists and is not already deleted
+            const userDoc = await getDoc(doc(db, 'users', userId));
+            if (!userDoc.exists()) {
+                throw new Error('User not found');
+            }
+            const userData = userDoc.data();
+            if (userData.deleted === true) {
+                throw new Error('User account is already deleted');
+            }
+            const user = userFromFirestore(userDoc);
+            // Step 2: Collect all chirp IDs and image URLs before deletion
+            const imageUrls = [];
+            // Collect profile images
+            if (user.profilePictureUrl)
+                imageUrls.push(user.profilePictureUrl);
+            if (user.coverPhotoUrl)
+                imageUrls.push(user.coverPhotoUrl);
+            // Step 3: Delete all user's chirps (with pagination) and collect image URLs
+            let lastChirpDoc = null;
+            let hasMoreChirps = true;
+            while (hasMoreChirps) {
+                try {
+                    let chirpsQuery;
+                    if (lastChirpDoc) {
+                        chirpsQuery = query(collection(db, 'chirps'), where('authorId', '==', userId), orderBy('createdAt', 'desc'), startAfter(lastChirpDoc), limit(500));
+                    }
+                    else {
+                        chirpsQuery = query(collection(db, 'chirps'), where('authorId', '==', userId), orderBy('createdAt', 'desc'), limit(500));
+                    }
+                    const chirpsSnapshot = await getDocs(chirpsQuery);
+                    if (chirpsSnapshot.empty) {
+                        hasMoreChirps = false;
+                        break;
+                    }
+                    // Collect chirp IDs and image URLs
+                    chirpsSnapshot.docs.forEach((docSnap) => {
+                        deletedChirpIds.push(docSnap.id);
+                        const data = docSnap.data();
+                        if (data.imageUrl) {
+                            imageUrls.push(data.imageUrl);
+                        }
+                    });
+                    // Delete chirps in batch
+                    const batch = writeBatch(db);
+                    chirpsSnapshot.docs.forEach((docSnap) => {
+                        batch.delete(docSnap.ref);
+                    });
+                    await batch.commit();
+                    chirpsDeleted += chirpsSnapshot.docs.length;
+                    lastChirpDoc = chirpsSnapshot.docs[chirpsSnapshot.docs.length - 1];
+                    // If we got less than 500, we're done
+                    if (chirpsSnapshot.docs.length < 500) {
+                        hasMoreChirps = false;
+                    }
+                }
+                catch (error) {
+                    // Handle missing index error - try without orderBy
+                    if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+                        console.warn('Index missing for chirps query, trying without orderBy');
+                        try {
+                            const fallbackQuery = query(collection(db, 'chirps'), where('authorId', '==', userId), limit(500));
+                            const fallbackSnapshot = await getDocs(fallbackQuery);
+                            if (fallbackSnapshot.empty) {
+                                hasMoreChirps = false;
+                                break;
+                            }
+                            fallbackSnapshot.docs.forEach((docSnap) => {
+                                deletedChirpIds.push(docSnap.id);
+                                const data = docSnap.data();
+                                if (data.imageUrl) {
+                                    imageUrls.push(data.imageUrl);
+                                }
+                            });
+                            const batch = writeBatch(db);
+                            fallbackSnapshot.docs.forEach((docSnap) => {
+                                batch.delete(docSnap.ref);
+                            });
+                            await batch.commit();
+                            chirpsDeleted += fallbackSnapshot.docs.length;
+                            if (fallbackSnapshot.docs.length < 500) {
+                                hasMoreChirps = false;
+                            }
+                            else {
+                                // Continue with next batch (using last doc as cursor)
+                                lastChirpDoc = fallbackSnapshot.docs[fallbackSnapshot.docs.length - 1];
+                            }
+                        }
+                        catch (fallbackError) {
+                            console.error('Error in fallback chirp deletion:', fallbackError);
+                            hasMoreChirps = false;
+                        }
+                    }
+                    else {
+                        throw error;
+                    }
+                }
+            }
+            // Step 4: Delete all user's comments (with pagination)
+            let lastCommentDoc = null;
+            let hasMoreComments = true;
+            while (hasMoreComments) {
+                try {
+                    let commentsQuery;
+                    if (lastCommentDoc) {
+                        commentsQuery = query(collection(db, 'comments'), where('authorId', '==', userId), orderBy('createdAt', 'desc'), startAfter(lastCommentDoc), limit(500));
+                    }
+                    else {
+                        commentsQuery = query(collection(db, 'comments'), where('authorId', '==', userId), orderBy('createdAt', 'desc'), limit(500));
+                    }
+                    const commentsSnapshot = await getDocs(commentsQuery);
+                    if (commentsSnapshot.empty) {
+                        hasMoreComments = false;
+                        break;
+                    }
+                    // Collect image URLs from comments
+                    commentsSnapshot.docs.forEach((docSnap) => {
+                        const data = docSnap.data();
+                        if (data.imageUrl) {
+                            imageUrls.push(data.imageUrl);
+                        }
+                    });
+                    // Delete comments in batch
+                    const batch = writeBatch(db);
+                    commentsSnapshot.docs.forEach((docSnap) => {
+                        batch.delete(docSnap.ref);
+                    });
+                    await batch.commit();
+                    commentsDeleted += commentsSnapshot.docs.length;
+                    lastCommentDoc = commentsSnapshot.docs[commentsSnapshot.docs.length - 1];
+                    // If we got less than 500, we're done
+                    if (commentsSnapshot.docs.length < 500) {
+                        hasMoreComments = false;
+                    }
+                }
+                catch (error) {
+                    // Handle missing index error - try without orderBy
+                    if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+                        console.warn('Index missing for comments query, trying without orderBy');
+                        try {
+                            const fallbackQuery = query(collection(db, 'comments'), where('authorId', '==', userId), limit(500));
+                            const fallbackSnapshot = await getDocs(fallbackQuery);
+                            if (fallbackSnapshot.empty) {
+                                hasMoreComments = false;
+                                break;
+                            }
+                            fallbackSnapshot.docs.forEach((docSnap) => {
+                                const data = docSnap.data();
+                                if (data.imageUrl) {
+                                    imageUrls.push(data.imageUrl);
+                                }
+                            });
+                            const batch = writeBatch(db);
+                            fallbackSnapshot.docs.forEach((docSnap) => {
+                                batch.delete(docSnap.ref);
+                            });
+                            await batch.commit();
+                            commentsDeleted += fallbackSnapshot.docs.length;
+                            if (fallbackSnapshot.docs.length < 500) {
+                                hasMoreComments = false;
+                            }
+                            else {
+                                lastCommentDoc = fallbackSnapshot.docs[fallbackSnapshot.docs.length - 1];
+                            }
+                        }
+                        catch (fallbackError) {
+                            console.error('Error in fallback comment deletion:', fallbackError);
+                            hasMoreComments = false;
+                        }
+                    }
+                    else {
+                        throw error;
+                    }
+                }
+            }
+            // Step 5: Remove user from others' following lists
+            try {
+                const followersQuery = query(collection(db, 'users'), where('following', 'array-contains', userId), limit(500));
+                const followersSnapshot = await getDocs(followersQuery);
+                if (!followersSnapshot.empty) {
+                    const updateBatch = writeBatch(db);
+                    followersSnapshot.docs.forEach((userDoc) => {
+                        const userData = userDoc.data();
+                        const following = userData.following || [];
+                        const updatedFollowing = following.filter((id) => id !== userId);
+                        if (updatedFollowing.length !== following.length) {
+                            updateBatch.update(userDoc.ref, { following: updatedFollowing });
+                            referencesCleaned++;
+                        }
+                    });
+                    if (followersSnapshot.docs.length > 0) {
+                        await updateBatch.commit();
+                    }
+                }
+            }
+            catch (error) {
+                console.warn('Failed to clean up following references:', error);
+                // Continue even if this fails
+            }
+            // Step 6: Remove user from mentions in chirps
+            try {
+                // Query all chirps that mention this user
+                // Note: array-contains queries don't support orderBy easily, so we'll process all results
+                const mentionQuery = query(collection(db, 'chirps'), where('mentions', 'array-contains', userId), limit(500) // Firestore limit, process in batches if needed
+                );
+                const mentionSnapshot = await getDocs(mentionQuery);
+                if (!mentionSnapshot.empty) {
+                    const updateBatch = writeBatch(db);
+                    mentionSnapshot.docs.forEach((chirpDoc) => {
+                        const chirpData = chirpDoc.data();
+                        const mentions = chirpData.mentions || [];
+                        const updatedMentions = mentions.filter((id) => id !== userId);
+                        if (updatedMentions.length !== mentions.length) {
+                            updateBatch.update(chirpDoc.ref, { mentions: updatedMentions });
+                            referencesCleaned++;
+                        }
+                    });
+                    if (mentionSnapshot.docs.length > 0) {
+                        await updateBatch.commit();
+                    }
+                    // If we got 500 results, there might be more
+                    // Note: Without proper pagination support for array-contains, we process what we can
+                    // In practice, it's extremely unlikely a user would be mentioned in 500+ posts
+                    if (mentionSnapshot.docs.length === 500) {
+                        console.warn(`User ${userId} mentioned in 500+ chirps - some mentions may not be cleaned up`);
+                    }
+                }
+            }
+            catch (error) {
+                // Handle missing index gracefully
+                if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+                    console.warn('Index missing for mentions cleanup - this is non-critical, continuing');
+                }
+                else {
+                    console.warn('Failed to clean up mentions in chirps:', error);
+                }
+                // Continue even if this fails
+            }
+            // Step 7: Remove user from mentions in comments (replyToUserId)
+            try {
+                let lastMentionCommentDoc = null;
+                let hasMoreMentionComments = true;
+                while (hasMoreMentionComments) {
+                    let mentionQuery;
+                    if (lastMentionCommentDoc) {
+                        mentionQuery = query(collection(db, 'comments'), where('replyToUserId', '==', userId), orderBy('createdAt', 'desc'), startAfter(lastMentionCommentDoc), limit(500));
+                    }
+                    else {
+                        mentionQuery = query(collection(db, 'comments'), where('replyToUserId', '==', userId), orderBy('createdAt', 'desc'), limit(500));
+                    }
+                    try {
+                        const mentionSnapshot = await getDocs(mentionQuery);
+                        if (mentionSnapshot.empty) {
+                            hasMoreMentionComments = false;
+                            break;
+                        }
+                        const updateBatch = writeBatch(db);
+                        mentionSnapshot.docs.forEach((commentDoc) => {
+                            updateBatch.update(commentDoc.ref, { replyToUserId: deleteField() });
+                            referencesCleaned++;
+                        });
+                        if (mentionSnapshot.docs.length > 0) {
+                            await updateBatch.commit();
+                        }
+                        lastMentionCommentDoc = mentionSnapshot.docs[mentionSnapshot.docs.length - 1];
+                        if (mentionSnapshot.docs.length < 500) {
+                            hasMoreMentionComments = false;
+                        }
+                    }
+                    catch (queryError) {
+                        // Handle missing index - try without orderBy
+                        if (queryError?.code === 'failed-precondition' || queryError?.message?.includes('index')) {
+                            if (!lastMentionCommentDoc) {
+                                // First attempt - try without orderBy
+                                const fallbackQuery = query(collection(db, 'comments'), where('replyToUserId', '==', userId), limit(500));
+                                const fallbackSnapshot = await getDocs(fallbackQuery);
+                                if (fallbackSnapshot.empty) {
+                                    hasMoreMentionComments = false;
+                                    break;
+                                }
+                                const updateBatch = writeBatch(db);
+                                fallbackSnapshot.docs.forEach((commentDoc) => {
+                                    updateBatch.update(commentDoc.ref, { replyToUserId: deleteField() });
+                                    referencesCleaned++;
+                                });
+                                if (fallbackSnapshot.docs.length > 0) {
+                                    await updateBatch.commit();
+                                }
+                                if (fallbackSnapshot.docs.length < 500) {
+                                    hasMoreMentionComments = false;
+                                }
+                                else {
+                                    // Continue with next batch
+                                    lastMentionCommentDoc = fallbackSnapshot.docs[fallbackSnapshot.docs.length - 1];
+                                }
+                            }
+                            else {
+                                // Can't paginate without orderBy, so we're done
+                                hasMoreMentionComments = false;
+                            }
+                        }
+                        else {
+                            throw queryError;
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                console.warn('Failed to clean up mentions in comments:', error);
+                // Continue even if this fails
+            }
+            // Step 8: Remove deleted chirp IDs from others' bookmarks
+            if (deletedChirpIds.length > 0) {
+                try {
+                    // Process in chunks of 10 (Firestore array-contains-any limit)
+                    const chunkSize = 10;
+                    for (let i = 0; i < deletedChirpIds.length; i += chunkSize) {
+                        const chunk = deletedChirpIds.slice(i, i + chunkSize);
+                        // Query all users who have any of these chirps bookmarked
+                        // Note: We can't use pagination with array-contains-any easily, so we'll process all results
+                        // In practice, this should be fine as most users won't have many bookmarks
+                        const bookmarkQuery = query(collection(db, 'users'), where('bookmarks', 'array-contains-any', chunk), limit(500) // Firestore limit, but we'll handle pagination manually if needed
+                        );
+                        const bookmarkSnapshot = await getDocs(bookmarkQuery);
+                        if (!bookmarkSnapshot.empty) {
+                            const updateBatch = writeBatch(db);
+                            bookmarkSnapshot.docs.forEach((userDoc) => {
+                                const userData = userDoc.data();
+                                const bookmarks = userData.bookmarks || [];
+                                const updatedBookmarks = bookmarks.filter((id) => !chunk.includes(id));
+                                if (updatedBookmarks.length !== bookmarks.length) {
+                                    updateBatch.update(userDoc.ref, { bookmarks: updatedBookmarks });
+                                    referencesCleaned++;
+                                }
+                            });
+                            if (bookmarkSnapshot.docs.length > 0) {
+                                await updateBatch.commit();
+                            }
+                            // If we got 500 results, there might be more - but for bookmarks this is unlikely
+                            // In a production scenario, you'd want to implement proper pagination here
+                            // For now, we'll process what we can
+                        }
+                    }
+                }
+                catch (error) {
+                    // Handle missing index gracefully
+                    if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+                        console.warn('Index missing for bookmarks cleanup - this is non-critical, continuing');
+                    }
+                    else {
+                        console.warn('Failed to clean up bookmarks:', error);
+                    }
+                    // Continue even if this fails - bookmarks cleanup is not critical
+                }
+            }
+            // Step 9: Delete all images from Storage (parallelized in batches)
+            if (imageUrls.length > 0) {
+                const { deleteImage } = await import('./storage');
+                // Process images in batches of 10 to avoid overwhelming Storage
+                const imageBatchSize = 10;
+                for (let i = 0; i < imageUrls.length; i += imageBatchSize) {
+                    const batch = imageUrls.slice(i, i + imageBatchSize);
+                    await Promise.all(batch.map(async (imageUrl) => {
+                        try {
+                            await deleteImage(imageUrl);
+                            imagesDeleted++;
+                        }
+                        catch (error) {
+                            // Continue even if some images fail to delete
+                            console.warn('Failed to delete image:', imageUrl, error);
+                        }
+                    }));
+                }
+            }
+            // Step 10: Delete user's notification preferences (subcollection)
+            try {
+                const prefsRef = doc(db, 'users', userId, 'preferences', 'notifications');
+                const prefsDoc = await getDoc(prefsRef);
+                if (prefsDoc.exists()) {
+                    await deleteDoc(prefsRef);
+                }
+            }
+            catch (error) {
+                console.warn('Failed to delete notification preferences:', error);
+                // Continue even if this fails
+            }
+            // Step 11: Delete user's push tokens (subcollection)
+            try {
+                const pushTokensRef = collection(db, 'users', userId, 'pushTokens');
+                const tokensSnapshot = await getDocs(pushTokensRef);
+                if (!tokensSnapshot.empty) {
+                    const deleteBatch = writeBatch(db);
+                    tokensSnapshot.docs.forEach((tokenDoc) => {
+                        deleteBatch.delete(tokenDoc.ref);
+                    });
+                    await deleteBatch.commit();
+                }
+            }
+            catch (error) {
+                console.warn('Failed to delete push tokens:', error);
+                // Continue even if this fails
+            }
+            // Step 12: Mark account as deleted (soft delete) - This is the final step
+            // Only mark as deleted if we've successfully deleted the main content
+            await updateDoc(doc(db, 'users', userId), {
+                deleted: true,
+                deletedAt: Timestamp.now(),
+                // Clear sensitive data but keep ID for reference
+                email: deleteField(),
+                name: '[Deleted User]',
+                handle: `deleted_${userId.slice(0, 8)}`,
+                displayName: '[Deleted User]',
+                bio: deleteField(),
+                url: deleteField(),
+                location: deleteField(),
+                profilePictureUrl: deleteField(),
+                coverPhotoUrl: deleteField(),
+                interests: [],
+                semanticTopics: [],
+                following: [],
+                bookmarks: [],
+                // Keep some metadata for analytics/debugging
+                // createdAt: keep for reference
+            });
+            return {
+                chirpsDeleted,
+                commentsDeleted,
+                imagesDeleted,
+                referencesCleaned,
+                success: true,
+            };
+        }
+        catch (error) {
+            console.error('Error deleting account:', error);
+            throw error;
+        }
+    },
 };
+// Note: Firebase Auth account deletion requires Admin SDK
+// The deleteAccount function above handles Firestore data deletion
+// To complete account deletion, Firebase Auth account should be deleted via:
+// 1. Cloud Function using Admin SDK: admin.auth().deleteUser(userId)
+// 2. Manual deletion from Firebase Console
+// 3. Or schedule it for later processing
 // Comment operations
 export const commentService = {
     async getCommentsForChirp(chirpId) {

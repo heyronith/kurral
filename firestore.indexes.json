@@ -5,6 +5,38 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "valueScore.total",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "chirps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "semanticTopics",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "valueScore.total",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "chirps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "authorId",
           "order": "ASCENDING"
         },

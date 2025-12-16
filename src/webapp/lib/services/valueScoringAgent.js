@@ -114,9 +114,9 @@ const sanitizeForPrompt = (value) => {
     return sanitized.trim();
 };
 const resolveDominantDomain = (chirp, claims) => {
-    var _a;
-    const normalizedTopic = ((_a = chirp.topic) === null || _a === void 0 ? void 0 : _a.toLowerCase()) || 'general';
-    const semanticTopics = (chirp.semanticTopics === null || chirp.semanticTopics === void 0 ? void 0 : chirp.semanticTopics.map((t) => t.toLowerCase().trim()).filter(Boolean)) || [];
+    const normalizedTopic = chirp.topic?.toLowerCase?.() || 'general';
+    const semanticTopics = chirp.semanticTopics?.map((t) => t.toLowerCase().trim()).filter(Boolean) || [];
+    // Count domains, favoring non-general and higher-risk claims
     const domainCounts = new Map();
     for (const claim of claims) {
         const domain = claim.domain?.toLowerCase();
@@ -125,7 +125,7 @@ const resolveDominantDomain = (chirp, claims) => {
         const weight = claim.riskLevel === 'high' ? 2 : claim.riskLevel === 'medium' ? 1.5 : 1;
         domainCounts.set(domain, (domainCounts.get(domain) || 0) + weight);
     }
-    const topDomain = (([...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0]) || [])[0] || normalizedTopic;
+    const topDomain = [...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || normalizedTopic;
     const isConsistentWithTopic = topDomain === normalizedTopic ||
         semanticTopics.some((topic) => topic.includes(topDomain) || topDomain.includes(topic));
     return isConsistentWithTopic ? topDomain : normalizedTopic;
@@ -193,6 +193,7 @@ const buildSummary = (chirp, claims, factChecks, discussion, commentInsightsCoun
 };
 const applyFactCheckPenalty = (vector, factChecks) => {
     if (!factChecks || factChecks.length === 0) {
+        // If we have claims but no fact-checks, keep epistemic conservative
         return { ...vector, epistemic: Math.min(vector.epistemic, 0.35) };
     }
     const confidentFalseCount = factChecks.filter((check) => check.verdict === 'false' && check.confidence > 0.7).length;
@@ -219,7 +220,6 @@ const validateVector = (vector) => {
     };
 };
 export async function scoreChirpValue(chirp, claims, factChecks, discussion) {
-    var _a;
     if (!BaseAgent.isAvailable()) {
         console.warn('[ValueScoringAgent] BaseAgent not available, skipping value scoring');
         return null;
@@ -247,6 +247,7 @@ Instructions:
 - Return JSON matching schema.`;
     try {
         const response = await agent.generateJSON(prompt, 'Value scoring agent', VALUE_SCHEMA);
+        // Initial clamp
         let vector = {
             epistemic: clamp01(response.scores.epistemic),
             insight: clamp01(response.scores.insight),
@@ -254,6 +255,7 @@ Instructions:
             relational: clamp01(response.scores.relational),
             effort: clamp01(response.scores.effort),
         };
+        // Apply fact-check-aware penalties and validate
         vector = applyFactCheckPenalty(vector, factChecks);
         vector = validateVector(vector);
         const weights = getDimensionWeights(chirp, claims);
@@ -265,146 +267,6 @@ Instructions:
         return {
             ...vector,
             total: clamp01(total),
-            confidence: clamp01(response.confidence),
-            updatedAt: new Date(),
-            drivers: response.drivers?.filter((driver) => driver.trim().length > 0),
-        };
-    }
-    catch (error) {
-        console.error('[ValueScoringAgent] Error scoring post:', error);
-        throw error; // Re-throw to let pipeline handle retry logic
-    }
-}
-import { BaseAgent } from '../agents/baseAgent';
-const VALUE_SCHEMA = {
-    type: 'object',
-    properties: {
-        scores: {
-            type: 'object',
-            properties: {
-                epistemic: { type: 'number' },
-                insight: { type: 'number' },
-                practical: { type: 'number' },
-                relational: { type: 'number' },
-                effort: { type: 'number' },
-            },
-            required: ['epistemic', 'insight', 'practical', 'relational', 'effort'],
-        },
-        drivers: {
-            type: 'array',
-            items: { type: 'string' },
-        },
-        confidence: { type: 'number' },
-    },
-    required: ['scores', 'confidence'],
-};
-const clamp01 = (value) => Math.max(0, Math.min(1, value));
-const getDimensionWeights = (chirp, claims) => {
-    const normalizedTopic = chirp.topic.toLowerCase();
-    const dominantDomain = claims.find((claim) => claim.domain && claim.domain !== 'general')?.domain?.toLowerCase() || normalizedTopic;
-    if (dominantDomain === 'health' || dominantDomain === 'politics') {
-        return {
-            epistemic: 0.35,
-            insight: 0.25,
-            practical: 0.2,
-            relational: 0.1,
-            effort: 0.1,
-        };
-    }
-    if (dominantDomain === 'technology' || normalizedTopic === 'startups') {
-        return {
-            epistemic: 0.25,
-            insight: 0.35,
-            practical: 0.2,
-            relational: 0.1,
-            effort: 0.1,
-        };
-    }
-    if (normalizedTopic === 'productivity' || normalizedTopic === 'design') {
-        return {
-            epistemic: 0.2,
-            insight: 0.25,
-            practical: 0.35,
-            relational: 0.1,
-            effort: 0.1,
-        };
-    }
-    return {
-        epistemic: 0.3,
-        insight: 0.25,
-        practical: 0.2,
-        relational: 0.15,
-        effort: 0.1,
-    };
-};
-const buildSummary = (chirp, claims, factChecks, discussion, commentInsightsCount) => {
-    const claimSummary = claims.length === 0
-        ? 'No explicit extracted claims.'
-        : `${claims.length} claims (${claims.filter((c) => c.riskLevel !== 'low').length} medium/high risk).`;
-    const factSummary = factChecks.length === 0
-        ? 'Fact checks pending.'
-        : factChecks
-            .map((fc) => `${fc.verdict} (${fc.confidence.toFixed(2)}) on claim ${fc.claimId}`)
-            .slice(0, 5)
-            .join('; ');
-    const discussionSummary = discussion
-        ? `Discussion quality -> inform:${discussion.informativeness.toFixed(2)}, civility:${discussion.civility.toFixed(2)}, reasoning:${discussion.reasoningDepth.toFixed(2)}, perspective:${discussion.crossPerspective.toFixed(2)}`
-        : 'No discussion data yet.';
-    const commentsSummary = commentInsightsCount
-        ? `${commentInsightsCount} scored comments`
-        : '0 scored comments';
-    return [
-        `Post text: """${chirp.text.slice(0, 700)}"""`,
-        claimSummary,
-        factSummary,
-        discussionSummary,
-        commentsSummary,
-    ].join('\n');
-};
-export async function scoreChirpValue(chirp, claims, factChecks, discussion) {
-    if (!BaseAgent.isAvailable()) {
-        console.warn('[ValueScoringAgent] BaseAgent not available, skipping value scoring');
-        return null;
-    }
-    const agent = new BaseAgent();
-    const prompt = `You are scoring post value for a social network.
-
-Dimensions (0-1 each):
-- Epistemic: factual rigor and correctness.
-- Insight: novelty, synthesis, non-obvious perspective.
-- Practical: actionable guidance or clear takeaways.
-- Relational: healthy discourse, empathy, constructive tone.
-- Effort: depth of work, sourcing, structure.
-
-Input summary:
-${buildSummary(chirp, claims, factChecks, discussion?.threadQuality, discussion ? Object.keys(discussion.commentInsights).length : 0)}
-
-Instructions:
-- Base scores on provided evidence only.
-- Reward posts with true/high-confidence claims.
-- Penalize misinformation (false verdicts or missing evidence).
-- Practical value depends on concrete steps or useful tips.
-- Relational value depends on civility and cross-perspective markers.
-- Effort considers text length, number of claims, and clarity indicators.
-- Return JSON matching schema.`;
-    try {
-        const response = await agent.generateJSON(prompt, 'Value scoring agent', VALUE_SCHEMA);
-        const vector = {
-            epistemic: clamp01(response.scores.epistemic),
-            insight: clamp01(response.scores.insight),
-            practical: clamp01(response.scores.practical),
-            relational: clamp01(response.scores.relational),
-            effort: clamp01(response.scores.effort),
-        };
-        const weights = getDimensionWeights(chirp, claims);
-        const total = vector.epistemic * weights.epistemic +
-            vector.insight * weights.insight +
-            vector.practical * weights.practical +
-            vector.relational * weights.relational +
-            vector.effort * weights.effort;
-        return {
-            ...vector,
-            total,
             confidence: clamp01(response.confidence),
             updatedAt: new Date(),
             drivers: response.drivers?.filter((driver) => driver.trim().length > 0),

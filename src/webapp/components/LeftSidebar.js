@@ -19,17 +19,17 @@ const LeftSidebar = () => {
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
     const [feedbackMessage, setFeedbackMessage] = useState(null);
     const isActive = (path) => {
-        if (path === '/') {
-            return location.pathname === '/' || location.pathname === '/app';
+        if (path === '/app') {
+            return location.pathname === '/app';
         }
         return location.pathname.startsWith(path);
     };
     const menuItems = [
-        { path: '/', label: 'Kurals', icon: NewspaperIcon, notificationCount: null, onClick: null },
-        { path: '/dashboard', label: 'Dashboard', icon: DashboardIcon, notificationCount: null, onClick: null },
-        { path: '/notifications', label: 'Notifications', icon: BellIcon, notificationCount: unreadCount > 0 ? unreadCount : null, onClick: null },
-        { path: '/bookmarks', label: 'Bookmarks', icon: BookmarkIcon, notificationCount: null, onClick: null },
-        { path: '/settings', label: 'Settings', icon: SettingsIcon, notificationCount: null, onClick: null },
+        { path: '/app', label: 'Kurals', icon: NewspaperIcon, notificationCount: null, onClick: null },
+        { path: '/app/dashboard', label: 'Dashboard', icon: DashboardIcon, notificationCount: null, onClick: null },
+        { path: '/app/notifications', label: 'Notifications', icon: BellIcon, notificationCount: unreadCount > 0 ? unreadCount : null, onClick: null },
+        { path: '/app/bookmarks', label: 'Bookmarks', icon: BookmarkIcon, notificationCount: null, onClick: null },
+        { path: '/app/settings', label: 'Settings', icon: SettingsIcon, notificationCount: null, onClick: null },
         { path: '', label: 'Our Approach', icon: ShieldCheckIcon, notificationCount: null, onClick: () => setShowIntegrityModal(true) },
     ];
     const userInitials = currentUser?.name
@@ -78,7 +78,7 @@ const LeftSidebar = () => {
             setIsSubmittingFeedback(false);
         }
     };
-    return (_jsxs(_Fragment, { children: [_jsxs("aside", { className: `fixed left-0 top-[68px] h-[calc(100vh-68px)] w-64 ${theme === 'dark' ? 'bg-darkBg border-r border-darkBorder' : 'bg-backgroundElevated'} flex flex-col z-30 hidden lg:flex`, children: [_jsx("div", { className: "px-4 pt-[48px] pb-4", children: _jsxs(Link, { to: `/profile/${currentUser?.id || ''}`, className: "flex items-center gap-3 group", children: [_jsx("div", { className: "relative flex-shrink-0", children: currentUser?.profilePictureUrl ? (_jsx("img", { src: currentUser.profilePictureUrl, alt: currentUser.name, className: `w-12 h-12 rounded-full object-cover ${theme === 'dark' ? '' : 'border-2 border-border/50 group-hover:border-accent/50'} transition-colors` })) : (_jsx("div", { className: `w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center ${theme === 'dark' ? '' : 'border-2 border-border/50 group-hover:border-accent/50'} transition-colors`, children: _jsx("span", { className: "text-white font-semibold text-sm", children: userInitials }) })) }), _jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: `font-semibold text-sm truncate group-hover:text-accent transition-colors ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`, children: currentUser?.name || 'User' }), _jsxs("div", { className: `text-xs truncate ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: ["@", currentUser?.handle || 'username'] })] })] }) }), _jsxs("nav", { className: "flex-1 px-2 overflow-y-auto", children: [_jsx("ul", { className: "space-y-1", children: menuItems.map((item) => {
+    return (_jsxs(_Fragment, { children: [_jsxs("aside", { className: `fixed left-0 top-[68px] h-[calc(100vh-68px)] w-64 ${theme === 'dark' ? 'bg-darkBg border-r border-darkBorder' : 'bg-backgroundElevated'} flex flex-col z-30 hidden lg:flex`, children: [_jsx("div", { className: "px-4 pt-[48px] pb-4", children: _jsxs(Link, { to: `/app/profile/${currentUser?.id || ''}`, className: "flex items-center gap-3 group", children: [_jsx("div", { className: "relative flex-shrink-0", children: currentUser?.profilePictureUrl ? (_jsx("img", { src: currentUser.profilePictureUrl, alt: currentUser.name, className: `w-12 h-12 rounded-full object-cover ${theme === 'dark' ? '' : 'border-2 border-border/50 group-hover:border-accent/50'} transition-colors` })) : (_jsx("div", { className: `w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center ${theme === 'dark' ? '' : 'border-2 border-border/50 group-hover:border-accent/50'} transition-colors`, children: _jsx("span", { className: "text-white font-semibold text-sm", children: userInitials }) })) }), _jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: `font-semibold text-sm truncate group-hover:text-accent transition-colors ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`, children: currentUser?.name || 'User' }), _jsxs("div", { className: `text-xs truncate ${theme === 'dark' ? 'text-darkTextMuted' : 'text-textMuted'}`, children: ["@", currentUser?.handle || 'username'] })] })] }) }), _jsxs("nav", { className: "flex-1 px-2 overflow-y-auto", children: [_jsx("ul", { className: "space-y-1", children: menuItems.map((item) => {
                                     const Icon = item.icon;
                                     const active = item.path ? isActive(item.path) : false;
                                     const showBadge = item.notificationCount !== null && item.notificationCount > 0;

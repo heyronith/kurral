@@ -43,7 +43,7 @@ const FAQ = () => {
     <section id="faq" className="section-container py-16">
       <div className="max-w-3xl mx-auto space-y-10">
         <div className="text-center">
-          <h2 className="text-3xl font-semibold text-textPrimary mb-6">Questions we get</h2>
+          <h2 className="text-3xl font-semibold text-textPrimary mb-6">Frequently Asked Questions</h2>
         </div>
         <div className="space-y-4">
           {faqs.map((faq, index) => {
@@ -73,7 +73,7 @@ const FAQ = () => {
                 </button>
                 {isOpen && (
                   <div className="px-5 pb-4 pt-0">
-                    <div className="text-textMuted leading-relaxed">{faq.answer}</div>
+                    <div className="text-textMuted leading-relaxed space-y-2">{faq.answer}</div>
                   </div>
                 )}
               </div>

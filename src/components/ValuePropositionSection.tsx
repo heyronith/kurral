@@ -461,7 +461,7 @@ const TypingAnimation = () => {
               </svg>
             </div>
             <div>
-              <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">Feed Control</span>
+              <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">Experience Control</span>
             </div>
           </div>
           
@@ -511,8 +511,8 @@ const TypingAnimation = () => {
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-green-400">Your custom feed is ready</div>
-                  <div className="text-[10px] text-green-500/70 mt-0.5">Feed updated • Algorithm adjusted</div>
+                  <div className="text-xs font-semibold text-green-400">Your custom experience is ready</div>
+                  <div className="text-[10px] text-green-500/70 mt-0.5">Experience updated • Algorithm adjusted</div>
                 </div>
               </div>
             </div>
@@ -616,12 +616,6 @@ const TransparencyDemo = () => {
         
         {/* Data ownership badge */}
         <div className="flex items-center justify-center gap-4 pt-2">
-          <div className="flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <span className="text-[10px] text-textMuted">Your data stays yours</span>
-          </div>
           <div className="flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -795,7 +789,7 @@ const TruthIntelligenceDemo = () => {
 const pillars = [
   {
     id: 'control',
-    title: 'Your Feed, Your Control',
+    title: 'Your Experience, Your Control',
     tagline: 'Stop fighting the feed',
     description: 'Other platforms decide what you see. You don\'t. On Kural, talk to your feed in plain English. Type "show more AI posts" or "mute politics" - it just works. Every post shows why it appeared, so you always know what\'s driving your feed. No black boxes. No hidden manipulation.',
     visual: <TypingAnimation />,
@@ -805,7 +799,7 @@ const pillars = [
     id: 'audience',
     title: 'Audience Tuning',
     tagline: 'Stop shouting into the void',
-    description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts, and they guess wrong. On Kural, AI analyzes your content and matches it to users whose profiles actually align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
+    description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts - and they guess wrong. On Kural, AI analyzes your content and matches it to users whose profiles align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
     visual: <AudienceTargetingDemo />,
     demo: true,
   },
@@ -813,7 +807,7 @@ const pillars = [
     id: 'monetization',
     title: 'Value over Views',
     tagline: 'Get recognized for what matters',
-    description: 'Other platforms reward views. Clickbait wins. On Kural, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kural Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. In the future, monetization will be based on this value system. Rage-bait doesn\'t.',
+    description: 'Other platforms reward views. Clickbait wins. On Kural, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kural Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. Rage-bait doesn\'t.',
     visual: <ValueBasedMonetizationDemo />,
     demo: true,
   },
@@ -821,7 +815,7 @@ const pillars = [
     id: 'factcheck',
     title: 'Truth Intelligence',
     tagline: 'Trust what you read',
-    description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kural, Truth intelligence verifies every post using systems and human intervention when needed before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
+    description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kural, Truth Intelligence verifies every post before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
     visual: <TruthIntelligenceDemo />,
     demo: true,
   },
@@ -829,7 +823,7 @@ const pillars = [
     id: 'transparency',
     title: 'Transparent by Design',
     tagline: 'Your data, your rules',
-    description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kural, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Just social media that works for you, not against you.',
+    description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kural, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Social media that works for you, not against you.',
     visual: <TransparencyDemo />,
     demo: true,
   },
@@ -844,11 +838,11 @@ const ValuePropositionSection = ({}: ValuePropositionSectionProps) => {
           {/* Header */}
           <div className="text-center space-y-4">
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-textPrimary">
-            How{' '}
-              <span className="bg-gradient-to-r from-accent to-accentSecondary bg-clip-text text-transparent">
+            Why{' '}
+              <span className="bg-gradient-to-r from-primary via-accent to-accentSecondary bg-clip-text text-transparent">
               Kural
             </span>{' '}
-            works
+            is different
             </h2>
           <p className="text-base md:text-lg text-textMuted max-w-xl mx-auto">
             Stop fighting the feed. Start getting what you actually want.
@@ -865,7 +859,7 @@ const ValuePropositionSection = ({}: ValuePropositionSectionProps) => {
                 onClick={() => setActiveTab(index)}
                 className={`px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${
                   activeTab === index
-                    ? 'bg-accent text-white shadow-lg shadow-accent/20 scale-105'
+                    ? 'bg-gradient-to-r from-primary to-accent text-white shadow-lg shadow-primary/20 scale-105'
                     : 'bg-white/5 text-textMuted hover:bg-white/10 hover:text-textPrimary border border-white/10'
                 }`}
               >

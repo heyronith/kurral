@@ -339,7 +339,7 @@ const ProfilePage = () => {
         return (_jsx("div", { className: `min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`, children: _jsx("div", { className: theme === 'dark' ? 'text-white/70' : 'text-textMuted', children: "Loading..." }) }));
     }
     if (!profileUser) {
-        return (_jsx("div", { className: `min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`, children: _jsxs("div", { className: "text-center", children: [_jsx("h1", { className: `text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`, children: "User not found" }), _jsx(Link, { to: "/", className: "text-primary hover:underline", children: "Go back to app" })] }) }));
+        return (_jsx("div", { className: `min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-background'}`, children: _jsxs("div", { className: "text-center", children: [_jsx("h1", { className: `text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-textPrimary'} mb-2`, children: "User not found" }), _jsx(Link, { to: "/app", className: "text-primary hover:underline", children: "Go back to app" })] }) }));
     }
     const isOwnProfile = currentUser?.id === profileUser.id;
     const following = isFollowing(profileUser.id);

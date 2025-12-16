@@ -57,7 +57,7 @@ const Login = () => {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
         
         <div className="relative z-10 flex flex-col h-full">
-          <Link to="/" className="inline-flex items-center gap-2 mb-16 group">
+          <Link to="/" className="inline-flex items-center gap-2 mb-16 group hover:scale-105 transition-transform">
             <span className="text-xl font-bold text-textPrimary">Kural</span>
             <img 
               src="/quotation-marks.png" 
@@ -68,44 +68,34 @@ const Login = () => {
 
           <div className="flex-1 flex flex-col justify-center max-w-md">
             <div className="mb-8">
-              <h1 className="text-6xl font-bold text-textPrimary mb-6 leading-[1.1]">
+              <h1 className="text-5xl font-bold text-textPrimary mb-6 leading-[1.1]">
                 Welcome<br />
                 <span className="bg-gradient-to-r from-primary via-accent to-accentSecondary bg-clip-text text-transparent">back.</span>
               </h1>
-              <p className="text-2xl text-textSecondary leading-relaxed font-medium">
-                Your personalized feed is waiting. Every post explained. Every recommendation transparent. Your data, your rules.
+              <p className="text-xl text-textSecondary leading-relaxed font-medium">
+                Your personalized feed is waiting. Every post explained. Every recommendation transparent.
               </p>
             </div>
 
             <div className="space-y-4 mt-10">
               <div className="flex items-center gap-3 text-textPrimary">
                 <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                   </svg>
-                <span className="text-lg">Your feed tuned to your preferences</span>
+                <span className="text-base">Your feed tuned to your preferences</span>
               </div>
               <div className="flex items-center gap-3 text-textPrimary">
                 <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
-                <span className="text-lg">Verified content only - no viral lies</span>
+                <span className="text-base">Verified content only - no viral lies</span>
               </div>
               <div className="flex items-center gap-3 text-textPrimary">
                 <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                   </svg>
-                <span className="text-lg">Value-based earnings if you're a creator</span>
+                <span className="text-base">Quality content gets recognized</span>
               </div>
-            </div>
-          </div>
-
-          <div className="relative z-10 mt-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-              <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              <p className="text-sm font-medium text-primary">Your data stays yours</p>
           </div>
         </div>
         </div>
@@ -126,13 +116,19 @@ const Login = () => {
             </Link>
           </div>
 
+          {/* Mobile Value Proposition */}
+          <div className="lg:hidden mb-6 p-4 bg-gradient-to-br from-primary/10 via-accent/5 to-backgroundSubtle rounded-xl">
+            <h2 className="text-2xl font-bold text-textPrimary mb-2">Welcome back</h2>
+            <p className="text-sm text-textSecondary">Your personalized feed is waiting</p>
+          </div>
+
           <div className="mb-8">
-            <h2 className="text-4xl font-bold text-textPrimary mb-3">Good to see you</h2>
-            <p className="text-lg text-textMuted">Your personalized feed is ready and waiting</p>
+            <h2 className="text-3xl font-bold text-textPrimary mb-3">Sign in</h2>
+            <p className="text-base text-textMuted">Enter your credentials to continue</p>
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700 text-sm">
+            <div className="mb-6 p-4 bg-accent/10 border-2 border-accent/30 rounded-xl text-accent text-sm">
               {error}
             </div>
           )}
@@ -154,9 +150,18 @@ const Login = () => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-textLabel mb-2">
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="password" className="block text-sm font-medium text-textLabel">
                 Password
               </label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-sm text-primary font-medium hover:text-primaryHover transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <input
                 id="password"
                 type="password"
@@ -180,10 +185,10 @@ const Login = () => {
           <div className="mb-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t-2 border-border"></div>
+                <div className="w-full border-t border-border"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-3 bg-background text-textMuted">Or continue with</span>
+                <span className="px-3 bg-background text-textMuted">Or</span>
               </div>
             </div>
 
@@ -223,6 +228,23 @@ const Login = () => {
               Sign up
             </button>
           </p>
+
+          <p className="text-center text-sm text-textMuted mt-4">
+            By signing in, you agree to our{' '}
+            <Link
+              to="/terms"
+              className="text-accent hover:text-accentHover underline font-medium"
+            >
+              Terms of Service
+            </Link>
+            {' '}and{' '}
+            <Link
+              to="/privacy"
+              className="text-accent hover:text-accentHover underline font-medium"
+            >
+              Privacy Policy
+            </Link>
+          </p>
         </div>
       </div>
     </div>
@@ -230,4 +252,3 @@ const Login = () => {
 };
 
 export default Login;
-

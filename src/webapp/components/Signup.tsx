@@ -8,6 +8,7 @@ const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -28,6 +29,11 @@ const Signup = () => {
 
     if (!handle.match(/^[a-zA-Z0-9_]+$/)) {
       setError('Handle can only contain letters, numbers, and underscores');
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError('You must accept the Terms of Service to create an account');
       return;
     }
 
@@ -102,13 +108,6 @@ const Signup = () => {
                 <div className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0"></div>
                 <span className="text-base">Earn from value, not vanity metrics</span>
               </div>
-            </div>
-
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20">
-              <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <p className="text-xs font-medium text-accent">No data selling • Full transparency</p>
             </div>
           </div>
         </div>
@@ -220,9 +219,38 @@ const Signup = () => {
               />
             </div>
 
+            <div className="flex items-start gap-2 mt-4">
+              <input
+                id="acceptTerms"
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                required
+                className="mt-1 w-4 h-4 rounded border-2 border-border text-accent focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+              />
+              <label htmlFor="acceptTerms" className="text-xs text-textMuted leading-relaxed">
+                I agree to the{' '}
+                <Link
+                  to="/terms"
+                  target="_blank"
+                  className="text-accent hover:text-accentHover underline"
+                >
+                  Terms of Service
+                </Link>
+                {' '}and{' '}
+                <Link
+                  to="/privacy"
+                  target="_blank"
+                  className="text-accent hover:text-accentHover underline"
+                >
+                  Privacy Policy
+                </Link>
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !acceptedTerms}
               className="w-full py-2.5 px-4 bg-gradient-to-r from-primary to-accent text-white rounded-lg text-sm font-semibold hover:from-primaryHover hover:to-accentHover transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-button hover:shadow-buttonHover active:scale-[0.98] mt-1"
             >
               {loading ? 'Creating account...' : 'Create account'}

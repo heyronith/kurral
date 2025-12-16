@@ -12,9 +12,9 @@ const Navbar = () => {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 py-4 backdrop-blur-lg shadow-elevated">
       <div className="section-container flex items-center justify-between">
-        <Link to="/info" className="flex items-center gap-2 text-xl font-bold text-textPrimary tracking-tight hover:text-accent transition-colors duration-200">
-          Kural
-          <img src="/quotation-marks.png" alt="" className="h-6 w-auto" loading="eager" />
+        <Link to="/" className="flex items-center gap-2 text-xl font-bold text-textPrimary tracking-tight group hover:text-accent transition-colors duration-200">
+          <span className="group-hover:scale-105 transition-transform">Kural</span>
+          <img src="/quotation-marks.png" alt="" className="h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity" loading="eager" />
         </Link>
 
         {/* Desktop nav */}
@@ -31,10 +31,10 @@ const Navbar = () => {
           ))}
         </nav>
         <Link
-            to="/signup"
-            className="rounded-xl bg-gradient-to-r from-accent to-accentLight px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:from-accentHover hover:to-accent shadow-button hover:shadow-buttonHover active:scale-[0.98]"
+            to="/login"
+            className="rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
         >
-            Join Beta
+            Sign In
         </Link>
         </div>
 
@@ -59,7 +59,7 @@ const Navbar = () => {
 
       {/* Mobile menu dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-border/60 bg-background/98 backdrop-blur-lg animate-slideDown">
+        <div className="md:hidden border-t border-border/60 bg-background/98 backdrop-blur-lg transition-all duration-300 ease-in-out">
           <nav className="section-container py-4 flex flex-col gap-3">
             {links.map((link) => (
               <a
@@ -72,11 +72,11 @@ const Navbar = () => {
               </a>
             ))}
             <Link
-              to="/signup"
+              to="/login"
               onClick={() => setMobileMenuOpen(false)}
-              className="mt-2 rounded-xl bg-gradient-to-r from-accent to-accentLight px-5 py-3 text-center text-sm font-semibold text-white transition-all duration-200 hover:from-accentHover hover:to-accent"
+              className="mt-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-3 text-center text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
             >
-              Join Beta
+              Sign In
             </Link>
           </nav>
         </div>

@@ -6,6 +6,7 @@ import { useTopicStore } from '../store/useTopicStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { userService } from '../lib/firestore';
 import TrendingNewsSection from './TrendingNewsSection';
+import MostValuedSection from './MostValuedSection';
 import ReviewRequestsPanel from './ReviewRequestsPanel';
 import type { User } from '../types';
 
@@ -131,6 +132,8 @@ const RightPanel = () => {
 
   const peopleToFollow = suggestedUsers;
 
+  const showNewsSection = false; // Hidden per request, can re-enable by setting to true
+
   return (
     <aside className="sticky top-20 hidden xl:flex w-80 flex-col gap-5">
       <div className={`rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`}>
@@ -151,9 +154,11 @@ const RightPanel = () => {
         </div>
       </div>
 
+      <MostValuedSection />
+
       <ReviewRequestsPanel />
 
-      <TrendingNewsSection />
+      {showNewsSection && <TrendingNewsSection />}
 
       <div className={`rounded-2xl p-5 ${theme === 'dark' ? 'border border-darkBorder bg-darkBgElevated/50' : 'bg-backgroundElevated shadow-sm'}`}>
         <h3 className={`mb-4 text-sm font-bold ${theme === 'dark' ? 'text-darkTextPrimary' : 'text-textPrimary'}`}>Trending Topics</h3>

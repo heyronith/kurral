@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import LandingPage from './pages/LandingPage';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import { ComposerProvider } from './webapp/context/ComposerContext';
 import { useThemeStore } from './webapp/store/useThemeStore';
 
@@ -10,12 +12,14 @@ const ProfilePage = lazy(() => import('./webapp/pages/ProfilePage'));
 const SettingsPage = lazy(() => import('./webapp/pages/SettingsPage'));
 const Login = lazy(() => import('./webapp/components/Login'));
 const Signup = lazy(() => import('./webapp/components/Signup'));
+const ForgotPassword = lazy(() => import('./webapp/components/ForgotPassword'));
 const Onboarding = lazy(() => import('./webapp/components/Onboarding'));
 const ProtectedRoute = lazy(() => import('./webapp/components/ProtectedRoute'));
 const PostDetailView = lazy(() => import('./webapp/components/PostDetailView'));
 const BookmarksPage = lazy(() => import('./webapp/pages/BookmarksPage'));
 const NotificationsPage = lazy(() => import('./webapp/pages/NotificationsPage'));
 const DashboardPage = lazy(() => import('./webapp/pages/DashboardPage'));
+const MostValuedPage = lazy(() => import('./webapp/pages/MostValuedPage'));
 
 // Minimal loading fallback
 const PageLoader = () => (
@@ -34,10 +38,16 @@ const DocumentTitle = () => {
 
     if (pathname === '/' || pathname === '/info') {
       title = 'Kural';
+    } else if (pathname === '/terms') {
+      title = 'Terms of Service';
+    } else if (pathname === '/privacy') {
+      title = 'Privacy Policy';
     } else if (pathname === '/login') {
       title = 'Login';
     } else if (pathname === '/signup') {
       title = 'Sign Up';
+    } else if (pathname === '/forgot-password') {
+      title = 'Reset Password';
     } else if (pathname === '/onboarding') {
       title = 'Onboarding';
     } else if (pathname === '/app') {
@@ -54,6 +64,8 @@ const DocumentTitle = () => {
       title = 'Notifications';
     } else if (pathname === '/app/dashboard') {
       title = 'Dashboard';
+    } else if (pathname === '/app/most-valued') {
+      title = 'Most Valued';
     }
 
     document.title = title;
@@ -93,8 +105,11 @@ const App = () => {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/info" element={<LandingPage />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route
           path="/onboarding"
           element={
@@ -156,6 +171,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/most-valued"
+          element={
+            <ProtectedRoute>
+              <MostValuedPage />
             </ProtectedRoute>
           }
         />

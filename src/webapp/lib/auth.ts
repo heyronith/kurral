@@ -7,6 +7,7 @@ import {
   User as FirebaseUser,
   GoogleAuthProvider,
   signInWithPopup,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
 } from 'firebase/auth';
 import { auth } from './firebase';
 import { userService } from './firestore';
@@ -73,6 +74,11 @@ export const authService = {
   // Get current Firebase Auth user
   getCurrentFirebaseUser(): FirebaseUser | null {
     return auth.currentUser;
+  },
+
+  // Send password reset email
+  async sendPasswordResetEmail(email: string): Promise<void> {
+    await firebaseSendPasswordResetEmail(auth, email);
   },
 
   // Subscribe to auth state changes

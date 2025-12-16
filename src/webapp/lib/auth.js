@@ -1,5 +1,5 @@
 // Firebase Authentication service
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail as firebaseSendPasswordResetEmail, } from 'firebase/auth';
 import { auth } from './firebase';
 import { userService } from './firestore';
 // Convert Firebase Auth user to app User
@@ -53,6 +53,10 @@ export const authService = {
     // Get current Firebase Auth user
     getCurrentFirebaseUser() {
         return auth.currentUser;
+    },
+    // Send password reset email
+    async sendPasswordResetEmail(email) {
+        await firebaseSendPasswordResetEmail(auth, email);
     },
     // Subscribe to auth state changes
     onAuthStateChanged(callback) {

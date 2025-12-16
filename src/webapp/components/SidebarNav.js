@@ -13,18 +13,18 @@ const SidebarNav = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     const isActive = (path) => {
-        if (path === '/') {
-            return location.pathname === '/' || location.pathname === '/app';
+        if (path === '/app') {
+            return location.pathname === '/app';
         }
         return location.pathname.startsWith(path);
     };
-    return (_jsxs("aside", { className: "sticky top-24 hidden lg:flex w-20 flex-col items-center gap-4 py-4 z-30", children: [_jsx(Link, { to: "/", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/')
+    return (_jsxs("aside", { className: "sticky top-24 hidden lg:flex w-20 flex-col items-center gap-4 py-4 z-30", children: [_jsx(Link, { to: "/app", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/app')
                     ? 'bg-primary/20 text-primary shadow-subtle'
-                    : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Home", children: _jsx(HomeIcon, { size: 24 }) }), _jsx(Link, { to: `/profile/${currentUser?.id || ''}`, className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/profile')
+                    : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Home", children: _jsx(HomeIcon, { size: 24 }) }), _jsx(Link, { to: `/app/profile/${currentUser?.id || ''}`, className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/app/profile')
                     ? 'bg-primary/20 text-primary shadow-subtle'
-                    : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Profile", children: _jsx(ProfileIcon, { size: 24 }) }), _jsx(Link, { to: "/bookmarks", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/bookmarks')
+                    : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Profile", children: _jsx(ProfileIcon, { size: 24 }) }), _jsx(Link, { to: "/app/bookmarks", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/app/bookmarks')
                     ? 'bg-primary/20 text-primary shadow-subtle'
-                    : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Bookmarks", children: _jsx(BookmarkIcon, { size: 24 }) }), _jsx(Link, { to: "/settings", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/settings')
+                    : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Bookmarks", children: _jsx(BookmarkIcon, { size: 24 }) }), _jsx(Link, { to: "/app/settings", className: `flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${isActive('/app/settings')
                     ? 'bg-primary/20 text-primary shadow-subtle'
                     : `text-textMuted hover:text-textPrimary ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-backgroundElevated/60'}`}`, "aria-label": "Settings", children: _jsx(SettingsIcon, { size: 24 }) }), _jsx("button", { onClick: handleComposeFocus, className: "flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-button hover:shadow-buttonHover", "aria-label": "Compose", children: _jsx(ComposeIcon, { size: 28 }) })] }));
 };

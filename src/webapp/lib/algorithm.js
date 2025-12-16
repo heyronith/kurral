@@ -147,7 +147,6 @@ export const isChirpEligibleForViewer = (chirp, viewer, config, options) => {
  * Score a chirp for the viewer based on algorithm
  */
 export const scoreChirpForViewer = (chirp, viewer, config, allChirps, getAuthor) => {
-    var _a;
     let score = 0;
     const reasons = [];
     const isFollowing = viewer.following.includes(chirp.authorId);
@@ -214,7 +213,7 @@ export const scoreChirpForViewer = (chirp, viewer, config, allChirps, getAuthor)
     // Value score integration (quality-aware boost/penalty)
     if (chirp.valueScore) {
         const valueTotal = clamp01(chirp.valueScore.total);
-        const confidence = clamp01((_a = chirp.valueScore.confidence) !== null && _a !== void 0 ? _a : 0);
+        const confidence = clamp01(chirp.valueScore.confidence ?? 0);
         const qualityBoost = valueTotal * 40 * Math.max(0.5, confidence);
         score += qualityBoost;
         if (valueTotal >= 0.7) {

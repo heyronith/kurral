@@ -705,7 +705,7 @@ const Onboarding = () => {
               <span>Kural</span>
               <img src="/quotation-marks.png" alt="Kural logo" className="h-4 w-auto" />
             </div>
-            <p className="text-lg font-semibold text-white">Craft your feed with intention before you land in the app.</p>
+            <p className="text-lg font-semibold text-white">Craft your experience with intention before you land in the app.</p>
             <div className="space-y-3">
               {STEP_OVERVIEW.map((item) => (
                 <div
