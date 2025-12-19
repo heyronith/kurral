@@ -31,10 +31,10 @@ const Navbar = () => {
           ))}
         </nav>
         <Link
-            to="/login"
+            to="/signup"
             className="rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
         >
-            Sign In
+            Get Started
         </Link>
         </div>
 
@@ -72,11 +72,11 @@ const Navbar = () => {
               </a>
             ))}
             <Link
-              to="/login"
+              to="/signup"
               onClick={() => setMobileMenuOpen(false)}
               className="mt-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-3 text-center text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
             >
-              Sign In
+              Get Started
             </Link>
           </nav>
         </div>

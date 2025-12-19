@@ -28,12 +28,6 @@ const Hero = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
           </Link>
-          <Link
-            to="/login"
-            className="w-full sm:w-auto inline-flex items-center justify-center text-primary font-medium transition-all duration-200 hover:text-primaryHover px-6 py-4 rounded-xl hover:bg-primary/5"
-          >
-            Sign In
-          </Link>
           <a
             href="#how-it-works"
             className="w-full sm:w-auto inline-flex items-center justify-center text-accent font-medium transition-all duration-200 hover:text-accentHover px-6 py-4 rounded-xl hover:bg-accent/5"
