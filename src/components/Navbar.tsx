@@ -6,7 +6,11 @@ const links = [
   { href: '#faq', label: 'FAQ' },
 ];
 
-const Navbar = () => {
+interface NavbarProps {
+  onGetStartedClick?: () => void;
+}
+
+const Navbar = ({ onGetStartedClick }: NavbarProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -30,12 +34,12 @@ const Navbar = () => {
             </a>
           ))}
         </nav>
-        <Link
-            to="/signup"
+        <button
+            onClick={onGetStartedClick}
             className="rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
         >
             Get Started
-        </Link>
+        </button>
         </div>
 
         {/* Mobile hamburger */}
@@ -71,13 +75,15 @@ const Navbar = () => {
                 {link.label}
               </a>
             ))}
-            <Link
-              to="/signup"
-              onClick={() => setMobileMenuOpen(false)}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onGetStartedClick?.();
+              }}
               className="mt-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-3 text-center text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
             >
               Get Started
-            </Link>
+            </button>
           </nav>
         </div>
       )}

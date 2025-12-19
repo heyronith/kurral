@@ -240,6 +240,30 @@ service cloud.firestore {
       allow delete: if false;
     }
     
+    // Beta Signups collection
+    // - Anyone (including unauthenticated users) can create beta signups
+    // - Only authenticated users can read (for admin purposes)
+    // - No updates or deletes - signups are immutable (status updates handled server-side)
+    match /betaSignups/{signupId} {
+      allow read: if isAuthenticated();
+      allow create: if request.resource.data.keys().hasAll(['name', 'email', 'createdAt', 'status'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 0
+        && request.resource.data.email.size() <= 200
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.status is string
+        && request.resource.data.status == 'pending'
+        && (!('expectedHandle' in request.resource.data) || 
+            (request.resource.data.expectedHandle is string 
+             && request.resource.data.expectedHandle.size() >= 3 
+             && request.resource.data.expectedHandle.size() <= 30));
+      allow update: if false;
+      allow delete: if false;
+    }
+    
     // Post Reviews collection - for users to add context to posts marked "needs_review"
     // - Authenticated users can read all review contexts (for transparency)
     // - Authenticated users can create review contexts (only for posts with needs_review status)
