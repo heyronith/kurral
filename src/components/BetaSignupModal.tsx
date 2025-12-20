@@ -130,25 +130,25 @@ const BetaSignupModal = ({ open, onClose }: BetaSignupModalProps) => {
         </button>
 
         {/* Personal Message Section - Left Side */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/10 bg-gradient-to-br from-accent/5 via-transparent to-accentSecondary/5">
-          <div className="space-y-5 text-white/90 leading-relaxed">
+        <div className="flex-1 p-6 md:p-8 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/10 bg-[#030712]">
+          <div className="space-y-5 text-white leading-relaxed">
             <p className="text-base md:text-lg">
               Hello friend,
             </p>
             
-            <p className="text-base md:text-lg">
+            <p className="text-base md:text-lg text-white/95">
               We're building Kural because we're frustrated. We're tired of watching thoughtful posts get buried while rage-bait goes viral. We're tired of algorithms that optimize for engagement instead of value.
             </p>
             
-            <p className="text-base md:text-lg">
-              So we built something different. We measure quality content by what actually matters: factual rigor, insight, practical value, tone, and effort. Quality creators get recognized. Your Kural Score reflects real impact—not vanity metrics.
+            <p className="text-base md:text-lg text-white/95">
+              So we built something different. We measure quality content by what actually matters: factual rigor, insight, practical value, tone, and effort. Quality creators get recognized. Your Kural Score reflects real impact, not vanity metrics.
             </p>
             
-            <p className="text-base md:text-lg">
-              We're opening early access in <span className="font-semibold text-accent">January 2025</span>. If you join us during beta, you'll get <span className="font-semibold text-accentSecondary">lifetime premium access—forever free</span>. It's our way of saying thanks for believing in value over virality.
+            <p className="text-base md:text-lg text-white/95">
+              We're opening early access on <span className="font-semibold text-accentLight">Jan 5, 2026</span>. If you join us during beta, you'll get <span className="font-semibold text-accentSecondary">lifetime premium access, forever free</span>. It's our way of saying thanks for believing in value over virality.
             </p>
             
-            <p className="text-base md:text-lg text-white/80 italic mt-6">
+            <p className="text-base md:text-lg text-white/85 italic mt-6">
               With Love,<br />
               R & the Kural Team
             </p>
