@@ -38,7 +38,7 @@ const Navbar = ({ onGetStartedClick }: NavbarProps) => {
             onClick={onGetStartedClick}
             className="rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
         >
-            Get Started
+            Join early access
         </button>
         </div>
 
@@ -82,7 +82,7 @@ const Navbar = ({ onGetStartedClick }: NavbarProps) => {
               }}
               className="mt-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-3 text-center text-sm font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
             >
-              Get Started
+              Join early access
             </button>
           </nav>
         </div>

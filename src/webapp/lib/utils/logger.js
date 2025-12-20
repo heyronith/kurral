@@ -24,13 +24,10 @@ export var LogLevel;
  */
 class Logger {
     shouldLog(level) {
-        // Always log in development
-        if (isDevelopment) {
-            return true;
-        }
-        // In production, only log errors (but they'll be stripped by build anyway)
-        // This is here for future extensibility (e.g., sending to external service)
-        return level === LogLevel.ERROR;
+        // Only log in development
+        // In production, all console logs are hidden
+        // Errors can be sent to external services (Sentry, LogRocket, etc.) if needed
+        return isDevelopment;
     }
     /**
      * Log debug messages (development only)

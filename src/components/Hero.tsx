@@ -25,7 +25,7 @@ const Hero = ({ onGetStartedClick }: HeroProps) => {
             onClick={onGetStartedClick}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-8 py-4 text-base font-semibold text-white transition-all duration-200 hover:from-primaryHover hover:to-accentHover shadow-button hover:shadow-buttonHover active:scale-[0.98]"
           >
-            Get Started
+            Join early access
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
