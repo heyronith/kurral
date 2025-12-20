@@ -14,8 +14,20 @@ const BetaSignupModal = ({ open, onClose }: BetaSignupModalProps) => {
   const [greeting, setGreeting] = useState('Hey Friend,');
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Get time-based greeting
   const getTimeBasedGreeting = () => {
@@ -59,30 +71,38 @@ Kural Team`;
     });
   };
 
-  // Update greeting and start typewriter when modal opens
+  // Update greeting and start typewriter when modal opens (desktop only)
   useEffect(() => {
     if (open && !success) {
       setGreeting(getTimeBasedGreeting().base);
-      setDisplayedText('');
-      setIsTyping(true);
       
-      let currentIndex = 0;
-      const typeInterval = setInterval(() => {
-        if (currentIndex < fullMessage.length) {
-          setDisplayedText(fullMessage.slice(0, currentIndex + 1));
-          currentIndex++;
-        } else {
-          setIsTyping(false);
-          clearInterval(typeInterval);
-        }
-      }, 20); // Adjust speed here (lower = faster)
+      // On mobile, show full message immediately
+      if (isMobile) {
+        setDisplayedText(fullMessage);
+        setIsTyping(false);
+      } else {
+        // On desktop, use typewriter animation
+        setDisplayedText('');
+        setIsTyping(true);
+        
+        let currentIndex = 0;
+        const typeInterval = setInterval(() => {
+          if (currentIndex < fullMessage.length) {
+            setDisplayedText(fullMessage.slice(0, currentIndex + 1));
+            currentIndex++;
+          } else {
+            setIsTyping(false);
+            clearInterval(typeInterval);
+          }
+        }, 20); // Adjust speed here (lower = faster)
 
-      return () => clearInterval(typeInterval);
+        return () => clearInterval(typeInterval);
+      }
     } else if (!open) {
       setDisplayedText('');
       setIsTyping(false);
     }
-  }, [open, success]);
+  }, [open, success, isMobile]);
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -184,7 +204,7 @@ Kural Team`;
         </button>
 
         {/* Personal Message Section - Left Side */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/10 bg-[#030712] min-h-[400px] md:min-h-[500px]">
+        <div className="flex-1 p-4 sm:p-6 md:p-8 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/10 bg-[#030712]">
           {success ? (
             <div className="space-y-6 text-white">
               <div className="flex items-center gap-3 mb-4">
@@ -242,14 +262,14 @@ Kural Team`;
               </div>
             </div>
           ) : (
-            <div className="space-y-4 text-white leading-relaxed min-h-[350px] md:min-h-[450px] flex flex-col">
-              <p className="text-base md:text-lg mb-3">
+            <div className="space-y-3 sm:space-y-4 text-white leading-relaxed flex flex-col">
+              <p className="text-sm sm:text-base md:text-lg mb-2 sm:mb-3">
                 {greeting} <span className="bg-gradient-to-r from-accent to-accentSecondary bg-clip-text text-transparent font-semibold">{getTimeBasedGreeting().friend}</span>
               </p>
               
-              <div className="text-sm md:text-base text-white/95 whitespace-pre-wrap flex-1">
+              <div className="text-xs sm:text-sm md:text-base text-white/95 whitespace-pre-wrap flex-1">
                 {renderTextWithHighlights(displayedText)}
-                {isTyping && (
+                {isTyping && !isMobile && (
                   <span className="inline-block w-0.5 h-4 bg-accent ml-1 animate-pulse" />
                 )}
               </div>
@@ -258,7 +278,7 @@ Kural Team`;
         </div>
 
         {/* Form Section - Right Side */}
-        <div className="flex-1 p-6 md:p-8 overflow-y-auto max-h-[95vh] flex flex-col justify-center">
+        <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-h-[95vh] flex flex-col justify-center">
           {success ? (
             <div className="flex flex-col items-center justify-center text-center">
               <div className="rounded-full bg-green-500/20 border border-green-500/30 w-20 h-20 flex items-center justify-center mb-6">
