@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import { Resend } from 'resend';
+import Parser from 'rss-parser';
 
 admin.initializeApp();
 
@@ -1120,5 +1121,380 @@ export const sendReviewRequestsCron = functions.scheduler.onSchedule(
     }
 
     console.log(`[ReviewEmailCron] Sent ${totalSent} emails this run.`);
+  }
+);
+
+// ---------- RSS Feed Polling for Breaking News ----------
+
+interface RSSFeed {
+  url: string;
+  name: string;
+  enabled: boolean;
+  lastChecked?: admin.firestore.Timestamp;
+}
+
+interface Article {
+  title: string;
+  link: string;
+  pubDate: Date;
+  description?: string;
+  content?: string;
+}
+
+// RSS Feeds configuration
+const RSS_FEEDS: RSSFeed[] = [
+  { url: 'https://feeds.bbci.co.uk/news/rss.xml', name: 'BBC News', enabled: true },
+  { url: 'https://feeds.reuters.com/reuters/topNews', name: 'Reuters Top News', enabled: true },
+  { url: 'https://apnews.com/apf-topnews', name: 'AP News', enabled: true },
+  { url: 'http://rss.cnn.com/rss/edition.rss', name: 'CNN', enabled: true },
+  { url: 'https://feeds.npr.org/1001/rss.xml', name: 'NPR News', enabled: true },
+];
+
+// Breaking news keywords
+const BREAKING_KEYWORDS = [
+  'breaking',
+  'urgent',
+  'developing',
+  'just in',
+  'alert',
+  'emergency',
+  'crisis',
+  'major',
+  'significant',
+  'unprecedented',
+];
+
+// Get Kural News platform account user ID
+async function getKuralNewsUserId(): Promise<string | null> {
+  try {
+    const usersSnapshot = await db
+      .collection('users')
+      .where('isPlatformAccount', '==', true)
+      .where('platformAccountType', '==', 'news')
+      .where('handle', '==', 'kuralnews')
+      .limit(1)
+      .get();
+
+    if (usersSnapshot.empty) {
+      console.error('[RSSPoll] Kural News platform account not found');
+      return null;
+    }
+
+    return usersSnapshot.docs[0].id;
+  } catch (error) {
+    console.error('[RSSPoll] Error finding Kural News account:', error);
+    return null;
+  }
+}
+
+// Check if article is breaking news
+function isBreakingNews(article: Article): boolean {
+  const titleLower = article.title.toLowerCase();
+  const descriptionLower = (article.description || '').toLowerCase();
+  const contentLower = (article.content || '').toLowerCase();
+
+  // Check for breaking keywords in title (highest priority)
+  const hasBreakingKeyword = BREAKING_KEYWORDS.some((keyword) =>
+    titleLower.includes(keyword)
+  );
+
+  if (hasBreakingKeyword) {
+    return true;
+  }
+
+  // Check if article is very recent (published in last 10 minutes)
+  const now = new Date();
+  const articleAge = now.getTime() - article.pubDate.getTime();
+  const tenMinutesAgo = 10 * 60 * 1000;
+
+  if (articleAge < tenMinutesAgo) {
+    // Recent article - check description/content for breaking keywords
+    return (
+      BREAKING_KEYWORDS.some((keyword) => descriptionLower.includes(keyword)) ||
+      BREAKING_KEYWORDS.some((keyword) => contentLower.includes(keyword))
+    );
+  }
+
+  return false;
+}
+
+// Generate article ID for deduplication
+function generateArticleId(article: Article, feedUrl: string): string {
+  // Use link as primary identifier, fallback to title + pubDate
+  if (article.link) {
+    try {
+      const url = new URL(article.link);
+      return `${feedUrl}_${url.pathname}_${article.pubDate.getTime()}`;
+    } catch {
+      // Invalid URL, use title + date
+    }
+  }
+  return `${feedUrl}_${article.title}_${article.pubDate.getTime()}`;
+}
+
+// Check if article has been processed
+async function isArticleProcessed(articleId: string): Promise<boolean> {
+  try {
+    const doc = await db.collection('processedArticles').doc(articleId).get();
+    return doc.exists;
+  } catch (error) {
+    console.error('[RSSPoll] Error checking processed article:', error);
+    return false;
+  }
+}
+
+// Mark article as processed
+async function markArticleProcessed(article: Article, feedUrl: string): Promise<void> {
+  try {
+    const articleId = generateArticleId(article, feedUrl);
+    await db.collection('processedArticles').doc(articleId).set({
+      articleId,
+      feedUrl,
+      title: article.title,
+      link: article.link,
+      pubDate: admin.firestore.Timestamp.fromDate(article.pubDate),
+      processedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('[RSSPoll] Error marking article as processed:', error);
+  }
+}
+
+// Format article for posting
+function formatArticleForPost(article: Article, feedName: string): string {
+  const maxLength = 280;
+  let postText = `📰 ${article.title}`;
+
+  // Add description if available and space permits
+  if (article.description) {
+    const cleanDescription = article.description
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .trim()
+      .substring(0, 150);
+
+    if (cleanDescription && postText.length + cleanDescription.length + 10 < maxLength) {
+      postText += `\n\n${cleanDescription}`;
+    }
+  }
+
+  // Add source and link if space permits
+  const sourceText = `\n\nSource: ${feedName}`;
+  const linkText = `\n${article.link}`;
+
+  if (postText.length + sourceText.length + linkText.length <= maxLength) {
+    postText += sourceText + linkText;
+  } else if (postText.length + linkText.length <= maxLength) {
+    postText += linkText;
+  }
+
+  // Truncate if still too long
+  if (postText.length > maxLength) {
+    postText = postText.substring(0, maxLength - 3) + '...';
+  }
+
+  return postText;
+}
+
+// Create chirp as Kural News account
+async function createNewsChirp(
+  userId: string,
+  text: string,
+  articleLink: string
+): Promise<string | null> {
+  try {
+    const chirpData = {
+      authorId: userId,
+      text: text,
+      topic: 'news',
+      reachMode: 'forAll',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      commentCount: 0,
+      factCheckingStatus: 'pending',
+      factCheckingStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Store original article link for reference
+      sourceUrl: articleLink,
+      isAutomatedPost: true,
+    };
+
+    const docRef = await db.collection('chirps').add(chirpData);
+
+    // Update topic engagement
+    try {
+      const topicRef = db.collection('topics').doc('news');
+      const topicSnap = await topicRef.get();
+
+      if (topicSnap.exists) {
+        await topicRef.update({
+          postsLast48h: admin.firestore.FieldValue.increment(1),
+          postsLast1h: admin.firestore.FieldValue.increment(1),
+          postsLast4h: admin.firestore.FieldValue.increment(1),
+          lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await topicRef.set({
+          name: 'news',
+          postsLast48h: 1,
+          postsLast1h: 1,
+          postsLast4h: 1,
+          totalUsers: 0,
+          averageVelocity1h: 0,
+          isTrending: false,
+          lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (topicError) {
+      console.warn('[RSSPoll] Could not update topic engagement:', topicError);
+    }
+
+    return docRef.id;
+  } catch (error) {
+    console.error('[RSSPoll] Error creating chirp:', error);
+    return null;
+  }
+}
+
+// Poll a single RSS feed
+async function pollRSSFeed(feed: RSSFeed, kuralNewsUserId: string): Promise<number> {
+  if (!feed.enabled) {
+    return 0;
+  }
+
+  try {
+    const parser = new Parser();
+    const feedData = await parser.parseURL(feed.url);
+
+    if (!feedData.items || feedData.items.length === 0) {
+      console.log(`[RSSPoll] No items found in feed: ${feed.name}`);
+      return 0;
+    }
+
+    let postedCount = 0;
+
+    for (const item of feedData.items) {
+      try {
+        const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+        const article: Article = {
+          title: item.title || 'Untitled',
+          link: item.link || '',
+          pubDate: pubDate,
+          description: item.contentSnippet || item.content || '',
+          content: item.content || item.contentSnippet || '',
+        };
+
+        // Generate article ID and check if processed
+        const articleId = generateArticleId(article, feed.url);
+        if (await isArticleProcessed(articleId)) {
+          continue; // Skip already processed articles
+        }
+
+        // Check if breaking news
+        if (!isBreakingNews(article)) {
+          // Mark as processed even if not breaking (to avoid reprocessing)
+          await markArticleProcessed(article, feed.url);
+          continue;
+        }
+
+        // Format and post
+        const postText = formatArticleForPost(article, feed.name);
+        const chirpId = await createNewsChirp(kuralNewsUserId, postText, article.link);
+
+        if (chirpId) {
+          await markArticleProcessed(article, feed.url);
+          postedCount++;
+          console.log(`[RSSPoll] Posted breaking news: ${article.title.substring(0, 50)}...`);
+        }
+      } catch (itemError) {
+        console.error(`[RSSPoll] Error processing article from ${feed.name}:`, itemError);
+        continue;
+      }
+    }
+
+    // Update feed last checked timestamp
+    try {
+      const feedRef = db.collection('rssFeeds').doc(feed.url);
+      await feedRef.set(
+        {
+          url: feed.url,
+          name: feed.name,
+          enabled: feed.enabled,
+          lastChecked: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (updateError) {
+      console.warn(`[RSSPoll] Could not update feed timestamp for ${feed.name}:`, updateError);
+    }
+
+    return postedCount;
+  } catch (error) {
+    console.error(`[RSSPoll] Error polling feed ${feed.name}:`, error);
+    return 0;
+  }
+}
+
+// Main RSS polling function
+async function pollAllRSSFeeds(): Promise<void> {
+  console.log('[RSSPoll] Starting RSS feed polling...');
+
+  // Get Kural News user ID
+  const kuralNewsUserId = await getKuralNewsUserId();
+  if (!kuralNewsUserId) {
+    console.error('[RSSPoll] Cannot proceed without Kural News account');
+    return;
+  }
+
+  let totalPosted = 0;
+
+  // Poll each enabled feed
+  for (const feed of RSS_FEEDS) {
+    if (!feed.enabled) {
+      continue;
+    }
+
+    try {
+      const posted = await pollRSSFeed(feed, kuralNewsUserId);
+      totalPosted += posted;
+    } catch (error) {
+      console.error(`[RSSPoll] Error processing feed ${feed.name}:`, error);
+    }
+  }
+
+  console.log(`[RSSPoll] Completed. Posted ${totalPosted} breaking news articles.`);
+}
+
+// Scheduled Cloud Function: Poll RSS feeds every 5 minutes
+export const pollRSSFeedsCron = functions.scheduler.onSchedule(
+  {
+    schedule: 'every 5 minutes',
+    timeZone: 'Etc/UTC',
+    maxInstances: 1,
+  },
+  async () => {
+    await pollAllRSSFeeds();
+  }
+);
+
+// Manual trigger function (for testing)
+export const pollRSSFeedsManual = functions.https.onCall(
+  { cors: true, maxInstances: 1, memory: '512MiB' },
+  async (request) => {
+    // Optional: Add authentication check for admin users
+    if (!request.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Authentication required'
+      );
+    }
+
+    try {
+      await pollAllRSSFeeds();
+      return { success: true, message: 'RSS polling completed' };
+    } catch (error: any) {
+      console.error('[RSSPoll] Manual trigger error:', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        `Failed to poll RSS feeds: ${error.message}`
+      );
+    }
   }
 );
