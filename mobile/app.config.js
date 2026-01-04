@@ -42,8 +42,7 @@ module.exports = {
       EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
       EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID,
-      // API endpoints
-      EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+      // API endpoints (OpenAI proxy still needed for other features)
       EXPO_PUBLIC_OPENAI_PROXY_URL: process.env.EXPO_PUBLIC_OPENAI_PROXY_URL,
     },
   },

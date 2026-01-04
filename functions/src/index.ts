@@ -2,8 +2,16 @@ import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import { Resend } from 'resend';
 import Parser from 'rss-parser';
+import type { Chirp, Comment } from './types';
+import {
+  processChirpValue as runChirpValue,
+  processPendingRechirps,
+  processCommentValue as runCommentValue,
+} from './services/valuePipelineService';
+import { chirpService } from './services/firestoreService';
 
-admin.initializeApp();
+// Firebase Admin is initialized in firestoreService.ts
+// No need to initialize here to avoid duplicate initialization
 
 const db = admin.firestore();
 let resendClient: Resend | null = null;
@@ -1496,5 +1504,150 @@ export const pollRSSFeedsManual = functions.https.onCall(
         `Failed to poll RSS feeds: ${error.message}`
       );
     }
+  }
+);
+
+// ---------- Value Pipeline Cloud Functions ----------
+
+const toDateSafe = (value: any): Date => {
+  if (!value) return new Date();
+  if (value instanceof Date) return value;
+  if (value.toDate) return value.toDate();
+  return new Date(value);
+};
+
+const normalizeChirpPayload = (payload: any): Chirp => ({
+  id: payload.id,
+  authorId: payload.authorId,
+  text: payload.text || '',
+  topic: payload.topic,
+  semanticTopics: payload.semanticTopics || [],
+  semanticTopicBuckets: payload.semanticTopicBuckets,
+  entities: payload.entities,
+  intent: payload.intent,
+  analyzedAt: payload.analyzedAt ? toDateSafe(payload.analyzedAt) : undefined,
+  reachMode: payload.reachMode || 'forAll',
+  tunedAudience: payload.tunedAudience,
+  contentEmbedding: payload.contentEmbedding,
+  createdAt: toDateSafe(payload.createdAt || new Date()),
+  rechirpOfId: payload.rechirpOfId,
+  quotedChirpId: payload.quotedChirpId,
+  quotedChirp: payload.quotedChirp ? normalizeChirpPayload(payload.quotedChirp) : undefined,
+  commentCount: payload.commentCount ?? 0,
+  countryCode: payload.countryCode,
+  imageUrl: payload.imageUrl,
+  scheduledAt: payload.scheduledAt ? toDateSafe(payload.scheduledAt) : undefined,
+  formattedText: payload.formattedText,
+  mentions: payload.mentions,
+  factCheckingStatus: payload.factCheckingStatus,
+  factCheckingStartedAt: payload.factCheckingStartedAt ? toDateSafe(payload.factCheckingStartedAt) : undefined,
+  claims: payload.claims?.map((c: any) => ({ ...c, extractedAt: toDateSafe(c.extractedAt) })),
+  factChecks: payload.factChecks?.map((f: any) => ({ ...f, checkedAt: toDateSafe(f.checkedAt) })),
+  factCheckStatus: payload.factCheckStatus,
+  valueScore: payload.valueScore
+    ? { ...payload.valueScore, updatedAt: toDateSafe(payload.valueScore.updatedAt || new Date()) }
+    : undefined,
+  valueExplanation: payload.valueExplanation,
+  discussionQuality: payload.discussionQuality,
+});
+
+const normalizeCommentPayload = (payload: any): Comment => ({
+  id: payload.id,
+  chirpId: payload.chirpId,
+  authorId: payload.authorId,
+  text: payload.text || '',
+  createdAt: toDateSafe(payload.createdAt || new Date()),
+  parentCommentId: payload.parentCommentId,
+  replyToUserId: payload.replyToUserId,
+  depth: payload.depth,
+  replyCount: payload.replyCount,
+  discussionRole: payload.discussionRole,
+  valueContribution: payload.valueContribution,
+  imageUrl: payload.imageUrl,
+  scheduledAt: payload.scheduledAt ? toDateSafe(payload.scheduledAt) : undefined,
+  formattedText: payload.formattedText,
+  factCheckingStatus: payload.factCheckingStatus,
+  factCheckingStartedAt: payload.factCheckingStartedAt ? toDateSafe(payload.factCheckingStartedAt) : undefined,
+  claims: payload.claims?.map((c: any) => ({ ...c, extractedAt: toDateSafe(c.extractedAt) })),
+  factChecks: payload.factChecks?.map((f: any) => ({ ...f, checkedAt: toDateSafe(f.checkedAt) })),
+  factCheckStatus: payload.factCheckStatus,
+});
+
+export const processChirpValue = functions.https.onCall(
+  { 
+    cors: true, 
+    maxInstances: 5, 
+    memory: '1GiB', 
+    timeoutSeconds: 300,
+    secrets: ['OPENAI_API_KEY']
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { chirpId, chirp: chirpPayload, options } = request.data || {};
+    let chirp: Chirp | null = null;
+
+    if (chirpId) {
+      chirp = await chirpService.getChirp(chirpId);
+    }
+
+    if (!chirp && chirpPayload) {
+      chirp = normalizeChirpPayload(chirpPayload);
+    }
+
+    if (!chirp) {
+      throw new functions.https.HttpsError('invalid-argument', 'chirp or chirpId is required');
+    }
+
+    try {
+      const result = await runChirpValue(chirp, options);
+      return result;
+    } catch (error: any) {
+      console.error('[processChirpValue] Failed', error);
+      throw new functions.https.HttpsError('internal', error?.message || 'Failed to process chirp value');
+    }
+  }
+);
+
+export const processCommentValue = functions.https.onCall(
+  { 
+    cors: true, 
+    maxInstances: 5, 
+    memory: '1GiB', 
+    timeoutSeconds: 300,
+    secrets: ['OPENAI_API_KEY']
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { comment } = request.data || {};
+    if (!comment) {
+      throw new functions.https.HttpsError('invalid-argument', 'comment payload is required');
+    }
+
+    try {
+      const normalizedComment = normalizeCommentPayload(comment);
+      const result = await runCommentValue(normalizedComment);
+      return result;
+    } catch (error: any) {
+      console.error('[processCommentValue] Failed', error);
+      throw new functions.https.HttpsError('internal', error?.message || 'Failed to process comment value');
+    }
+  }
+);
+
+export const processPendingRechirpsCron = functions.scheduler.onSchedule(
+  {
+    schedule: 'every 30 minutes',
+    timeZone: 'Etc/UTC',
+    maxInstances: 1,
+    secrets: ['OPENAI_API_KEY'],
+  },
+  async () => {
+    await processPendingRechirps();
   }
 );

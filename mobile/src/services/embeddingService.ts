@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { auth } from '../config/firebase';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 
@@ -18,10 +19,20 @@ const getProxyEndpoint = (): string => {
 
 async function callOpenAIEmbeddingsProxy(body: any): Promise<any> {
   const proxyUrl = getProxyEndpoint();
+  
+  // Get Firebase ID token for authentication
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('You must be signed in to use embedding features.');
+  }
+  
+  const idToken = await currentUser.getIdToken();
+  
   const response = await fetch(proxyUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
     },
     body: JSON.stringify({
       endpoint: '/v1/embeddings',

@@ -21,11 +21,5 @@
       ]
     }
   ]
-  ,
-  "functions": {
-    "api/process-chirp-value.js": {
-      "includeFiles": "src/webapp/lib/**"
-    }
-  }
 }
 

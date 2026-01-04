@@ -1,4 +1,5 @@
 import { BaseAgent } from '../agents/baseAgent';
+import { auth } from '../firebase';
 import type { Chirp, Claim, FactCheck } from '../../types';
 
 const TRUSTED_DOMAINS = [
@@ -296,13 +297,22 @@ const parseJsonFromSearchResponse = (response: any): FactCheckResponse | null =>
 
 /**
  * Call OpenAI responses API (for web search) through secure proxy
+ * Requires Firebase auth to add ID token, otherwise proxy returns 401
  */
 async function callOpenAIResponsesProxy(body: any): Promise<any> {
   try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('You must be signed in to run fact checks.');
+    }
+
+    const idToken = await currentUser.getIdToken();
+
     const response = await fetch('/api/openai-proxy', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
       },
       body: JSON.stringify({
         endpoint: '/v1/responses',

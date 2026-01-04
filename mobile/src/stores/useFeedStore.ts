@@ -3,6 +3,7 @@ import type { Chirp, FeedType, ForYouConfig } from '../types';
 import { DEFAULT_FOR_YOU_CONFIG } from '../types';
 import { chirpService } from '../services/chirpService';
 import { topicService } from '../services/topicService';
+import { processChirpValue } from '../services/valuePipelineService';
 
 type FeedState = {
   activeFeed: FeedType;
@@ -77,22 +78,17 @@ export const useFeedStore = create<FeedState>((set, get) => ({
         forYou: [newChirp, ...state.forYou.filter((c) => c.id !== newChirp.id)],
       }));
       
-      // Trigger value pipeline processing (async, don't block)
-      // Import processChirpValue from mobile wrapper (uses dynamic import to avoid Metro issues)
-      import('../services/valuePipelineService').then(({ processChirpValue }) => {
-        processChirpValue(newChirp)
-          .then((enrichedChirp) => {
-            set((state) => ({
-              latest: state.latest.map((chirp) => (chirp.id === enrichedChirp.id ? enrichedChirp : chirp)),
-              forYou: state.forYou.map((chirp) => (chirp.id === enrichedChirp.id ? enrichedChirp : chirp)),
-            }));
-          })
-          .catch((error) => {
-            console.error('[ValuePipeline] Failed to enrich chirp:', error);
-          });
-      }).catch((error) => {
-        console.error('[ValuePipeline] Failed to import processChirpValue:', error);
-      });
+      // Trigger value pipeline processing via Firebase Cloud Functions
+      processChirpValue(newChirp)
+        .then((enrichedChirp) => {
+          set((state) => ({
+            latest: state.latest.map((chirp) => (chirp.id === enrichedChirp.id ? enrichedChirp : chirp)),
+            forYou: state.forYou.map((chirp) => (chirp.id === enrichedChirp.id ? enrichedChirp : chirp)),
+          }));
+        })
+        .catch((error) => {
+          console.error('[ValuePipeline] Failed to enrich chirp:', error);
+        });
       
       return newChirp;
     } catch (error) {
