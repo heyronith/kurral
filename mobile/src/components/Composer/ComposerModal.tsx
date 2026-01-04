@@ -45,21 +45,99 @@ type MentionCandidate = {
 };
 
 const CHAR_LIMIT = 280;
-const EMOJI_BANK = ['😀', '😁', '😂', '😊', '😍', '🔥', '🎉', '👍', '🙏', '🚀'];
-const QUICK_SCHEDULES = [
-  { label: 'None', value: null },
-  { label: 'In 30m', value: () => new Date(Date.now() + 30 * 60 * 1000) },
-  { label: 'In 3h', value: () => new Date(Date.now() + 3 * 60 * 60 * 1000) },
-  {
-    label: 'Tomorrow 9am',
-    value: () => {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      d.setHours(9, 0, 0, 0);
-      return d;
-    },
-  },
-];
+
+// Comprehensive emoji list organized by categories
+const EMOJI_CATEGORIES = {
+  'Smileys & People': [
+    '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
+    '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥',
+    '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '😶‍🌫️', '😵', '😵‍💫', '🤯', '🤠', '🥳', '😎',
+    '🤓', '🧐', '😕', '😟', '🙁', '😮', '😯', '😲', '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣',
+    '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾',
+    '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾', '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞',
+    '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝',
+    '🙏', '✍️', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄',
+  ],
+  'Animals & Nature': [
+    '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊',
+    '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞',
+    '🐜', '🦟', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳',
+    '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄',
+    '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🦅', '🦆', '🦢', '🦉', '🦤', '🪶',
+    '🌲', '🌳', '🌴', '🌵', '🌶️', '🌾', '🌿', '☘️', '🍀', '🍁', '🍂', '🍃', '🌺', '🌻', '🌹', '🌷', '🌼', '🌸', '🌾', '🌱',
+    '🌿', '🍃', '🍂', '🍁', '🍄', '🌰', '🪵', '🪨', '🌍', '🌎', '🌏', '🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙',
+    '🌚', '🌛', '🌜', '🌝', '🌞', '⭐', '🌟', '🌠', '☀️', '⛅', '☁️', '⛈️', '🌤️', '🌥️', '🌦️', '🌧️', '🌨️', '🌩️', '🌪️', '🌫️',
+    '🌬️', '🌀', '🌈', '☂️', '☔', '⛱️', '⚡', '❄️', '☃️', '⛄', '☄️', '🔥', '💧', '🌊',
+  ],
+  'Food & Drink': [
+    '🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦',
+    '🥬', '🥒', '🌶️', '🌽', '🥕', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🥞', '🥓', '🥩', '🍗', '🍖',
+    '🦴', '🌭', '🍔', '🍟', '🍕', '🥪', '🥙', '🌮', '🌯', '🥗', '🥘', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪',
+    '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫',
+    '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '🫖', '☕', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃',
+    '🍸', '🍹', '🧉', '🍾', '🧊',
+  ],
+  'Activities': [
+    '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥅', '⛳', '🏹', '🎣',
+    '🤿', '🥊', '🥋', '🎽', '🛹', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '⛹️', '🤺', '🤾', '🏌️', '🏇',
+    '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎪', '🤹',
+    '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰',
+    '🧩',
+  ],
+  'Travel & Places': [
+    '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼', '🛴', '🚲', '🛵',
+    '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇',
+    '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🚁', '🚟', '🚠', '🚡', '🛰️', '🚀', '🛸', '🛎️', '🧳', '⌛', '⏳', '⌚', '⏰',
+    '⏱️', '⏲️', '🕰️', '🕛', '🕧', '🕐', '🕜', '🕑', '🕝', '🕒', '🕞', '🕓', '🕟', '🕔', '🕠', '🕕', '🕡', '🕖', '🕢', '🕗',
+    '🕣', '🕘', '🕤', '🕙', '🕥', '🕚', '🕦', '🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙', '🌚', '🌛', '🌜', '🌝',
+    '🌞', '⭐', '🌟', '💫', '✨', '☄️', '💥', '🔥', '🌈', '☀️', '⛅', '☁️', '⛈️', '🌤️', '🌥️', '🌦️', '🌧️', '🌨️', '🌩️', '🌪️',
+    '🌫️', '🌬️', '🌀', '💨', '💧', '💦', '☔', '☂️', '🌊', '⛄', '🏔️', '⛰️', '🌋', '🗻', '🏕️', '🏖️', '🏜️', '🏝️', '🏞️', '🏟️',
+    '🏛️', '🏗️', '🧱', '🏘️', '🏚️', '🏠', '🏡', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨', '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰',
+    '💒', '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋', '⛲', '⛺', '🌁', '🌃', '🏙️', '🌄', '🌅', '🌆', '🌇', '🌉', '♨️',
+    '🎠', '🎡', '🎢', '💈', '🎪', '🚂', '🚃', '🚄', '🚅', '🚆', '🚇', '🚈', '🚉', '🚊', '🚝', '🚞', '🚋', '🚌', '🚍', '🚎',
+    '🚐', '🚑', '🚒', '🚓', '🚔', '🚕', '🚖', '🚗', '🚘', '🚙', '🚚', '🚛', '🚜', '🏎️', '🏍️', '🛵', '🦽', '🦼', '🛴', '🚲',
+    '🛺', '🚏', '🛣️', '🛤️', '🛢️', '⛽', '🚨', '🚥', '🚦', '🛑', '🚧', '⚓', '⛵', '🛶', '🚤', '🛳️', '⛴️', '🛥️', '🚢', '⚓',
+    '⛽', '🚨', '🚧', '🚦', '🚥', '🗺️', '🗿', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛱️', '🏖️', '🏝️', '🏜️',
+    '🌋', '⛰️', '🏔️', '🗻', '🏕️', '⛺', '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬', '🏣', '🏤', '🏥', '🏦', '🏨', '🏩',
+    '🏪', '🏫', '🏰', '💒', '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋', '⛲', '⛺', '🌁', '🌃', '🏙️', '🌄', '🌅', '🌆',
+    '🌇', '🌉', '♨️', '🎠', '🎡', '🎢', '💈', '🎪',
+  ],
+  'Objects': [
+    '⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️',
+    '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡',
+    '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️',
+    '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦',
+    '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️',
+    '🧹', '🪠', '🧺', '🧻', '🚽', '🚿', '🛁', '🛀', '🛎️', '🧴', '🧷', '🧹', '🧯', '🛒', '🚬', '⚰️', '🪦', '⚱️', '🗿', '🏧',
+    '🚮', '🚰', '♿', '🚹', '🚺', '🚻', '🚼', '🚾', '🛂', '🛃', '🛄', '🛅', '⚠️', '🚸', '⛔', '🚫', '🚳', '🚭', '🚯', '🚱',
+    '🚷', '📵', '🔞', '☢️', '☣️', '⬆️', '↗️', '➡️', '↘️', '⬇️', '↙️', '⬅️', '↖️', '↕️', '↔️', '↩️', '↪️', '⤴️', '⤵️', '🔃',
+    '🔄', '🔙', '🔚', '🔛', '🔜', '🔝', '🛐', '⚛️', '🕉️', '✡️', '☸️', '☯️', '✝️', '☦️', '☪️', '☮️', '🕎', '🔯', '♈', '♉',
+    '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '⛎', '🔀', '🔁', '🔂', '▶️', '⏩', '⏭️', '⏯️', '⏸️', '⏹️',
+    '⏺️', '⏮️', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↩️', '↪️',
+    '⤴️', '⤵️', '🔃', '🔄', '🔙', '🔚', '🔛', '🔜', '🔝', '🛐', '⚛️', '🕉️', '✡️', '☸️', '☯️', '✝️', '☦️', '☪️', '☮️', '🕎',
+    '🔯', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '⛎', '🔀', '🔁', '🔂', '▶️', '⏩', '⏭️',
+    '⏯️', '⏸️', '⏹️', '⏺️', '⏮️', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➕', '➖', '➗', '✖️', '♾️', '💲', '💱', '™️', '©️',
+    '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔜', '🔝', '〽️', '✳️', '✴️', '❇️', '‼️', '⁉️', '❓', '❔', '❕', '❗', '〰️',
+    '💱', '💲', '🔱', '🔰', '⭕', '✅', '☑️', '✔️', '✖️', '❌', '⭕', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤',
+    '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩',
+    '🟦', '🟪', '⬛', '⬜', '🟫', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲',
+  ],
+  'Symbols': [
+    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️',
+    '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐',
+    '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️',
+    '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️',
+    '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❓', '❕', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️',
+    '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🈳', '🈂️', '🛂',
+    '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🔢', '#️⃣', '*️⃣', '0️⃣',
+    '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔴', '🟠', '🟡', '🟢',
+    '🔵', '🟣', '⚫', '⚪', '🟤', '🔘', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪',
+    '⬛', '⬜', '🟫', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲',
+  ],
+};
+
+// Flatten all emojis into a single array for easy access
+const ALL_EMOJIS = Object.values(EMOJI_CATEGORIES).flat();
 
 const escapeHtml = (input: string): string =>
   input
@@ -163,7 +241,6 @@ const ComposerModal = () => {
     allowFollowers: true,
     allowNonFollowers: false,
   });
-  const [activeSchedulePreset, setActiveSchedulePreset] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -176,6 +253,12 @@ const ComposerModal = () => {
     end: 0,
   });
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
+  const [showTopicPicker, setShowTopicPicker] = useState(false);
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedEmojiCategory, setSelectedEmojiCategory] = useState<string>(Object.keys(EMOJI_CATEGORIES)[0]);
+  const [tempScheduleDate, setTempScheduleDate] = useState<Date | null>(null);
+  const [tempScheduleTime, setTempScheduleTime] = useState<string>('');
   const mentionStartRef = useRef<number | null>(null);
   const mentionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mentionCache = useRef<Map<string, string>>(new Map());
@@ -199,10 +282,14 @@ const ComposerModal = () => {
     setImageUrl(null);
     setIsUploadingImage(false);
     setScheduledAt(null);
-    setActiveSchedulePreset(null);
     setMentionQuery(null);
     setMentionResults([]);
     setIsGeneratingSuggestion(false);
+    setShowTopicPicker(false);
+    setShowSchedulePicker(false);
+    setShowEmojiPicker(false);
+    setTempScheduleDate(null);
+    setTempScheduleTime('');
     mentionStartRef.current = null;
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current);
@@ -624,25 +711,76 @@ const ComposerModal = () => {
   };
 
   const scheduleLabel = useMemo(() => {
-    if (!scheduledAt) return 'Post now';
-    return scheduledAt.toLocaleString();
+    if (!scheduledAt) return null;
+    const now = new Date();
+    const diff = scheduledAt.getTime() - now.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 24) {
+      const days = Math.floor(hours / 24);
+      return `in ${days}d ${hours % 24}h`;
+    } else if (hours > 0) {
+      return `in ${hours}h ${minutes}m`;
+    } else {
+      return `in ${minutes}m`;
+    }
   }, [scheduledAt]);
+
+  const handleOpenSchedulePicker = () => {
+    if (showSchedulePicker) {
+      setShowSchedulePicker(false);
+      return;
+    }
+    setShowEmojiPicker(false);
+    setShowTopicPicker(false);
+    if (scheduledAt) {
+      setTempScheduleDate(scheduledAt);
+      const hours = scheduledAt.getHours().toString().padStart(2, '0');
+      const minutes = scheduledAt.getMinutes().toString().padStart(2, '0');
+      setTempScheduleTime(`${hours}:${minutes}`);
+    } else {
+      const now = new Date();
+      setTempScheduleDate(now);
+      const hours = now.getHours().toString().padStart(2, '0');
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      setTempScheduleTime(`${hours}:${minutes}`);
+    }
+    setShowSchedulePicker(true);
+  };
+
+  const handleConfirmSchedule = () => {
+    if (tempScheduleDate && tempScheduleTime) {
+      const [hours, minutes] = tempScheduleTime.split(':').map(Number);
+      const scheduled = new Date(tempScheduleDate);
+      scheduled.setHours(hours, minutes, 0, 0);
+      
+      if (scheduled > new Date()) {
+        setScheduledAt(scheduled);
+      } else {
+        alert('Please select a future date and time');
+        return;
+      }
+    }
+    setShowSchedulePicker(false);
+  };
+
+  const handleClearSchedule = () => {
+    setScheduledAt(null);
+    setShowSchedulePicker(false);
+  };
 
   return (
     <Modal visible={isOpen} animationType="slide" transparent>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <View style={styles.container}>
           <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>New chirp</Text>
-              <Text style={styles.subtitle}>{user?.name}</Text>
-            </View>
             <TouchableOpacity onPress={close} style={styles.closeButton}>
               <Text style={styles.closeText}>Close</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          <View style={styles.inputArea}>
             <TextInput
               style={styles.input}
               placeholder="Share something..."
@@ -654,6 +792,7 @@ const ComposerModal = () => {
               selection={selection}
               onSelectionChange={handleSelectionChange}
             />
+
             <View style={styles.toolbar}>
               <TouchableOpacity onPress={() => wrapSelection('**')} style={styles.toolButton}>
                 <Text style={styles.toolText}>B</Text>
@@ -661,229 +800,257 @@ const ComposerModal = () => {
               <TouchableOpacity onPress={() => wrapSelection('_')} style={styles.toolButton}>
                 <Text style={styles.toolText}>I</Text>
               </TouchableOpacity>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {EMOJI_BANK.map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    onPress={() => insertEmoji(emoji)}
-                    style={styles.emojiButton}
-                  >
-                    <Text style={styles.emoji}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowTopicPicker(false);
+                  setShowSchedulePicker(false);
+                  setShowEmojiPicker(!showEmojiPicker);
+                }} 
+                style={[styles.emojiTool, showEmojiPicker && styles.toolButtonActive]}
+              >
+                <Text style={styles.emoji}>😀</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={handlePickImage} style={styles.toolButton}>
                 <Text style={styles.toolText}>Image</Text>
               </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowEmojiPicker(false);
+                  setShowSchedulePicker(false);
+                  setShowTopicPicker(!showTopicPicker);
+                }} 
+                style={[styles.toolButton, (selectedTopic || showTopicPicker) && styles.toolButtonActive]}
+              >
+                <Text style={styles.toolText}>#</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleOpenSchedulePicker} 
+                style={[styles.toolButton, (scheduledAt || showSchedulePicker) && styles.toolButtonActive]}
+              >
+                <Text style={styles.toolText}>📅</Text>
+              </TouchableOpacity>
             </View>
+            {selectedTopic && (
+              <View style={styles.selectedTopicBadge}>
+                <Text style={styles.selectedTopicText}>#{selectedTopic}</Text>
+                <TouchableOpacity onPress={() => setSelectedTopic('')}>
+                  <Text style={styles.removeTopicText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {scheduledAt && scheduleLabel && (
+              <View style={styles.scheduledBadge}>
+                <Text style={styles.scheduledText}>📅 {scheduleLabel}</Text>
+                <TouchableOpacity onPress={() => setScheduledAt(null)}>
+                  <Text style={styles.removeScheduleText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-            <View style={styles.row}>
-              <Text style={styles.label}>Topic</Text>
-              {isGeneratingSuggestion && (
-                <View style={styles.suggestionLoading}>
-                  <ActivityIndicator size="small" color={colors.light.accent} />
-                  <Text style={styles.suggestionLoadingText}>Analyzing content...</Text>
-                </View>
-              )}
-              {selectedTopic ? (
-                <View style={styles.selectedTopicContainer}>
-                  <TopicChip
-                    value={selectedTopic}
-                    selected={true}
-                    onPress={() => {}}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setSelectedTopic('')}
-                    style={styles.clearTopicButton}
-                  >
-                    <Text style={styles.clearTopicText}>Change</Text>
+            {/* Inline Emoji Picker */}
+            {showEmojiPicker && (
+              <View style={styles.inlinePicker}>
+                <View style={styles.inlinePickerHeader}>
+                  <Text style={styles.inlinePickerTitle}>Emoji</Text>
+                  <TouchableOpacity onPress={() => setShowEmojiPicker(false)}>
+                    <Text style={styles.inlinePickerClose}>×</Text>
                   </TouchableOpacity>
                 </View>
-              ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {ALL_TOPICS.map((topic) => (
-                    <TopicChip
-                      key={topic}
-                      value={topic}
-                      selected={topic === selectedTopic}
-                      onPress={setSelectedTopic}
-                    />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiCategoryTabs}>
+                  {Object.keys(EMOJI_CATEGORIES).map((category) => (
+                    <TouchableOpacity
+                      key={category}
+                      style={[
+                        styles.emojiCategoryTab,
+                        selectedEmojiCategory === category && styles.emojiCategoryTabActive,
+                      ]}
+                      onPress={() => setSelectedEmojiCategory(category)}
+                    >
+                      <Text
+                        style={[
+                          styles.emojiCategoryTabText,
+                          selectedEmojiCategory === category && styles.emojiCategoryTabTextActive,
+                        ]}
+                      >
+                        {category}
+                      </Text>
+                    </TouchableOpacity>
                   ))}
                 </ScrollView>
-              )}
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.label}>Reach</Text>
-              <View style={styles.segment}>
-                <TouchableOpacity
-                  style={[
-                    styles.segmentButton,
-                    reachMode === 'forAll' && styles.segmentButtonActive,
-                  ]}
-                  onPress={() => setReachMode('forAll')}
-                >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      reachMode === 'forAll' && styles.segmentTextActive,
-                    ]}
-                  >
-                    For all
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.segmentButton,
-                    reachMode === 'tuned' && styles.segmentButtonActive,
-                  ]}
-                  onPress={() => setReachMode('tuned')}
-                >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      reachMode === 'tuned' && styles.segmentTextActive,
-                    ]}
-                  >
-                    Tuned
-                  </Text>
-                </TouchableOpacity>
+                <ScrollView style={styles.inlinePickerBody} nestedScrollEnabled>
+                  <View style={styles.emojiGrid}>
+                    {EMOJI_CATEGORIES[selectedEmojiCategory as keyof typeof EMOJI_CATEGORIES].map((emoji, index) => (
+                      <TouchableOpacity
+                        key={`${emoji}-${index}`}
+                        style={styles.emojiButton}
+                        onPress={() => {
+                          insertEmoji(emoji);
+                          setShowEmojiPicker(false);
+                        }}
+                      >
+                        <Text style={styles.emojiLarge}>{emoji}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
               </View>
-            </View>
+            )}
 
-            {reachMode === 'tuned' && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Audience</Text>
-                <View style={styles.toggleRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggle,
-                      tunedAudience.allowFollowers && styles.toggleActive,
-                    ]}
-                    onPress={() =>
-                      setTunedAudience((prev) => ({
-                        ...prev,
-                        allowFollowers: !prev.allowFollowers,
-                      }))
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        tunedAudience.allowFollowers && styles.toggleTextActive,
-                      ]}
-                    >
-                      Followers
-                    </Text>
+            {/* Inline Topic Picker */}
+            {showTopicPicker && (
+              <View style={styles.inlinePicker}>
+                <View style={styles.inlinePickerHeader}>
+                  <Text style={styles.inlinePickerTitle}>Topic</Text>
+                  <TouchableOpacity onPress={() => setShowTopicPicker(false)}>
+                    <Text style={styles.inlinePickerClose}>×</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggle,
-                      tunedAudience.allowNonFollowers && styles.toggleActive,
-                    ]}
-                    onPress={() =>
-                      setTunedAudience((prev) => ({
-                        ...prev,
-                        allowNonFollowers: !prev.allowNonFollowers,
-                      }))
-                    }
+                </View>
+                <ScrollView style={styles.inlinePickerBody} nestedScrollEnabled>
+                  {isGeneratingSuggestion && (
+                    <View style={styles.suggestionLoading}>
+                      <ActivityIndicator size="small" color={colors.light.accent} />
+                      <Text style={styles.suggestionLoadingText}>Analyzing content...</Text>
+                    </View>
+                  )}
+                  <View style={styles.topicGrid}>
+                    {ALL_TOPICS.map((topic) => (
+                      <TopicChip
+                        key={topic}
+                        value={topic}
+                        selected={topic === selectedTopic}
+                        onPress={(value) => {
+                          setSelectedTopic(value);
+                          setShowTopicPicker(false);
+                        }}
+                      />
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Inline Schedule Picker */}
+            {showSchedulePicker && (
+              <View style={styles.inlinePicker}>
+                <View style={styles.inlinePickerHeader}>
+                  <Text style={styles.inlinePickerTitle}>Schedule</Text>
+                  <TouchableOpacity onPress={() => setShowSchedulePicker(false)}>
+                    <Text style={styles.inlinePickerClose}>×</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.inlinePickerBody} nestedScrollEnabled>
+                  <View style={styles.schedulePickerContent}>
+                    <Text style={styles.smallLabel}>Date</Text>
+                    <TextInput
+                      style={styles.scheduleInput}
+                      placeholder="YYYY-MM-DD"
+                      value={tempScheduleDate ? tempScheduleDate.toISOString().split('T')[0] : ''}
+                      onChangeText={(text) => {
+                        const date = new Date(text);
+                        if (!isNaN(date.getTime())) {
+                          setTempScheduleDate(date);
+                        }
+                      }}
+                    />
+                    <Text style={[styles.smallLabel, { marginTop: 16 }]}>Time</Text>
+                    <TextInput
+                      style={styles.scheduleInput}
+                      placeholder="HH:MM (24h format)"
+                      value={tempScheduleTime}
+                      onChangeText={setTempScheduleTime}
+                    />
+                    {tempScheduleDate && tempScheduleTime && (() => {
+                      const [hours, minutes] = tempScheduleTime.split(':').map(Number);
+                      const scheduled = new Date(tempScheduleDate);
+                      scheduled.setHours(hours, minutes, 0, 0);
+                      const isValid = scheduled > new Date();
+                      return (
+                        <View style={styles.schedulePreview}>
+                          <Text style={styles.schedulePreviewText}>
+                            {isValid 
+                              ? `Will post on ${scheduled.toLocaleString()}`
+                              : 'Please select a future date and time'}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                </ScrollView>
+                <View style={styles.inlinePickerFooter}>
+                  <TouchableOpacity 
+                    style={styles.modalButtonSecondary}
+                    onPress={handleClearSchedule}
                   >
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        tunedAudience.allowNonFollowers && styles.toggleTextActive,
-                      ]}
-                    >
-                      Non-followers
-                    </Text>
+                    <Text style={styles.modalButtonSecondaryText}>Clear</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.modalButtonPrimary}
+                    onPress={handleConfirmSchedule}
+                  >
+                    <Text style={styles.modalButtonPrimaryText}>Confirm</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
+          </View>
 
-            <View style={styles.row}>
-              <Text style={styles.label}>Schedule</Text>
-              <View style={styles.scheduleRow}>
-                {QUICK_SCHEDULES.map((item) => (
+          <View style={styles.reachRow}>
+            {(['forAll', 'tuned'] as ReachMode[]).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                style={[
+                  styles.reachButton,
+                  reachMode === mode && styles.reachButtonActive,
+                ]}
+                onPress={() => setReachMode(mode)}
+              >
+                <Text
+                  style={[
+                    styles.reachLabel,
+                    reachMode === mode && styles.reachLabelActive,
+                  ]}
+                >
+                  {mode === 'tuned' ? 'Tuned' : 'For all'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {reachMode === 'tuned' && (
+            <View style={styles.audienceRow}>
+              <Text style={styles.smallLabel}>Audience</Text>
+              <View style={styles.toggleRow}>
+                {[
+                  { label: 'Followers', key: 'allowFollowers' },
+                  { label: 'Non-followers', key: 'allowNonFollowers' },
+                ].map((option) => (
                   <TouchableOpacity
-                    key={item.label}
+                    key={option.key}
                     style={[
-                      styles.scheduleChip,
-                      activeSchedulePreset === item.label && styles.scheduleChipActive,
+                      styles.toggle,
+                      tunedAudience[option.key as keyof TunedAudience] && styles.toggleActive,
                     ]}
-                    onPress={() => {
-                      const nextDate = item.value ? item.value() : null;
-                      setScheduledAt(nextDate);
-                      setActiveSchedulePreset(item.label);
-                    }}
+                    onPress={() =>
+                      setTunedAudience((prev) => ({
+                        ...prev,
+                        [option.key]: !prev[option.key as keyof TunedAudience],
+                      }))
+                    }
                   >
                     <Text
                       style={[
-                        styles.scheduleText,
-                        activeSchedulePreset === item.label && styles.scheduleTextActive,
+                        styles.toggleText,
+                        tunedAudience[option.key as keyof TunedAudience] && styles.toggleTextActive,
                       ]}
                     >
-                      {item.label}
+                      {option.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.scheduleLabel}>{scheduleLabel}</Text>
             </View>
+          )}
 
-            {quotedChirp && (
-              <View style={styles.quoteBox}>
-                <Text style={styles.quoteTitle}>Quoting</Text>
-                <Text style={styles.quoteText} numberOfLines={3}>
-                  {quotedChirp.text}
-                </Text>
-              </View>
-            )}
-
-            {(imageUri || imageUrl) && (
-              <View style={styles.previewBox}>
-                {imageUri && (
-                  <Image source={{ uri: imageUri }} style={styles.previewImage} />
-                )}
-                {isUploadingImage && (
-                  <View style={styles.uploadOverlay}>
-                    <ActivityIndicator color="#fff" />
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={styles.removeImage}
-                  onPress={() => {
-                    setImageUri(null);
-                    setImageUrl(null);
-                  }}
-                >
-                  <Text style={styles.removeImageText}>Remove</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {mentionQuery !== null && mentionResults.length > 0 && (
-              <View style={styles.mentionBox}>
-                {mentionResults.map((user) => (
-                  <TouchableOpacity
-                    key={user.id}
-                    style={styles.mentionRow}
-                    onPress={() => handleMentionSelect(user)}
-                  >
-                    <View style={styles.mentionAvatar}>
-                      <Text style={styles.mentionAvatarText}>
-                        {user.name.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={styles.mentionName}>{user.name}</Text>
-                      <Text style={styles.mentionHandle}>@{user.handle}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </ScrollView>
 
           <View style={styles.footer}>
             <Text style={[styles.counter, remaining < 0 ? styles.counterOver : undefined]}>
@@ -913,18 +1080,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
-  sheet: {
+  container: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 16,
     maxHeight: '95%',
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.light.border,
   },
@@ -939,65 +1107,99 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    paddingVertical: 6,
   },
   closeText: {
-    color: colors.light.textPrimary,
+    color: colors.light.textMuted,
     fontWeight: '600',
   },
-  body: {
-    padding: 16,
-    gap: 12,
+  inputArea: {
+    marginTop: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 16,
+    padding: 12,
   },
   input: {
-    minHeight: 140,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
+    minHeight: 120,
     color: colors.light.textPrimary,
-    backgroundColor: '#fafafa',
+    fontSize: 16,
     textAlignVertical: 'top',
   },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+    marginTop: 12,
   },
   toolButton: {
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: colors.light.backgroundElevated,
+    paddingVertical: 6,
     borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    backgroundColor: colors.light.backgroundElevated,
+  },
+  toolButtonActive: {
+    backgroundColor: colors.light.accent,
   },
   toolText: {
     fontWeight: '700',
     color: colors.light.textPrimary,
   },
-  emojiButton: {
-    paddingHorizontal: 8,
+  selectedTopicBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.light.accent + '20',
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  selectedTopicText: {
+    color: colors.light.accent,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  removeTopicText: {
+    color: colors.light.accent,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  scheduledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.light.accent + '20',
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  scheduledText: {
+    color: colors.light.accent,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  removeScheduleText: {
+    color: colors.light.accent,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  emojiTool: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: colors.light.backgroundElevated,
   },
   emoji: {
-    fontSize: 20,
-  },
-  row: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.light.textPrimary,
+    fontSize: 18,
   },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.light.backgroundElevated,
     borderRadius: 16,
+    backgroundColor: colors.light.backgroundElevated,
     marginRight: 8,
   },
   chipSelected: {
@@ -1010,35 +1212,64 @@ const styles = StyleSheet.create({
   chipTextSelected: {
     color: '#fff',
   },
-  segment: {
+  chipRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 16,
+  },
+  clearTopicButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.light.border,
-    borderRadius: 12,
-    overflow: 'hidden',
+    backgroundColor: '#fff',
   },
-  segmentButton: {
+  clearTopicText: {
+    color: colors.light.textMuted,
+    fontSize: 12,
+  },
+  reachRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  reachButton: {
     flex: 1,
     paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.light.border,
     alignItems: 'center',
-    backgroundColor: colors.light.backgroundElevated,
   },
-  segmentButtonActive: {
+  reachButtonActive: {
     backgroundColor: colors.light.accent,
+    borderColor: 'transparent',
   },
-  segmentText: {
-    color: colors.light.textPrimary,
+  reachLabel: {
     fontWeight: '700',
+    color: colors.light.textPrimary,
   },
-  segmentTextActive: {
+  reachLabelActive: {
     color: '#fff',
+  },
+  audienceRow: {
+    marginTop: 16,
+  },
+  smallLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.light.textMuted,
+    marginBottom: 8,
   },
   toggleRow: {
     flexDirection: 'row',
     gap: 8,
   },
   toggle: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
     backgroundColor: colors.light.backgroundElevated,
@@ -1057,11 +1288,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    marginTop: 16,
   },
   scheduleChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: colors.light.backgroundElevated,
   },
   scheduleChipActive: {
@@ -1076,92 +1308,16 @@ const styles = StyleSheet.create({
   },
   scheduleLabel: {
     color: colors.light.textMuted,
-    marginTop: 4,
-  },
-  quoteBox: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: colors.light.backgroundElevated,
-  },
-  quoteTitle: {
-    fontWeight: '700',
-    color: colors.light.textPrimary,
-    marginBottom: 6,
-  },
-  quoteText: {
-    color: colors.light.textSecondary,
-  },
-  previewBox: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#000',
-  },
-  previewImage: {
-    width: '100%',
-    height: 220,
-  },
-  uploadOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  removeImage: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  removeImageText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  mentionBox: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-  },
-  mentionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
-  },
-  mentionAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.light.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  mentionAvatarText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  mentionName: {
-    color: colors.light.textPrimary,
-    fontWeight: '700',
-  },
-  mentionHandle: {
-    color: colors.light.textMuted,
+    marginTop: 6,
   },
   footer: {
-    padding: 16,
+    marginTop: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.light.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingTop: 12,
   },
   counter: {
     color: colors.light.textMuted,
@@ -1171,7 +1327,7 @@ const styles = StyleSheet.create({
     color: 'red',
   },
   postButton: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 14,
     backgroundColor: colors.light.accent,
@@ -1183,31 +1339,189 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.light.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+  },
+  modalClose: {
+    fontSize: 28,
+    color: colors.light.textMuted,
+    fontWeight: '300',
+  },
+  modalBody: {
+    maxHeight: 400,
+    padding: 16,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.light.border,
+  },
+  modalButtonPrimary: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.light.accent,
+  },
+  modalButtonPrimaryText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  modalButtonSecondary: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.light.backgroundElevated,
+  },
+  modalButtonSecondaryText: {
+    color: colors.light.textPrimary,
+    fontWeight: '600',
+  },
+  topicGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  emojiCategoryTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.light.border,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  emojiCategoryTab: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginHorizontal: 2,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  emojiCategoryTabActive: {
+    borderBottomColor: colors.light.accent,
+  },
+  emojiCategoryTabText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.light.textMuted,
+  },
+  emojiCategoryTabTextActive: {
+    color: colors.light.accent,
+    fontWeight: '700',
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-start',
+    paddingVertical: 4,
+  },
+  emojiButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiLarge: {
+    fontSize: 24,
+  },
+  schedulePickerContent: {
+    gap: 12,
+  },
+  scheduleInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.light.border,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: colors.light.textPrimary,
+    backgroundColor: colors.light.backgroundElevated,
+  },
+  schedulePreview: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: colors.light.backgroundElevated,
+    borderRadius: 12,
+  },
+  schedulePreviewText: {
+    color: colors.light.textSecondary,
+    fontSize: 14,
+  },
   suggestionLoading: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
   suggestionLoadingText: {
     color: colors.light.textMuted,
     fontSize: 12,
   },
-  selectedTopicContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  clearTopicButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+  inlinePicker: {
+    marginTop: 12,
     backgroundColor: colors.light.backgroundElevated,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.light.border,
+    maxHeight: 300,
+    overflow: 'hidden',
   },
-  clearTopicText: {
+  inlinePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.light.border,
+  },
+  inlinePickerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.light.textPrimary,
-    fontSize: 12,
-    fontWeight: '600',
+  },
+  inlinePickerClose: {
+    fontSize: 20,
+    color: colors.light.textMuted,
+    fontWeight: '300',
+  },
+  inlinePickerBody: {
+    maxHeight: 200,
+    padding: 8,
+  },
+  inlinePickerFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    padding: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.light.border,
   },
 });
 
