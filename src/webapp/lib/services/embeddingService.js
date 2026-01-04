@@ -3,6 +3,7 @@
  *
  * Generates embeddings using OpenAI API through secure proxy
  */
+import { auth } from '../firebase';
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const PROXY_ENDPOINT = '/api/openai-proxy';
 /**
@@ -10,10 +11,16 @@ const PROXY_ENDPOINT = '/api/openai-proxy';
  */
 async function callOpenAIEmbeddingsProxy(body) {
     try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            throw new Error('You must be signed in to generate embeddings.');
+        }
+        const idToken = await currentUser.getIdToken();
         const response = await fetch(PROXY_ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                Authorization: `Bearer ${idToken}`,
             },
             body: JSON.stringify({
                 endpoint: '/v1/embeddings',
