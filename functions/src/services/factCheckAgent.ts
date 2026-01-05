@@ -1,4 +1,4 @@
-import { BaseAgent } from '../agents/baseAgent';
+import { BaseAgent, isAuthenticationError } from '../agents/baseAgent';
 import type { Chirp, Claim, FactCheck } from '../types';
 
 const TRUSTED_DOMAINS = [
@@ -224,6 +224,15 @@ export async function factCheckClaims(chirp: Chirp, claims: Claim[]): Promise<Fa
         const factCheck = await runFactCheckWithWebSearch(chirp, claim);
         results.push(factCheck);
       } catch (error) {
+        // Log authentication errors prominently
+        if (isAuthenticationError(error)) {
+          console.error(
+            `[FactCheckAgent] ⚠️ CRITICAL: Fact-checking claim ${claim.id} with web search failed due to authentication error - OpenAI API key is invalid or expired. Using fallback.`,
+            error
+          );
+        } else {
+          console.error(`[FactCheckAgent] Web search fact-check failed for claim ${claim.id}:`, error);
+        }
         results.push(fallbackFactCheck(claim));
       }
     }
@@ -238,6 +247,15 @@ export async function factCheckClaims(chirp: Chirp, claims: Claim[]): Promise<Fa
       const factCheck = await runFactCheck(chirp, claim, agent);
       results.push(factCheck);
     } catch (error) {
+      // Log authentication errors prominently
+      if (isAuthenticationError(error)) {
+        console.error(
+          `[FactCheckAgent] ⚠️ CRITICAL: Fact-checking claim ${claim.id} failed due to authentication error - OpenAI API key is invalid or expired. Using fallback.`,
+          error
+        );
+      } else {
+        console.error(`[FactCheckAgent] Error fact-checking claim ${claim.id}:`, error);
+      }
       results.push(fallbackFactCheck(claim));
     }
   }

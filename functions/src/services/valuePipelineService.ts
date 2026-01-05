@@ -8,7 +8,8 @@ import { generateValueExplanation } from './explainerAgent';
 import { evaluatePolicy } from './policyEngine';
 import { recordPostValue, recordCommentValue } from './reputationService';
 import { updateKurralScore } from './kurralScoreService';
-import { preCheckChirp, preCheckComment, type PreCheckResult } from './factCheckPreCheckAgent';
+import { preCheckChirp, preCheckComment, calculateContentRiskScore, type PreCheckResult } from './factCheckPreCheckAgent';
+import { isAuthenticationError } from '../agents/baseAgent';
 
 const DELTA_THRESHOLD = 0.01;
 const MAX_RETRIES = 3;
@@ -51,6 +52,16 @@ async function withRetry<T>(
       return await fn();
     } catch (error: any) {
       lastError = error;
+      
+      // Authentication errors should NOT be retried - they're not transient
+      if (isAuthenticationError(error)) {
+        console.error(
+          `[ValuePipeline] ${operation} failed due to authentication error - API key is invalid or expired. This error will NOT be retried.`,
+          error
+        );
+        throw error; // Fail immediately, don't retry
+      }
+      
       const isRateLimit =
         error?.message?.includes('rate limit') ||
         error?.message?.includes('RATE_LIMIT') ||
@@ -260,8 +271,17 @@ export async function processChirpValue(
     }
   };
 
+  const riskScore = calculateContentRiskScore({
+    text: chirp.text,
+    topic: chirp.topic,
+    semanticTopics: chirp.semanticTopics,
+    entities: chirp.entities,
+    imageUrl: chirp.imageUrl,
+  });
+
   let preCheckResult: PreCheckResult | undefined;
-  let shouldProceedWithFactCheck = false;
+  // Fail-open bias: start based on risk (medium/high -> true)
+  let shouldProceedWithFactCheck = riskScore >= 0.4;
 
   if (chirp.rechirpOfId) {
     try {
@@ -344,7 +364,13 @@ export async function processChirpValue(
     }
   } else {
     preCheckResult = await safeExecute('pre-check', () => withRetry(() => preCheckChirp(chirp), 'pre-check'));
-    shouldProceedWithFactCheck = preCheckResult?.needsFactCheck ?? false;
+    shouldProceedWithFactCheck =
+      preCheckResult?.needsFactCheck ?? (riskScore >= 0.4 ? true : false);
+  }
+
+  // Override: high risk should still be checked even if pre-check skipped
+  if (!shouldProceedWithFactCheck && riskScore > 0.7) {
+    shouldProceedWithFactCheck = true;
   }
 
   let claimsResult = chirp.claims;
@@ -752,7 +778,15 @@ export async function processCommentValue(comment: Comment): Promise<{
       try {
         return await fn();
       } catch (error) {
-        console.error(`[ValuePipeline] ${label} failed:`, error);
+        // Log authentication errors prominently
+        if (isAuthenticationError(error)) {
+          console.error(
+            `[ValuePipeline] ⚠️ CRITICAL: ${label} failed due to authentication error - OpenAI API key is invalid or expired. Please update the OPENAI_API_KEY secret.`,
+            error
+          );
+        } else {
+          console.error(`[ValuePipeline] ${label} failed:`, error);
+        }
         return undefined;
       }
     };
@@ -763,8 +797,16 @@ export async function processCommentValue(comment: Comment): Promise<{
       factCheckStatus?: 'clean' | 'needs_review' | 'blocked';
     } = {};
 
+    const riskScore = calculateContentRiskScore({
+      text: comment.text,
+      topic: undefined,
+      semanticTopics: undefined,
+      entities: undefined,
+      imageUrl: comment.imageUrl,
+    });
+
     let preCheckResult: PreCheckResult | undefined;
-    let shouldProceedWithFactCheck = false;
+    let shouldProceedWithFactCheck = riskScore >= 0.4;
 
     let claimsResult = comment.claims;
 
@@ -772,10 +814,15 @@ export async function processCommentValue(comment: Comment): Promise<{
       preCheckResult = await safeExecute('pre-check (comment)', () =>
         withRetry(() => preCheckComment(comment), 'pre-check')
       );
-      shouldProceedWithFactCheck = preCheckResult?.needsFactCheck ?? false;
+      shouldProceedWithFactCheck =
+        preCheckResult?.needsFactCheck ?? (riskScore >= 0.4 ? true : false);
     } else {
       shouldProceedWithFactCheck = true;
       commentInsights.claims = claimsResult;
+    }
+
+    if (!shouldProceedWithFactCheck && riskScore > 0.7) {
+      shouldProceedWithFactCheck = true;
     }
 
     if (!claimsResult || claimsResult.length === 0) {

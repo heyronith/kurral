@@ -242,6 +242,9 @@ const ComposerModal = () => {
     allowNonFollowers: false,
   });
   const [isPosting, setIsPosting] = useState(false);
+  const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<string>('Analyzing your post...');
+  const [analysisDecision, setAnalysisDecision] = useState<string | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -571,6 +574,11 @@ const ComposerModal = () => {
   const handlePost = async () => {
     if (!canPost || !user) return;
     setIsPosting(true);
+    setAnalysisVisible(true);
+    setAnalysisStatus('Analyzing your post...');
+    setAnalysisDecision(null);
+    // Close composer modal to show analysis modal
+    close();
     try {
       const trimmed = text.trim();
       const formatted = buildFormattedText(trimmed);
@@ -700,13 +708,27 @@ const ComposerModal = () => {
         chirpData.analyzedAt = analysisTimestamp;
       }
 
-      await addChirp(chirpData);
-      close();
+      setAnalysisStatus('Running fact-check and content analysis...');
+      const processed = await addChirp(chirpData, { waitForProcessing: true });
+
+      const decision = processed.factCheckStatus || 'clean';
+      if (decision === 'blocked') {
+        setAnalysisStatus('Post blocked');
+        setAnalysisDecision('This post was blocked and will only be visible to you in your profile.');
+      } else if (decision === 'needs_review') {
+        setAnalysisStatus('Needs review');
+        setAnalysisDecision('Your post is visible with a review badge and has been sent to reviewers.');
+      } else {
+        setAnalysisStatus('Approved');
+        setAnalysisDecision('Your post is approved and published to feeds.');
+      }
+      // Don't reset state or close modal yet - wait for user to click OK on analysis modal
     } catch (error) {
       console.error('[Composer] failed to post', error);
-      alert('Unable to post right now. Please try again.');
-    } finally {
+      setAnalysisStatus('Post failed');
+      setAnalysisDecision('Unable to post right now. Please try again.');
       setIsPosting(false);
+      // Don't reset state on error - let user see the error and click OK
     }
   };
 
@@ -771,6 +793,7 @@ const ComposerModal = () => {
   };
 
   return (
+    <>
     <Modal visible={isOpen} animationType="slide" transparent>
       <View style={styles.backdrop}>
         <View style={styles.container}>
@@ -1071,6 +1094,37 @@ const ComposerModal = () => {
         </View>
       </View>
     </Modal>
+
+      {/* Analysis modal */}
+      <Modal visible={analysisVisible} animationType="fade" transparent>
+        <View style={styles.analysisBackdrop}>
+          <View style={styles.analysisCard}>
+            <Text style={styles.analysisTitle}>Post analysis</Text>
+            <Text style={styles.analysisStatus}>{analysisStatus}</Text>
+            {!analysisDecision && (
+              <ActivityIndicator style={{ marginTop: 12 }} color={colors.light.accent} />
+            )}
+            {analysisDecision && (
+              <Text style={styles.analysisDecision}>{analysisDecision}</Text>
+            )}
+            {analysisDecision && (
+              <TouchableOpacity
+                style={styles.analysisButton}
+                onPress={() => {
+                  setAnalysisVisible(false);
+                  setAnalysisStatus('Analyzing your post...');
+                  setAnalysisDecision(null);
+                  resetState();
+                  close();
+                }}
+              >
+                <Text style={styles.analysisButtonText}>OK</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -1112,6 +1166,49 @@ const styles = StyleSheet.create({
   closeText: {
     color: colors.light.textMuted,
     fontWeight: '600',
+  },
+  analysisBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  analysisCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
+  },
+  analysisTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    marginBottom: 8,
+  },
+  analysisStatus: {
+    fontSize: 14,
+    color: colors.light.textSecondary,
+    textAlign: 'center',
+  },
+  analysisDecision: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.light.textPrimary,
+    textAlign: 'center',
+  },
+  analysisButton: {
+    marginTop: 16,
+    backgroundColor: colors.light.accent,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  analysisButtonText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   inputArea: {
     marginTop: 12,

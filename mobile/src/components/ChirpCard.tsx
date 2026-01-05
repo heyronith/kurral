@@ -6,10 +6,16 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { Chirp, User } from '../types';
 import { colors } from '../theme/colors';
 import { useUserStore } from '../stores/useUserStore';
+import FactCheckStatusModal from './FactCheckStatusModal';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
 const formatTimeAgo = (date: Date) => {
+  // Validate date
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return 'recently';
+  }
+  
   const now = Date.now();
   const diffMs = Math.max(0, now - date.getTime());
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
@@ -32,6 +38,7 @@ type Props = {
 const ChirpCard: React.FC<Props> = ({ chirp }) => {
   const navigation = useNavigation<NavigationProp>();
   const loadUser = useUserStore((state) => state.loadUser);
+  const [showFactCheckModal, setShowFactCheckModal] = useState(false);
   
   // Subscribe to user from store (will update reactively)
   const author = useUserStore((state) => state.users[chirp.authorId]);
@@ -43,10 +50,20 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
     }
   }, [chirp.authorId, author, loadUser]);
 
-  const createdAt =
-    chirp.createdAt instanceof Date
-      ? chirp.createdAt
-      : new Date(chirp.createdAt);
+  // Safely convert createdAt to Date, with fallback
+  let createdAt: Date;
+  if (chirp.createdAt instanceof Date) {
+    createdAt = chirp.createdAt;
+  } else if (chirp.createdAt) {
+    createdAt = new Date(chirp.createdAt);
+    // If conversion failed, use current date as fallback
+    if (isNaN(createdAt.getTime())) {
+      createdAt = new Date();
+    }
+  } else {
+    // If createdAt is missing, use current date as fallback
+    createdAt = new Date();
+  }
   const topicLabel = chirp.topic || 'general';
   
   // Use author info if available, fallback to defaults
@@ -69,8 +86,53 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
     navigation.navigate('PostDetail', { postId: chirp.id });
   };
 
+  const handleFactCheckPress = () => {
+    setShowFactCheckModal(true);
+  };
+
+  const getFactCheckStyle = () => {
+    if (!chirp.factCheckStatus) return null;
+    switch (chirp.factCheckStatus) {
+      case 'clean':
+        return {
+          backgroundColor: 'rgba(16, 185, 129, 0.2)',
+          iconColor: '#10B981',
+          icon: '✓',
+        };
+      case 'needs_review':
+        return {
+          backgroundColor: 'rgba(245, 158, 11, 0.2)',
+          iconColor: '#F59E0B',
+          icon: '⚠',
+        };
+      case 'blocked':
+        return {
+          backgroundColor: 'rgba(239, 68, 68, 0.2)',
+          iconColor: '#EF4444',
+          icon: '✗',
+        };
+      default:
+        return null;
+    }
+  };
+
+  const factCheckStyle = getFactCheckStyle();
+
   return (
     <TouchableOpacity style={styles.card} onPress={handleCardPress} activeOpacity={0.7}>
+      {/* Fact-check status badge - top right */}
+      {chirp.factCheckStatus && factCheckStyle && (
+        <TouchableOpacity
+          style={[styles.factCheckBadge, { backgroundColor: factCheckStyle.backgroundColor }]}
+          onPress={handleFactCheckPress}
+          activeOpacity={0.8}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={[styles.factCheckIcon, { color: factCheckStyle.iconColor }]}>
+            {factCheckStyle.icon}
+          </Text>
+        </TouchableOpacity>
+      )}
       <View style={styles.header}>
         <View style={styles.avatar}>
           {author?.profilePictureUrl ? (
@@ -114,6 +176,13 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
         </Text>
         </View>
       </View>
+      
+      {/* Fact-check status modal */}
+      <FactCheckStatusModal
+        visible={showFactCheckModal}
+        onClose={() => setShowFactCheckModal(false)}
+        chirp={chirp}
+      />
     </TouchableOpacity>
   );
 };
@@ -126,6 +195,22 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.light.border,
     marginBottom: 12,
+    position: 'relative',
+  },
+  factCheckBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  factCheckIcon: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   header: {
     flexDirection: 'row',

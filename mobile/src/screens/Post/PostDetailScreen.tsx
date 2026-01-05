@@ -17,12 +17,18 @@ import { chirpService } from '../../services/chirpService';
 import { useUserStore } from '../../stores/useUserStore';
 import { useFeedStore } from '../../stores/useFeedStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import FactCheckStatusModal from '../../components/FactCheckStatusModal';
 
 type RouteParams = {
   postId: string;
 };
 
 const formatTimeAgo = (date: Date) => {
+  // Validate date
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return 'recently';
+  }
+  
   const now = Date.now();
   const diffMs = Math.max(0, now - date.getTime());
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
@@ -48,6 +54,7 @@ const PostDetailScreen = () => {
   const [chirp, setChirp] = useState<Chirp | null>(null);
   const [author, setAuthor] = useState<User | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [showFactCheckModal, setShowFactCheckModal] = useState(false);
 
   useEffect(() => {
     if (!postId) {
@@ -145,14 +152,52 @@ const PostDetailScreen = () => {
     );
   }
 
-  const createdAt =
-    chirp.createdAt instanceof Date
-      ? chirp.createdAt
-      : new Date(chirp.createdAt);
+  // Safely convert createdAt to Date, with fallback
+  let createdAt: Date;
+  if (chirp.createdAt instanceof Date) {
+    createdAt = chirp.createdAt;
+  } else if (chirp.createdAt) {
+    createdAt = new Date(chirp.createdAt);
+    // If conversion failed, use current date as fallback
+    if (isNaN(createdAt.getTime())) {
+      createdAt = new Date();
+    }
+  } else {
+    // If createdAt is missing, use current date as fallback
+    createdAt = new Date();
+  }
   const topicLabel = chirp.topic || 'general';
   const displayName = author?.name || 'Unknown User';
   const displayHandle = author?.handle || chirp.authorId?.slice(0, 8) || 'unknown';
   const avatarLetter = getInitial(author?.name || author?.handle || chirp.authorId);
+
+  const getFactCheckStyle = () => {
+    if (!chirp.factCheckStatus) return null;
+    switch (chirp.factCheckStatus) {
+      case 'clean':
+        return {
+          backgroundColor: 'rgba(16, 185, 129, 0.2)',
+          iconColor: '#10B981',
+          icon: '✓',
+        };
+      case 'needs_review':
+        return {
+          backgroundColor: 'rgba(245, 158, 11, 0.2)',
+          iconColor: '#F59E0B',
+          icon: '⚠',
+        };
+      case 'blocked':
+        return {
+          backgroundColor: 'rgba(239, 68, 68, 0.2)',
+          iconColor: '#EF4444',
+          icon: '✗',
+        };
+      default:
+        return null;
+    }
+  };
+
+  const factCheckStyle = getFactCheckStyle();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -183,6 +228,19 @@ const PostDetailScreen = () => {
                 @{displayHandle} · {formatTimeAgo(createdAt)}
               </Text>
             </View>
+            
+            {/* Fact-check status badge - top right */}
+            {chirp.factCheckStatus && factCheckStyle && (
+              <TouchableOpacity
+                style={[styles.factCheckBadge, { backgroundColor: factCheckStyle.backgroundColor }]}
+                onPress={() => setShowFactCheckModal(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.factCheckIcon, { color: factCheckStyle.iconColor }]}>
+                  {factCheckStyle.icon}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <Text style={styles.body}>{chirp.text}</Text>
@@ -211,6 +269,15 @@ const PostDetailScreen = () => {
           </Text>
         </View>
       </ScrollView>
+      
+      {/* Fact-check status modal */}
+      {chirp && (
+        <FactCheckStatusModal
+          visible={showFactCheckModal}
+          onClose={() => setShowFactCheckModal(false)}
+          chirp={chirp}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -267,6 +334,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    position: 'relative',
+  },
+  factCheckBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  factCheckIcon: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   avatar: {
     width: 48,

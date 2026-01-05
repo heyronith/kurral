@@ -266,6 +266,109 @@ const FactCheckStatusPopup = ({ open, onClose, chirp, onChirpUpdated }: FactChec
               No claims have been extracted from this post yet.
             </div>
           ) : null}
+
+          {/* Value Score Section */}
+          {chirp.valueScore && (
+            <div className="mb-6 pb-6 border-b border-border/50">
+              <h3 className="text-sm font-semibold text-textPrimary mb-3">Value Score</h3>
+              <div className="p-4 bg-backgroundElevated/40 rounded-lg border border-border/50">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="text-2xl">⭐</div>
+                  <div className="flex-1">
+                    <div className="text-2xl font-bold text-textPrimary">
+                      {(chirp.valueScore.total * 100).toFixed(0)}
+                    </div>
+                    <div className="text-xs text-textMuted">Overall Value Score</div>
+                  </div>
+                  {chirp.valueScore.confidence && (
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-textPrimary">
+                        {(chirp.valueScore.confidence * 100).toFixed(0)}%
+                      </div>
+                      <div className="text-xs text-textMuted">Confidence</div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Value Score Breakdown */}
+                <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-border/30">
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Epistemic</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.valueScore.epistemic * 100).toFixed(0)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Insight</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.valueScore.insight * 100).toFixed(0)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Practical</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.valueScore.practical * 100).toFixed(0)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Relational</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.valueScore.relational * 100).toFixed(0)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Value Explanation */}
+                {chirp.valueExplanation && (
+                  <div className="mt-4 pt-4 border-t border-border/30">
+                    <div className="text-xs font-semibold text-textPrimary mb-2">Explanation</div>
+                    <p className="text-sm text-textMuted leading-relaxed">{chirp.valueExplanation}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Discussion Quality Section */}
+          {chirp.discussionQuality && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-textPrimary mb-3">Discussion Quality</h3>
+              <div className="p-4 bg-backgroundElevated/40 rounded-lg border border-border/50">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Informativeness</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.discussionQuality.informativeness * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Civility</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.discussionQuality.civility * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Reasoning Depth</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.discussionQuality.reasoningDepth * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-textMuted mb-1">Cross-Perspective</div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {(chirp.discussionQuality.crossPerspective * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                </div>
+                {chirp.discussionQuality.summary && (
+                  <div className="mt-4 pt-4 border-t border-border/30">
+                    <div className="text-xs font-semibold text-textPrimary mb-2">Summary</div>
+                    <p className="text-sm text-textMuted leading-relaxed">{chirp.discussionQuality.summary}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

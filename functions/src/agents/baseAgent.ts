@@ -7,6 +7,71 @@ const DEFAULT_MAX_TOKENS = 1024;
 
 let cachedClient: OpenAI | null = null;
 
+/**
+ * Custom error class for OpenAI API authentication failures
+ */
+export class OpenAIAuthenticationError extends Error {
+  readonly statusCode: number;
+  readonly code: string;
+  readonly isAuthenticationError: boolean = true;
+
+  constructor(message: string, statusCode: number = 401, code: string = 'invalid_api_key') {
+    super(message);
+    this.name = 'OpenAIAuthenticationError';
+    this.statusCode = statusCode;
+    this.code = code;
+    Object.setPrototypeOf(this, OpenAIAuthenticationError.prototype);
+  }
+}
+
+/**
+ * Custom error class for JSON parsing errors (not authentication)
+ */
+export class OpenAIJSONParseError extends Error {
+  readonly rawResponse: string;
+  readonly isJSONParseError: boolean = true;
+
+  constructor(message: string, rawResponse: string = '') {
+    super(message);
+    this.name = 'OpenAIJSONParseError';
+    this.rawResponse = rawResponse;
+    Object.setPrototypeOf(this, OpenAIJSONParseError.prototype);
+  }
+}
+
+/**
+ * Helper function to check if an error is an authentication error
+ */
+export function isAuthenticationError(error: any): boolean {
+  if (error instanceof OpenAIAuthenticationError) {
+    return true;
+  }
+  // Check OpenAI API error structure
+  if (error?.status === 401 || error?.code === 'invalid_api_key' || error?.code === 'authentication_error') {
+    return true;
+  }
+  // Check error message patterns
+  const message = error?.message || '';
+  return (
+    message.includes('401') ||
+    message.includes('Incorrect API key') ||
+    message.includes('invalid_api_key') ||
+    message.includes('authentication') ||
+    message.includes('Unauthorized')
+  );
+}
+
+/**
+ * Helper function to extract error details from OpenAI errors
+ */
+function extractErrorDetails(error: any): { message: string; statusCode?: number; code?: string } {
+  const statusCode = error?.status || error?.statusCode || error?.response?.status;
+  const code = error?.code || error?.error?.code;
+  const message = error?.message || error?.error?.message || 'Unknown OpenAI error';
+
+  return { message, statusCode, code };
+}
+
 const getApiKey = (): string => {
   return (
     process.env.OPENAI_API_KEY ||
@@ -62,8 +127,24 @@ export class BaseAgent {
       }
       return text.trim();
     } catch (error: any) {
-      logger.error('[BaseAgent] OpenAI error', error);
-      const message = error?.message || 'Unknown OpenAI error';
+      const { message, statusCode, code } = extractErrorDetails(error);
+      
+      // Check for authentication errors
+      if (isAuthenticationError(error)) {
+        logger.error('[BaseAgent] OpenAI authentication error - API key is invalid or expired', {
+          statusCode,
+          code,
+          message,
+          model: this.modelName,
+        });
+        throw new OpenAIAuthenticationError(
+          `OpenAI API authentication failed: ${message}. Please verify the OPENAI_API_KEY secret is valid.`,
+          statusCode || 401,
+          code || 'invalid_api_key'
+        );
+      }
+      
+      logger.error('[BaseAgent] OpenAI API error', { error, model: this.modelName });
       throw new Error(`AI generation failed: ${message}`);
     }
   }
@@ -118,8 +199,39 @@ export class BaseAgent {
       const parsed = JSON.parse(jsonText);
       return parsed as T;
     } catch (error: any) {
-      logger.error('[BaseAgent] JSON parsing error', error, { rawResponse });
-      throw new Error(`Failed to parse AI response as JSON: ${error.message}`);
+      // Check if this is an authentication error (from the API call, before JSON parsing)
+      if (isAuthenticationError(error)) {
+        const { message, statusCode, code } = extractErrorDetails(error);
+        logger.error('[BaseAgent] OpenAI authentication error - API key is invalid or expired', {
+          statusCode,
+          code,
+          message,
+          model: this.modelName,
+        });
+        throw new OpenAIAuthenticationError(
+          `OpenAI API authentication failed: ${message}. Please verify the OPENAI_API_KEY secret is valid.`,
+          statusCode || 401,
+          code || 'invalid_api_key'
+        );
+      }
+      
+      // Check if this is a JSON parsing error (after getting a response)
+      if (error instanceof SyntaxError || error.name === 'SyntaxError') {
+        logger.error('[BaseAgent] JSON parsing error - failed to parse AI response', {
+          error: error.message,
+          rawResponse: rawResponse.substring(0, 500), // Log first 500 chars
+          model: this.modelName,
+        });
+        throw new OpenAIJSONParseError(
+          `Failed to parse AI response as JSON: ${error.message}`,
+          rawResponse
+        );
+      }
+      
+      // Other errors (network, timeout, etc.)
+      logger.error('[BaseAgent] OpenAI API error', { error, model: this.modelName });
+      const { message } = extractErrorDetails(error);
+      throw new Error(`OpenAI API error: ${message}`);
     }
   }
 
@@ -176,8 +288,39 @@ export class BaseAgent {
       const parsed = JSON.parse(jsonText);
       return parsed as T;
     } catch (error: any) {
-      logger.error('[BaseAgent] JSON parsing error (vision)', error, { rawResponse });
-      throw new Error(`Failed to parse AI vision response as JSON: ${error.message}`);
+      // Check if this is an authentication error (from the API call, before JSON parsing)
+      if (isAuthenticationError(error)) {
+        const { message, statusCode, code } = extractErrorDetails(error);
+        logger.error('[BaseAgent] OpenAI authentication error - API key is invalid or expired (vision)', {
+          statusCode,
+          code,
+          message,
+          model: this.modelName,
+        });
+        throw new OpenAIAuthenticationError(
+          `OpenAI API authentication failed: ${message}. Please verify the OPENAI_API_KEY secret is valid.`,
+          statusCode || 401,
+          code || 'invalid_api_key'
+        );
+      }
+      
+      // Check if this is a JSON parsing error (after getting a response)
+      if (error instanceof SyntaxError || error.name === 'SyntaxError') {
+        logger.error('[BaseAgent] JSON parsing error - failed to parse AI vision response', {
+          error: error.message,
+          rawResponse: rawResponse.substring(0, 500), // Log first 500 chars
+          model: this.modelName,
+        });
+        throw new OpenAIJSONParseError(
+          `Failed to parse AI vision response as JSON: ${error.message}`,
+          rawResponse
+        );
+      }
+      
+      // Other errors (network, timeout, etc.)
+      logger.error('[BaseAgent] OpenAI API error (vision)', { error, model: this.modelName });
+      const { message } = extractErrorDetails(error);
+      throw new Error(`OpenAI API error: ${message}`);
     }
   }
 

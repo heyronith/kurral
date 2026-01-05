@@ -1,6 +1,84 @@
 import { BaseAgent } from '../agents/baseAgent';
 import type { Chirp, Comment } from '../types';
 
+type RiskInput = {
+  text?: string | null;
+  topic?: string | null;
+  semanticTopics?: string[] | null;
+  entities?: string[] | null;
+  imageUrl?: string | null;
+};
+
+const HIGH_RISK_TOPICS = ['health', 'medical', 'finance', 'money', 'invest', 'stocks', 'economy', 'politics', 'election', 'climate'];
+const HIGH_RISK_KEYWORDS = [
+  'cure',
+  'vaccine',
+  'treatment',
+  'cancer',
+  'covid',
+  'virus',
+  'inflation',
+  'recession',
+  'investment',
+  'returns',
+  'guaranteed',
+  'election',
+  'vote',
+  'fraud',
+  'war',
+  'nuclear',
+];
+const STAT_INDICATORS = [/\d+%/, /\d+ out of \d+/, /\d{4}/, /\b(million|billion|trillion)\b/i];
+const AUTHORITY_INDICATORS = [/according to/i, /study shows/i, /research indicates/i, /experts? (say|claim)/i, /scientists/i, /doctors/i];
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
+export const calculateContentRiskScore = (input: RiskInput): number => {
+  const text = (input.text || '').toLowerCase();
+  const topic = (input.topic || '').toLowerCase();
+  const semanticTopics = (input.semanticTopics || []).map((t) => (t || '').toLowerCase());
+  const entities = (input.entities || []).map((e) => (e || '').toLowerCase());
+
+  let score = 0.2; // base
+
+  const bump = (v: number) => {
+    score += v;
+  };
+
+  const containsAny = (haystack: string, patterns: RegExp[]) => patterns.some((p) => p.test(haystack));
+  const containsAnyKeyword = (haystack: string, keywords: string[]) =>
+    keywords.some((kw) => kw.length > 0 && haystack.includes(kw));
+
+  // Topic/semantic topic risk
+  const topicMatchesHighRisk =
+    containsAnyKeyword(topic, HIGH_RISK_TOPICS) ||
+    semanticTopics.some((t) => containsAnyKeyword(t, HIGH_RISK_TOPICS));
+  if (topicMatchesHighRisk) bump(0.25);
+
+  // Entities risk
+  if (entities.some((e) => containsAnyKeyword(e, HIGH_RISK_TOPICS))) bump(0.15);
+
+  // Statistical indicators
+  if (containsAny(text, STAT_INDICATORS)) bump(0.2);
+
+  // Authority indicators
+  if (containsAny(text, AUTHORITY_INDICATORS)) bump(0.15);
+
+  // High-risk keywords
+  if (containsAnyKeyword(text, HIGH_RISK_KEYWORDS)) bump(0.2);
+
+  // Length heuristic
+  const len = (input.text || '').length;
+  if (len > 200) bump(0.1);
+  else if (len < 40) bump(-0.05);
+
+  // Image present slightly increases risk (could contain claims)
+  if (input.imageUrl && input.imageUrl.trim().length > 0) bump(0.05);
+
+  // Normalize
+  return clamp01(score);
+};
+
 const SYSTEM_PROMPT = `You are a pre-check agent for a fact-checking system. Your job is to determine if content needs fact-checking.
 
 Analyze the provided content and decide if it contains verifiable factual claims that should be fact-checked.
@@ -81,22 +159,11 @@ export type PreCheckResult = {
   contentType: PreCheckResponse['contentType'];
 };
 
-const fallbackPreCheck = (text: string): PreCheckResult => {
-  const lowerText = text.toLowerCase();
-  const factualIndicators = [
-    /\d+%/,
-    /\d+ out of \d+/,
-    /according to/,
-    /study shows/,
-    /research indicates/,
-    /scientists say/,
-    /experts claim/,
-    /\d{4}/,
-    /million|billion/,
-    /proven|evidence|data|statistics/,
-  ];
-  const hasFactualIndicators = factualIndicators.some((pattern) => pattern.test(lowerText));
+const fallbackPreCheck = (input: RiskInput): PreCheckResult => {
+  const text = (input.text || '').toLowerCase();
+  const riskScore = calculateContentRiskScore(input);
 
+  const hasFactualIndicators = STAT_INDICATORS.some((pattern) => pattern.test(text)) || AUTHORITY_INDICATORS.some((pattern) => pattern.test(text));
   const opinionIndicators = [
     /^i think/i,
     /^i believe/i,
@@ -110,37 +177,46 @@ const fallbackPreCheck = (text: string): PreCheckResult => {
     /^what do you think/i,
     /^can someone/i,
   ];
-  const hasOpinionIndicators = opinionIndicators.some((pattern) => pattern.test(text));
+  const hasOpinionIndicators = opinionIndicators.some((pattern) => pattern.test(input.text || ''));
 
-  if (hasFactualIndicators && !hasOpinionIndicators) {
+  // Fail-open for ambiguous/medium risk
+  if (riskScore > 0.7 || (hasFactualIndicators && !hasOpinionIndicators)) {
     return {
       needsFactCheck: true,
-      confidence: 0.6,
-      reasoning: 'Heuristic detection: Contains factual indicators',
-      contentType: 'factual_claim',
+      confidence: Math.max(0.6, riskScore),
+      reasoning: 'Heuristic: high-risk indicators present',
+      contentType: hasOpinionIndicators ? 'mixed' : 'factual_claim',
     };
   }
 
-  if (hasOpinionIndicators && !hasFactualIndicators) {
+  if (hasOpinionIndicators && !hasFactualIndicators && riskScore < 0.4) {
     return {
       needsFactCheck: false,
-      confidence: 0.7,
-      reasoning: 'Heuristic detection: Contains opinion/experience indicators',
+      confidence: Math.max(0.7, 1 - riskScore),
+      reasoning: 'Heuristic: opinion/experience indicators with low risk',
       contentType: 'opinion',
     };
   }
 
+  // Ambiguous → proceed (needsFactCheck: true) to avoid false negatives
   return {
-    needsFactCheck: false,
-    confidence: 0.5,
-    reasoning: 'Heuristic detection: Unclear content type, defaulting to skip',
-    contentType: 'other',
+    needsFactCheck: true,
+    confidence: Math.max(0.5, riskScore),
+    reasoning: 'Heuristic: ambiguous content, fail-open to fact-check',
+    contentType: hasOpinionIndicators && hasFactualIndicators ? 'mixed' : 'other',
   };
 };
 
 export async function preCheckChirp(chirp: Chirp): Promise<PreCheckResult> {
   const hasText = chirp.text?.trim() && chirp.text.trim().length > 0;
   const hasImage = chirp.imageUrl && chirp.imageUrl.trim().length > 0;
+  const riskScore = calculateContentRiskScore({
+    text: chirp.text,
+    topic: chirp.topic,
+    semanticTopics: chirp.semanticTopics,
+    entities: chirp.entities,
+    imageUrl: chirp.imageUrl,
+  });
 
   if (!hasText && !hasImage) {
     return {
@@ -151,8 +227,33 @@ export async function preCheckChirp(chirp: Chirp): Promise<PreCheckResult> {
     };
   }
 
+  // Risk-based shortcuts
+  if (riskScore > 0.7) {
+    return {
+      needsFactCheck: true,
+      confidence: riskScore,
+      reasoning: 'Risk score high, proceeding to fact-check',
+      contentType: 'factual_claim',
+    };
+  }
+
+  if (riskScore < 0.3 && !hasImage) {
+    return {
+      needsFactCheck: false,
+      confidence: 0.8,
+      reasoning: 'Risk score low, skipping fact-check',
+      contentType: 'other',
+    };
+  }
+
   if (!BaseAgent.isAvailable()) {
-    return fallbackPreCheck(chirp.text || '');
+    return fallbackPreCheck({
+      text: chirp.text,
+      topic: chirp.topic,
+      semanticTopics: chirp.semanticTopics,
+      entities: chirp.entities,
+      imageUrl: chirp.imageUrl,
+    });
   }
 
   const agent = new BaseAgent('gpt-4o-mini');
@@ -200,20 +301,42 @@ Analyze this content and determine if it needs fact-checking. Follow the decisio
       response = await agent.generateJSON<PreCheckResponse>(prompt, SYSTEM_PROMPT, PRECHECK_RESPONSE_SCHEMA);
     }
 
-    return {
+    const result: PreCheckResult = {
       needsFactCheck: Boolean(response.needsFactCheck),
       confidence: Math.max(0, Math.min(1, Number(response.confidence) || 0.5)),
       reasoning: String(response.reasoning || 'Agent analysis'),
       contentType: response.contentType || 'other',
     };
+    // Confidence-based override: if skip with low confidence and medium/high risk, proceed
+    if (!result.needsFactCheck && (result.confidence < 0.8 && riskScore >= 0.4)) {
+      return {
+        ...result,
+        needsFactCheck: true,
+        reasoning: `${result.reasoning} | Overridden due to risk/low confidence`,
+      };
+    }
+    return result;
   } catch (error) {
-    return fallbackPreCheck(chirp.text || '');
+    return fallbackPreCheck({
+      text: chirp.text,
+      topic: chirp.topic,
+      semanticTopics: chirp.semanticTopics,
+      entities: chirp.entities,
+      imageUrl: chirp.imageUrl,
+    });
   }
 }
 
 export async function preCheckComment(comment: Comment): Promise<PreCheckResult> {
   const hasText = comment.text?.trim() && comment.text.trim().length > 0;
   const hasImage = comment.imageUrl && comment.imageUrl.trim().length > 0;
+  const riskScore = calculateContentRiskScore({
+    text: comment.text,
+    topic: undefined,
+    semanticTopics: undefined,
+    entities: undefined,
+    imageUrl: comment.imageUrl,
+  });
 
   if (!hasText && !hasImage) {
     return {
@@ -224,8 +347,32 @@ export async function preCheckComment(comment: Comment): Promise<PreCheckResult>
     };
   }
 
+  if (riskScore > 0.7) {
+    return {
+      needsFactCheck: true,
+      confidence: riskScore,
+      reasoning: 'Risk score high, proceeding to fact-check',
+      contentType: 'factual_claim',
+    };
+  }
+
+  if (riskScore < 0.3 && !hasImage) {
+    return {
+      needsFactCheck: false,
+      confidence: 0.8,
+      reasoning: 'Risk score low, skipping fact-check',
+      contentType: 'other',
+    };
+  }
+
   if (!BaseAgent.isAvailable()) {
-    return fallbackPreCheck(comment.text || '');
+    return fallbackPreCheck({
+      text: comment.text,
+      topic: undefined,
+      semanticTopics: undefined,
+      entities: undefined,
+      imageUrl: comment.imageUrl,
+    });
   }
 
   const agent = new BaseAgent('gpt-4o-mini');
@@ -273,20 +420,41 @@ Analyze this comment/reply and determine if it contains verifiable factual claim
       response = await agent.generateJSON<PreCheckResponse>(prompt, SYSTEM_PROMPT, PRECHECK_RESPONSE_SCHEMA);
     }
 
-    return {
+    const result: PreCheckResult = {
       needsFactCheck: Boolean(response.needsFactCheck),
       confidence: Math.max(0, Math.min(1, Number(response.confidence) || 0.5)),
       reasoning: String(response.reasoning || 'Agent analysis'),
       contentType: response.contentType || 'other',
     };
+    if (!result.needsFactCheck && (result.confidence < 0.8 && riskScore >= 0.4)) {
+      return {
+        ...result,
+        needsFactCheck: true,
+        reasoning: `${result.reasoning} | Overridden due to risk/low confidence`,
+      };
+    }
+    return result;
   } catch (error) {
-    return fallbackPreCheck(comment.text || '');
+    return fallbackPreCheck({
+      text: comment.text,
+      topic: undefined,
+      semanticTopics: undefined,
+      entities: undefined,
+      imageUrl: comment.imageUrl,
+    });
   }
 }
 
 export async function preCheckText(text: string, imageUrl?: string): Promise<PreCheckResult> {
   const hasText = text?.trim() && text.trim().length > 0;
   const hasImage = imageUrl && imageUrl.trim().length > 0;
+  const riskScore = calculateContentRiskScore({
+    text,
+    topic: undefined,
+    semanticTopics: undefined,
+    entities: undefined,
+    imageUrl,
+  });
 
   if (!hasText && !hasImage) {
     return {
@@ -297,8 +465,26 @@ export async function preCheckText(text: string, imageUrl?: string): Promise<Pre
     };
   }
 
+  if (riskScore > 0.7) {
+    return {
+      needsFactCheck: true,
+      confidence: riskScore,
+      reasoning: 'Risk score high, proceeding to fact-check',
+      contentType: 'factual_claim',
+    };
+  }
+
+  if (riskScore < 0.3 && !hasImage) {
+    return {
+      needsFactCheck: false,
+      confidence: 0.8,
+      reasoning: 'Risk score low, skipping fact-check',
+      contentType: 'other',
+    };
+  }
+
   if (!BaseAgent.isAvailable()) {
-    return fallbackPreCheck(text || '');
+    return fallbackPreCheck({ text, topic: undefined, semanticTopics: undefined, entities: undefined, imageUrl });
   }
 
   const agent = new BaseAgent('gpt-4o-mini');
@@ -344,14 +530,22 @@ Follow the decision rules provided.`;
       response = await agent.generateJSON<PreCheckResponse>(prompt, SYSTEM_PROMPT, PRECHECK_RESPONSE_SCHEMA);
     }
 
-    return {
+    const result: PreCheckResult = {
       needsFactCheck: Boolean(response.needsFactCheck),
       confidence: Math.max(0, Math.min(1, Number(response.confidence) || 0.5)),
       reasoning: String(response.reasoning || 'Agent analysis'),
       contentType: response.contentType || 'other',
     };
+    if (!result.needsFactCheck && (result.confidence < 0.8 && riskScore >= 0.4)) {
+      return {
+        ...result,
+        needsFactCheck: true,
+        reasoning: `${result.reasoning} | Overridden due to risk/low confidence`,
+      };
+    }
+    return result;
   } catch (error) {
-    return fallbackPreCheck(text || '');
+    return fallbackPreCheck({ text, topic: undefined, semanticTopics: undefined, entities: undefined, imageUrl });
   }
 }
 

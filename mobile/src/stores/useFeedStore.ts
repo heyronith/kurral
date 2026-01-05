@@ -15,7 +15,10 @@ type FeedState = {
   latestUnsubscribe?: () => void;
   forYouUnsubscribe?: () => void;
   setActiveFeed: (feed: FeedType) => void;
-  addChirp: (chirp: Omit<Chirp, 'id' | 'createdAt' | 'commentCount'>) => Promise<Chirp>;
+  addChirp: (
+    chirp: Omit<Chirp, 'id' | 'createdAt' | 'commentCount'>,
+    options?: { waitForProcessing?: boolean }
+  ) => Promise<Chirp>;
   startLatestListener: (
     followingIds: string[] | undefined | null,
     currentUserId: string,
@@ -51,7 +54,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
   setActiveFeed: (feed) => set({ activeFeed: feed }),
 
-  addChirp: async (chirpData) => {
+  addChirp: async (chirpData, options) => {
     try {
       // Create chirp in Firestore
       const newChirp = await chirpService.createChirp(chirpData);
@@ -72,25 +75,40 @@ export const useFeedStore = create<FeedState>((set, get) => ({
         });
       }
       
-      // Update local state
-      set((state) => ({
-        latest: [newChirp, ...state.latest.filter((c) => c.id !== newChirp.id)],
-        forYou: [newChirp, ...state.forYou.filter((c) => c.id !== newChirp.id)],
-      }));
-      
-      // Trigger value pipeline processing via Firebase Cloud Functions
-      processChirpValue(newChirp)
-        .then((enrichedChirp) => {
-          set((state) => ({
-            latest: state.latest.map((chirp) => (chirp.id === enrichedChirp.id ? enrichedChirp : chirp)),
-            forYou: state.forYou.map((chirp) => (chirp.id === enrichedChirp.id ? enrichedChirp : chirp)),
-          }));
-        })
-        .catch((error) => {
+      // Optionally wait for processing before showing in feeds
+      let processedChirp: Chirp = newChirp;
+      if (options?.waitForProcessing) {
+        try {
+          processedChirp = await processChirpValue(newChirp);
+        } catch (error) {
+          console.error('[ValuePipeline] Failed to process chirp before publish:', error);
+          throw error;
+        }
+      } else {
+        // Fire-and-forget fallback (legacy)
+        processChirpValue(newChirp).catch((error) => {
           console.error('[ValuePipeline] Failed to enrich chirp:', error);
         });
+      }
+
+      // Visibility rules:
+      // - Hide blocked posts from feeds (will only be visible in author profile)
+      // - Hide posts still in fact-checking (pending/in_progress)
+      const isBlocked = processedChirp.factCheckStatus === 'blocked';
+      const isProcessing =
+        processedChirp.factCheckingStatus === 'pending' ||
+        processedChirp.factCheckingStatus === 'in_progress';
+
+      const canShowInFeed = !isBlocked && !isProcessing;
+
+      if (canShowInFeed) {
+      set((state) => ({
+          latest: [processedChirp, ...state.latest.filter((c) => c.id !== processedChirp.id)],
+          forYou: [processedChirp, ...state.forYou.filter((c) => c.id !== processedChirp.id)],
+        }));
+      }
       
-      return newChirp;
+      return processedChirp;
     } catch (error) {
       console.error('Error creating chirp:', error);
       throw error;
@@ -98,6 +116,16 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   },
 
   startLatestListener: (followingIds, currentUserId, max) => {
+    const filterVisibleChirps = (chirps: Chirp[]): Chirp[] =>
+      chirps.filter((chirp) => {
+        const isProcessing =
+          chirp.factCheckingStatus === 'pending' || chirp.factCheckingStatus === 'in_progress';
+        const isBlocked = chirp.factCheckStatus === 'blocked';
+        if (isProcessing) return false;
+        if (isBlocked && chirp.authorId !== currentUserId) return false;
+        return true;
+      });
+
     const { latestUnsubscribe } = get();
     latestUnsubscribe?.();
     set({ latestLoading: true, error: null });
@@ -105,7 +133,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     const unsubscribe = chirpService.listenLatest(
       followingIds,
       currentUserId,
-      (chirps) => set({ latest: chirps, latestLoading: false }),
+      (chirps) => set({ latest: filterVisibleChirps(chirps), latestLoading: false }),
       (err) => set({ error: err?.message ?? 'Failed to load latest feed' }),
       max
     );
@@ -115,6 +143,16 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   },
 
   startForYouListener: (userId, config, max) => {
+    const filterVisibleChirps = (chirps: Chirp[]): Chirp[] =>
+      chirps.filter((chirp) => {
+        const isProcessing =
+          chirp.factCheckingStatus === 'pending' || chirp.factCheckingStatus === 'in_progress';
+        const isBlocked = chirp.factCheckStatus === 'blocked';
+        if (isProcessing) return false;
+        if (isBlocked && chirp.authorId !== userId) return false;
+        return true;
+      });
+
     const { forYouUnsubscribe } = get();
     forYouUnsubscribe?.();
     set({ forYouLoading: true, error: null });
@@ -122,7 +160,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     const unsubscribe = chirpService.listenForYou(
       userId,
       config ?? DEFAULT_FOR_YOU_CONFIG,
-      (chirps) => set({ forYou: chirps, forYouLoading: false }),
+      (chirps) => set({ forYou: filterVisibleChirps(chirps), forYouLoading: false }),
       (err) => set({ error: err?.message ?? 'Failed to load For You feed' }),
       max
     );
@@ -132,10 +170,20 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   },
 
   refreshLatest: async (followingIds, currentUserId, max) => {
+    const filterVisibleChirps = (chirps: Chirp[]): Chirp[] =>
+      chirps.filter((chirp) => {
+        const isProcessing =
+          chirp.factCheckingStatus === 'pending' || chirp.factCheckingStatus === 'in_progress';
+        const isBlocked = chirp.factCheckStatus === 'blocked';
+        if (isProcessing) return false;
+        if (isBlocked && chirp.authorId !== currentUserId) return false;
+        return true;
+      });
+
     try {
       set({ latestLoading: true, error: null });
       const chirps = await chirpService.fetchLatest(followingIds, currentUserId, max);
-      set({ latest: chirps, latestLoading: false });
+      set({ latest: filterVisibleChirps(chirps), latestLoading: false });
     } catch (err: any) {
       set({
         error: err?.message ?? 'Failed to refresh latest feed',
@@ -145,6 +193,16 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   },
 
   refreshForYou: async (userId, config, max) => {
+    const filterVisibleChirps = (chirps: Chirp[]): Chirp[] =>
+      chirps.filter((chirp) => {
+        const isProcessing =
+          chirp.factCheckingStatus === 'pending' || chirp.factCheckingStatus === 'in_progress';
+        const isBlocked = chirp.factCheckStatus === 'blocked';
+        if (isProcessing) return false;
+        if (isBlocked && chirp.authorId !== userId) return false;
+        return true;
+      });
+
     try {
       set({ forYouLoading: true, error: null });
       const chirps = await chirpService.fetchForYou(
@@ -152,7 +210,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
         config ?? DEFAULT_FOR_YOU_CONFIG,
         max
       );
-      set({ forYou: chirps, forYouLoading: false });
+      set({ forYou: filterVisibleChirps(chirps), forYouLoading: false });
     } catch (err: any) {
       set({
         error: err?.message ?? 'Failed to refresh For You feed',

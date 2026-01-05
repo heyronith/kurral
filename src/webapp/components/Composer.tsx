@@ -1084,7 +1084,18 @@ const Composer = () => {
         chirpData.formattedText = sanitizedHTML.trim();
       }
 
-      await addChirp(chirpData);
+      const processed = await addChirp(chirpData, { waitForProcessing: true });
+
+      const decision = processed.factCheckStatus;
+      let message = '';
+      if (decision === 'blocked') {
+        message = 'This post was blocked and will only be visible to you in your profile.';
+      } else if (decision === 'needs_review') {
+        message = 'Your post is visible with a review badge and has been sent to reviewers.';
+      } else {
+        message = 'Your post is approved and published to feeds.';
+      }
+      alert(message);
 
       // Reset form
       if (contentEditableRef.current) {
