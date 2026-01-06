@@ -280,6 +280,31 @@ export const chirpService = {
     } as Chirp;
   },
 
+  async getChirpsByAuthor(authorId: string, limitCount: number = 50): Promise<Chirp[]> {
+    try {
+      const q = query(
+        collection(db, CHIRPS_COLLECTION),
+        where('authorId', '==', authorId),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      const snapshot = await getDocs(q);
+      const now = new Date();
+      return snapshot.docs
+        .map(toChirp)
+        .filter((chirp) => {
+          // Filter out scheduled posts that haven't been published yet
+          if (chirp.scheduledAt && chirp.scheduledAt > now) {
+            return false;
+          }
+          return true;
+        });
+    } catch (error) {
+      console.error('[chirpService] Error fetching chirps by author:', error);
+      return [];
+    }
+  },
+
   async updateChirpInsights(
     chirpId: string,
     insights: {

@@ -73,12 +73,17 @@ function extractErrorDetails(error: any): { message: string; statusCode?: number
 }
 
 const getApiKey = (): string => {
-  return (
-    process.env.OPENAI_API_KEY ||
-    process.env.openaiApiKey ||
-    process.env.OPENAI_APIKEY ||
-    ''
-  );
+  const key = process.env.OPENAI_API_KEY || process.env.openaiApiKey || process.env.OPENAI_APIKEY || '';
+  if (!key) {
+    logger.warn('[BaseAgent] OPENAI_API_KEY not found in environment variables');
+    logger.warn('[BaseAgent] Available env vars with "OPENAI":', Object.keys(process.env).filter((k) => k.includes('OPENAI')));
+  } else {
+    if (!process.env.__OPENAI_KEY_LOGGED) {
+      logger.info('[BaseAgent] OPENAI_API_KEY loaded', { length: key.length });
+      process.env.__OPENAI_KEY_LOGGED = '1';
+    }
+  }
+  return key;
 };
 
 const getClient = (): OpenAI => {

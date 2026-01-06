@@ -4,9 +4,11 @@ import type { Chirp } from '../types';
 type ComposerContextValue = {
   isOpen: boolean;
   quotedChirp: Chirp | null;
+  commentingChirp: Chirp | null;
   open: () => void;
   close: () => void;
   openWithQuote: (chirp: Chirp) => void;
+  openForComment: (chirp: Chirp) => void;
 };
 
 const ComposerContext = createContext<ComposerContextValue | undefined>(undefined);
@@ -14,19 +16,31 @@ const ComposerContext = createContext<ComposerContextValue | undefined>(undefine
 export const ComposerProvider = ({ children }: { children: ReactNode }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [quotedChirp, setQuotedChirp] = useState<Chirp | null>(null);
+  const [commentingChirp, setCommentingChirp] = useState<Chirp | null>(null);
 
   const open = () => {
     setQuotedChirp(null);
+    setCommentingChirp(null);
     setIsOpen(true);
   };
 
   const close = () => {
     setIsOpen(false);
-    setTimeout(() => setQuotedChirp(null), 300);
+    setTimeout(() => {
+      setQuotedChirp(null);
+      setCommentingChirp(null);
+    }, 300);
   };
 
   const openWithQuote = (chirp: Chirp) => {
     setQuotedChirp(chirp);
+    setCommentingChirp(null);
+    setIsOpen(true);
+  };
+
+  const openForComment = (chirp: Chirp) => {
+    setCommentingChirp(chirp);
+    setQuotedChirp(null);
     setIsOpen(true);
   };
 
@@ -35,9 +49,11 @@ export const ComposerProvider = ({ children }: { children: ReactNode }) => {
       value={{
         isOpen,
         quotedChirp,
+        commentingChirp,
         open,
         close,
         openWithQuote,
+        openForComment,
       }}
     >
       {children}

@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useComposer } from '../../context/ComposerContext';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFeedStore } from '../../stores/useFeedStore';
+import { useUserStore } from '../../stores/useUserStore';
 import {
   ALL_TOPICS,
   ReachMode,
@@ -36,6 +40,7 @@ import {
 } from '../../services/topicBucketService';
 import { topicService } from '../../services/topicService';
 import { isValidTopic } from '../../types';
+import { renderFormattedText } from '../../utils/formattedText';
 
 type MentionCandidate = {
   id: string;
@@ -230,9 +235,10 @@ const TopicChip = ({
 );
 
 const ComposerModal = () => {
-  const { isOpen, close, quotedChirp } = useComposer();
+  const { isOpen, close, quotedChirp, commentingChirp } = useComposer();
   const { user } = useAuthStore();
-  const { addChirp } = useFeedStore();
+  const { addChirp, addComment } = useFeedStore();
+  const { getUser, loadUser } = useUserStore();
 
   const [text, setText] = useState('');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
@@ -307,6 +313,13 @@ const ComposerModal = () => {
       resetState();
     }
   }, [isOpen]);
+
+  // Load author of commenting chirp
+  useEffect(() => {
+    if (commentingChirp) {
+      loadUser(commentingChirp.authorId);
+    }
+  }, [commentingChirp, loadUser]);
 
   useEffect(() => {
     if (mentionQuery === null) {
@@ -460,11 +473,22 @@ const ComposerModal = () => {
   }, [reachMode, text, user]);
 
   const updateMentionState = (currentText: string, cursorPos: number) => {
+    if (!currentText || cursorPos < 0) {
+      setMentionQuery(null);
+      mentionStartRef.current = null;
+      return;
+    }
+    
     const beforeCursor = currentText.slice(0, cursorPos);
-    const match = beforeCursor.match(/@(\w*)$/);
+    // Match @ followed by word characters (including empty string for just @)
+    // Match @ at start of text or after whitespace/newline
+    const match = beforeCursor.match(/(?:^|[\s\n])@(\w*)$/);
     if (match) {
-      setMentionQuery(match[1]);
-      mentionStartRef.current = match.index ?? null;
+      const query = match[1];
+      setMentionQuery(query);
+      // Find the actual @ position (accounting for the space/newline in the match)
+      const atIndex = beforeCursor.lastIndexOf('@', cursorPos);
+      mentionStartRef.current = atIndex >= 0 ? atIndex : null;
     } else {
       setMentionQuery(null);
       mentionStartRef.current = null;
@@ -481,8 +505,14 @@ const ComposerModal = () => {
 
   const handleTextChange = (value: string) => {
     setText(value);
-    updateMentionState(value, selection.start);
+    // When text changes, cursor is typically at the end of the new text
+    // But we'll update mention state in a useEffect that watches both text and selection
   };
+
+  // Update mention state whenever text or selection changes
+  useEffect(() => {
+    updateMentionState(text, selection.start);
+  }, [text, selection.start]);
 
   const wrapSelection = (marker: string) => {
     const { start, end } = selection;
@@ -574,6 +604,33 @@ const ComposerModal = () => {
   const handlePost = async () => {
     if (!canPost || !user) return;
     setIsPosting(true);
+
+    // Handle comment mode (simplified - no analysis needed)
+    if (commentingChirp) {
+      try {
+        const trimmed = text.trim();
+        const formatted = buildFormattedText(trimmed);
+        const handles = extractMentionHandles(trimmed);
+        const mentionIds = await resolveMentions(handles);
+
+        await addComment(commentingChirp.id, {
+          authorId: user.id,
+          text: trimmed,
+          formattedText: formatted,
+          imageUrl: imageUrl || undefined,
+        });
+
+        resetState();
+        close();
+      } catch (error) {
+        console.error('[Composer] failed to post comment', error);
+        setIsPosting(false);
+        Alert.alert('Error', 'Unable to post comment right now. Please try again.');
+      }
+      return;
+    }
+
+    // Handle regular post (with analysis)
     setAnalysisVisible(true);
     setAnalysisStatus('Analyzing your post...');
     setAnalysisDecision(null);
@@ -792,21 +849,97 @@ const ComposerModal = () => {
     setShowSchedulePicker(false);
   };
 
+  const formatTimeAgo = (date: Date) => {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      return 'recently';
+    }
+    const now = Date.now();
+    const diffMs = Math.max(0, now - date.getTime());
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffMinutes < 1) return 'just now';
+    if (diffMinutes < 60) return `${diffMinutes}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    return `${diffDays}d`;
+  };
+
+  const getInitial = (value?: string) => value?.charAt(0)?.toUpperCase() || 'U';
+
+  const isCommentMode = !!commentingChirp;
+  const commentingAuthor = commentingChirp ? getUser(commentingChirp.authorId) : null;
+  const commentingCreatedAt = commentingChirp?.createdAt 
+    ? (commentingChirp.createdAt instanceof Date 
+        ? commentingChirp.createdAt 
+        : new Date(commentingChirp.createdAt))
+    : null;
+
   return (
     <>
     <Modal visible={isOpen} animationType="slide" transparent>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
         <View style={styles.container}>
           <View style={styles.header}>
+            <Text style={styles.headerTitle}>{isCommentMode ? 'Add Comment' : 'New Post'}</Text>
             <TouchableOpacity onPress={close} style={styles.closeButton}>
               <Text style={styles.closeText}>Close</Text>
             </TouchableOpacity>
           </View>
 
+          {/* Commenting Chirp Preview */}
+          {isCommentMode && commentingChirp && (
+            <View style={styles.commentingChirpCard}>
+              <View style={styles.commentingChirpHeader}>
+                <View style={styles.commentingChirpAvatar}>
+                  {commentingAuthor?.profilePictureUrl ? (
+                    <Image
+                      source={{ uri: commentingAuthor.profilePictureUrl }}
+                      style={styles.commentingChirpAvatarImage}
+                    />
+                  ) : (
+                    <View style={styles.commentingChirpAvatarPlaceholder}>
+                      <Text style={styles.commentingChirpAvatarText}>
+                        {getInitial(commentingAuthor?.name || commentingAuthor?.handle)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.commentingChirpMeta}>
+                  <Text style={styles.commentingChirpAuthor}>
+                    {commentingAuthor?.name || 'Unknown User'}
+                  </Text>
+                  <Text style={styles.commentingChirpHandle}>
+                    @{commentingAuthor?.handle || commentingChirp.authorId.slice(0, 8)}
+                    {commentingCreatedAt && ` · ${formatTimeAgo(commentingCreatedAt)}`}
+                  </Text>
+                </View>
+              </View>
+              {commentingChirp.text && (
+                <View style={styles.commentingChirpContent}>
+                  {renderFormattedText(
+                    commentingChirp.formattedText || commentingChirp.text,
+                    styles.commentingChirpText
+                  )}
+                </View>
+              )}
+              {commentingChirp.imageUrl && (
+                <Image
+                  source={{ uri: commentingChirp.imageUrl }}
+                  style={styles.commentingChirpImage}
+                  resizeMode="cover"
+                />
+              )}
+            </View>
+          )}
+
           <View style={styles.inputArea}>
             <TextInput
               style={styles.input}
-              placeholder="Share something..."
+              placeholder={isCommentMode ? "Add a comment..." : "Share something..."}
               placeholderTextColor={colors.light.textMuted}
               multiline
               value={text}
@@ -814,7 +947,44 @@ const ComposerModal = () => {
               maxLength={CHAR_LIMIT}
               selection={selection}
               onSelectionChange={handleSelectionChange}
+              autoFocus
             />
+            
+            {/* Mention Dropdown */}
+            {mentionQuery !== null && mentionResults.length > 0 && (
+              <View style={styles.mentionDropdown}>
+                <ScrollView style={styles.mentionList} nestedScrollEnabled>
+                  {mentionResults.map((candidate) => (
+                    <TouchableOpacity
+                      key={candidate.id}
+                      style={styles.mentionItem}
+                      onPress={() => handleMentionSelect(candidate)}
+                    >
+                      {candidate.profilePictureUrl ? (
+                        <Image
+                          source={{ uri: candidate.profilePictureUrl }}
+                          style={styles.mentionAvatar}
+                        />
+                      ) : (
+                        <View style={styles.mentionAvatarPlaceholder}>
+                          <Text style={styles.mentionAvatarText}>
+                            {candidate.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.mentionInfo}>
+                        <Text style={styles.mentionName} numberOfLines={1}>
+                          {candidate.name}
+                        </Text>
+                        <Text style={styles.mentionHandle} numberOfLines={1}>
+                          @{candidate.handle}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             <View style={styles.toolbar}>
               <TouchableOpacity onPress={() => wrapSelection('**')} style={styles.toolButton}>
@@ -836,24 +1006,28 @@ const ComposerModal = () => {
               <TouchableOpacity onPress={handlePickImage} style={styles.toolButton}>
                 <Text style={styles.toolText}>Image</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={() => {
-                  setShowEmojiPicker(false);
-                  setShowSchedulePicker(false);
-                  setShowTopicPicker(!showTopicPicker);
-                }} 
-                style={[styles.toolButton, (selectedTopic || showTopicPicker) && styles.toolButtonActive]}
-              >
-                <Text style={styles.toolText}>#</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={handleOpenSchedulePicker} 
-                style={[styles.toolButton, (scheduledAt || showSchedulePicker) && styles.toolButtonActive]}
-              >
-                <Text style={styles.toolText}>📅</Text>
-              </TouchableOpacity>
+              {!isCommentMode && (
+                <>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setShowEmojiPicker(false);
+                      setShowSchedulePicker(false);
+                      setShowTopicPicker(!showTopicPicker);
+                    }} 
+                    style={[styles.toolButton, (selectedTopic || showTopicPicker) && styles.toolButtonActive]}
+                  >
+                    <Text style={styles.toolText}>#</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={handleOpenSchedulePicker} 
+                    style={[styles.toolButton, (scheduledAt || showSchedulePicker) && styles.toolButtonActive]}
+                  >
+                    <Text style={styles.toolText}>📅</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
-            {selectedTopic && (
+            {!isCommentMode && selectedTopic && (
               <View style={styles.selectedTopicBadge}>
                 <Text style={styles.selectedTopicText}>#{selectedTopic}</Text>
                 <TouchableOpacity onPress={() => setSelectedTopic('')}>
@@ -861,7 +1035,7 @@ const ComposerModal = () => {
                 </TouchableOpacity>
               </View>
             )}
-            {scheduledAt && scheduleLabel && (
+            {!isCommentMode && scheduledAt && scheduleLabel && (
               <View style={styles.scheduledBadge}>
                 <Text style={styles.scheduledText}>📅 {scheduleLabel}</Text>
                 <TouchableOpacity onPress={() => setScheduledAt(null)}>
@@ -1017,29 +1191,31 @@ const ComposerModal = () => {
             )}
           </View>
 
-          <View style={styles.reachRow}>
-            {(['forAll', 'tuned'] as ReachMode[]).map((mode) => (
-              <TouchableOpacity
-                key={mode}
-                style={[
-                  styles.reachButton,
-                  reachMode === mode && styles.reachButtonActive,
-                ]}
-                onPress={() => setReachMode(mode)}
-              >
-                <Text
+          {!isCommentMode && (
+            <View style={styles.reachRow}>
+              {(['forAll', 'tuned'] as ReachMode[]).map((mode) => (
+                <TouchableOpacity
+                  key={mode}
                   style={[
-                    styles.reachLabel,
-                    reachMode === mode && styles.reachLabelActive,
+                    styles.reachButton,
+                    reachMode === mode && styles.reachButtonActive,
                   ]}
+                  onPress={() => setReachMode(mode)}
                 >
-                  {mode === 'tuned' ? 'Tuned' : 'For all'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  <Text
+                    style={[
+                      styles.reachLabel,
+                      reachMode === mode && styles.reachLabelActive,
+                    ]}
+                  >
+                    {mode === 'tuned' ? 'Tuned' : 'For all'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
-          {reachMode === 'tuned' && (
+          {!isCommentMode && reachMode === 'tuned' && (
             <View style={styles.audienceRow}>
               <Text style={styles.smallLabel}>Audience</Text>
               <View style={styles.toggleRow}>
@@ -1087,12 +1263,12 @@ const ComposerModal = () => {
               {isPosting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.postText}>Post</Text>
+                <Text style={styles.postText}>{isCommentMode ? 'Comment' : 'Post'}</Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
 
       {/* Analysis modal */}
@@ -1149,6 +1325,11 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.light.border,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
   },
   title: {
     fontSize: 18,
@@ -1209,6 +1390,77 @@ const styles = StyleSheet.create({
   analysisButtonText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  commentingChirpCard: {
+    marginTop: 12,
+    marginBottom: 12,
+    padding: 14,
+    backgroundColor: colors.light.backgroundElevated,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.light.accent + '40',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.light.accent,
+  },
+  commentingChirpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  commentingChirpAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.light.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  commentingChirpAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  commentingChirpAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.light.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentingChirpAvatarText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  commentingChirpMeta: {
+    marginLeft: 10,
+  },
+  commentingChirpAuthor: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+  },
+  commentingChirpHandle: {
+    fontSize: 12,
+    color: colors.light.textMuted,
+    marginTop: 2,
+  },
+  commentingChirpContent: {
+    marginTop: 8,
+  },
+  commentingChirpText: {
+    fontSize: 14,
+    color: colors.light.textSecondary,
+    lineHeight: 20,
+  },
+  commentingChirpImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 12,
+    marginTop: 12,
+    backgroundColor: '#f2f2f2',
   },
   inputArea: {
     marginTop: 12,
@@ -1619,6 +1871,65 @@ const styles = StyleSheet.create({
     padding: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.light.border,
+  },
+  mentionDropdown: {
+    marginTop: 8,
+    backgroundColor: colors.light.backgroundElevated,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.light.border,
+    maxHeight: 200,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mentionList: {
+    maxHeight: 200,
+  },
+  mentionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.light.border,
+  },
+  mentionAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+  },
+  mentionAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.light.accent + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  mentionAvatarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.light.accent,
+  },
+  mentionInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mentionName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.light.textPrimary,
+    marginBottom: 2,
+  },
+  mentionHandle: {
+    fontSize: 12,
+    color: colors.light.textMuted,
   },
 });
 

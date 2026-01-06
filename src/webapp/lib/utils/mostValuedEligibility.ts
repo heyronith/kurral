@@ -1,5 +1,5 @@
 import type { Chirp, User, ForYouConfig } from '../../types';
-import { cosineSimilarity } from './similarity';
+import { cosineSimilarity } from '../../../../shared/lib/utils/similarity';
 
 const getSimilarityThreshold = (config: ForYouConfig): number => {
   return config.semanticSimilarityThreshold ?? 0.7;

@@ -9,10 +9,27 @@ service cloud.firestore {
     // Users collection
     // - Anyone authenticated can read user profiles
     // - Users can only write their own profile
+    // - Users can update profilePictureUrl and coverPhotoUrl (must be valid URLs or null/deleteField)
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && (
+          // If profilePictureUrl is present, it must be a non-empty string
+          // If not present or null, that's also valid (for deleteField() or removing the field)
+          (!('profilePictureUrl' in request.resource.data) || 
+           request.resource.data.profilePictureUrl == null ||
+           (request.resource.data.profilePictureUrl is string && 
+            request.resource.data.profilePictureUrl.size() > 0))
+          &&
+          // If coverPhotoUrl is present, it must be a non-empty string
+          // If not present or null, that's also valid (for deleteField() or removing the field)
+          (!('coverPhotoUrl' in request.resource.data) || 
+           request.resource.data.coverPhotoUrl == null ||
+           (request.resource.data.coverPhotoUrl is string && 
+            request.resource.data.coverPhotoUrl.size() > 0))
+        );
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
@@ -28,9 +45,21 @@ service cloud.firestore {
           !('countryCode' in request.resource.data) ||
           (request.resource.data.countryCode is string && request.resource.data.countryCode.size() == 2)
         );
-      allow update: if isAuthenticated() 
-        && resource.data.authorId == request.auth.uid
-        && request.resource.data.authorId == resource.data.authorId; // Prevent author change
+      allow update: if isAuthenticated() && (
+        // Author can update their own chirp (authorId immutable)
+        (
+          resource.data.authorId == request.auth.uid &&
+          request.resource.data.authorId == resource.data.authorId
+        )
+        ||
+        // Allow trusted system updates to commentCount (e.g., when anyone comments)
+        (
+          request.resource.data.authorId == resource.data.authorId &&
+          request.resource.data.commentCount is int &&
+          request.resource.data.commentCount >= 0 &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])
+        )
+      );
       allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
     
@@ -50,16 +79,7 @@ service cloud.firestore {
         && request.resource.data.chirpId is string
         && request.resource.data.authorId is string
         && request.resource.data.text is string
-        && request.resource.data.createdAt is timestamp
-        // Validate optional nested reply fields if present (allow undefined or correct type)
-        && (!('parentCommentId' in request.resource.data) || request.resource.data.parentCommentId == null || request.resource.data.parentCommentId is string)
-        && (!('replyToUserId' in request.resource.data) || request.resource.data.replyToUserId == null || request.resource.data.replyToUserId is string)
-        && (!('depth' in request.resource.data) || request.resource.data.depth == null || request.resource.data.depth is int)
-        && (!('replyCount' in request.resource.data) || request.resource.data.replyCount == null || request.resource.data.replyCount is int)
-        // Validate optional rich media fields if present
-        && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl == null || request.resource.data.imageUrl is string)
-        && (!('formattedText' in request.resource.data) || request.resource.data.formattedText == null || request.resource.data.formattedText is string)
-        && (!('scheduledAt' in request.resource.data) || request.resource.data.scheduledAt == null || request.resource.data.scheduledAt is timestamp);
+        && request.resource.data.createdAt is timestamp;
       allow update: if isAuthenticated() 
         && (
           // Author can update their own comment (but not change authorId)

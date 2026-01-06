@@ -31,7 +31,47 @@ service firebase.storage {
       allow delete: if isOwner(userId);
     }
     
-    // Profile images - users can upload profile pictures and cover photos to their own folder
+    // Profile pictures - users can upload profile pictures to their own folder
+    // Path: profile-pictures/{userId}/{filename}
+    match /profile-pictures/{userId}/{fileName} {
+      // Allow read: authenticated users can view all profile pictures (needed for displaying profiles)
+      allow read: if isAuthenticated();
+      
+      // Allow create: users can only upload to their own folder
+      allow create: if isOwner(userId)
+        && request.resource.size < 3 * 1024 * 1024 // Max 3MB for profile pictures
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow update: users can only update their own images (if needed)
+      allow update: if isOwner(userId)
+        && request.resource.size < 3 * 1024 * 1024 // Max 3MB for profile pictures
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow delete: users can only delete their own images
+      allow delete: if isOwner(userId);
+    }
+    
+    // Cover photos - users can upload cover photos to their own folder
+    // Path: cover-photos/{userId}/{filename}
+    match /cover-photos/{userId}/{fileName} {
+      // Allow read: authenticated users can view all cover photos (needed for displaying profiles)
+      allow read: if isAuthenticated();
+      
+      // Allow create: users can only upload to their own folder
+      allow create: if isOwner(userId)
+        && request.resource.size < 5 * 1024 * 1024 // Max 5MB for cover photos
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow update: users can only update their own images (if needed)
+      allow update: if isOwner(userId)
+        && request.resource.size < 5 * 1024 * 1024 // Max 5MB for cover photos
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow delete: users can only delete their own images
+      allow delete: if isOwner(userId);
+    }
+    
+    // Legacy profile-images path - kept for backward compatibility
     // Path: profile-images/{userId}/{filename}
     match /profile-images/{userId}/{fileName} {
       // Allow read: authenticated users can view all profile images (needed for displaying profiles)

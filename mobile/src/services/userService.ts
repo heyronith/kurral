@@ -9,8 +9,14 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
+  deleteDoc,
+  deleteField,
+  startAfter,
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { httpsCallable } from 'firebase/functions';
 import type { User } from '../types';
 
 const USERS_COLLECTION = 'users';
@@ -155,6 +161,494 @@ export const userService = {
       return candidates.slice(0, limitCount);
     } catch (error) {
       console.error('[userService] searchUsers failed', error);
+      return [];
+    }
+  },
+
+  /**
+   * Delete user account and all associated data
+   * This performs a soft delete (marks account as deleted) and removes all user data
+   * Note: Firebase Auth account deletion requires Admin SDK and will be handled separately
+   */
+  async deleteAccount(userId: string): Promise<{
+    chirpsDeleted: number;
+    commentsDeleted: number;
+    imagesDeleted: number;
+    referencesCleaned: number;
+    success: boolean;
+  }> {
+    let chirpsDeleted = 0;
+    let commentsDeleted = 0;
+    let imagesDeleted = 0;
+    let referencesCleaned = 0;
+    const deletedChirpIds: string[] = [];
+
+    try {
+      // Step 1: Check if user exists and is not already deleted
+      const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
+      if (!userDoc.exists()) {
+        throw new Error('User not found');
+      }
+
+      const userData = userDoc.data();
+      if (userData.deleted === true) {
+        throw new Error('User account is already deleted');
+      }
+
+      const user = userData as any;
+
+      // Step 2: Collect all chirp IDs and image URLs before deletion
+      const imageUrls: string[] = [];
+
+      // Collect profile images
+      if (user.profilePictureUrl) imageUrls.push(user.profilePictureUrl);
+      if (user.coverPhotoUrl) imageUrls.push(user.coverPhotoUrl);
+
+      // Step 3: Delete all user's chirps (with pagination)
+      let lastChirpDoc: any = null;
+      let hasMoreChirps = true;
+
+      while (hasMoreChirps) {
+        try {
+          let chirpsQuery;
+          if (lastChirpDoc) {
+            chirpsQuery = query(
+              collection(db, 'chirps'),
+              where('authorId', '==', userId),
+              orderBy('createdAt', 'desc'),
+              startAfter(lastChirpDoc),
+              limit(500)
+            );
+          } else {
+            chirpsQuery = query(
+              collection(db, 'chirps'),
+              where('authorId', '==', userId),
+              orderBy('createdAt', 'desc'),
+              limit(500)
+            );
+          }
+
+          const chirpsSnapshot = await getDocs(chirpsQuery);
+
+          if (chirpsSnapshot.empty) {
+            hasMoreChirps = false;
+            break;
+          }
+
+          // Collect chirp IDs and image URLs
+          chirpsSnapshot.docs.forEach((docSnap) => {
+            deletedChirpIds.push(docSnap.id);
+            const data = docSnap.data();
+            if (data.imageUrl) {
+              imageUrls.push(data.imageUrl);
+            }
+          });
+
+          // Delete chirps in batch
+          const batch = writeBatch(db);
+          chirpsSnapshot.docs.forEach((docSnap) => {
+            batch.delete(docSnap.ref);
+          });
+          await batch.commit();
+
+          chirpsDeleted += chirpsSnapshot.docs.length;
+          lastChirpDoc = chirpsSnapshot.docs[chirpsSnapshot.docs.length - 1];
+
+          // If we got less than 500, we're done
+          if (chirpsSnapshot.docs.length < 500) {
+            hasMoreChirps = false;
+          }
+        } catch (error: any) {
+          // Handle missing index error - try without orderBy
+          if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+            console.warn('Index missing for chirps query, trying without orderBy');
+            try {
+              const fallbackQuery = query(
+                collection(db, 'chirps'),
+                where('authorId', '==', userId),
+                limit(500)
+              );
+              const fallbackSnapshot = await getDocs(fallbackQuery);
+
+              if (fallbackSnapshot.empty) {
+                hasMoreChirps = false;
+                break;
+              }
+
+              fallbackSnapshot.docs.forEach((docSnap) => {
+                deletedChirpIds.push(docSnap.id);
+                const data = docSnap.data();
+                if (data.imageUrl) {
+                  imageUrls.push(data.imageUrl);
+                }
+              });
+
+              const batch = writeBatch(db);
+              fallbackSnapshot.docs.forEach((docSnap) => {
+                batch.delete(docSnap.ref);
+              });
+              await batch.commit();
+
+              chirpsDeleted += fallbackSnapshot.docs.length;
+
+              if (fallbackSnapshot.docs.length < 500) {
+                hasMoreChirps = false;
+              } else {
+                lastChirpDoc = fallbackSnapshot.docs[fallbackSnapshot.docs.length - 1];
+              }
+            } catch (fallbackError) {
+              console.error('Error in fallback chirp deletion:', fallbackError);
+              hasMoreChirps = false;
+            }
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // Step 4: Delete all user's comments (with pagination)
+      let lastCommentDoc: any = null;
+      let hasMoreComments = true;
+
+      while (hasMoreComments) {
+        try {
+          let commentsQuery;
+          if (lastCommentDoc) {
+            commentsQuery = query(
+              collection(db, 'comments'),
+              where('authorId', '==', userId),
+              orderBy('createdAt', 'desc'),
+              startAfter(lastCommentDoc),
+              limit(500)
+            );
+          } else {
+            commentsQuery = query(
+              collection(db, 'comments'),
+              where('authorId', '==', userId),
+              orderBy('createdAt', 'desc'),
+              limit(500)
+            );
+          }
+
+          const commentsSnapshot = await getDocs(commentsQuery);
+
+          if (commentsSnapshot.empty) {
+            hasMoreComments = false;
+            break;
+          }
+
+          // Collect image URLs from comments
+          commentsSnapshot.docs.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.imageUrl) {
+              imageUrls.push(data.imageUrl);
+            }
+          });
+
+          // Delete comments in batch
+          const batch = writeBatch(db);
+          commentsSnapshot.docs.forEach((docSnap) => {
+            batch.delete(docSnap.ref);
+          });
+          await batch.commit();
+
+          commentsDeleted += commentsSnapshot.docs.length;
+          lastCommentDoc = commentsSnapshot.docs[commentsSnapshot.docs.length - 1];
+
+          // If we got less than 500, we're done
+          if (commentsSnapshot.docs.length < 500) {
+            hasMoreComments = false;
+          }
+        } catch (error: any) {
+          // Handle missing index error - try without orderBy
+          if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+            console.warn('Index missing for comments query, trying without orderBy');
+            try {
+              const fallbackQuery = query(
+                collection(db, 'comments'),
+                where('authorId', '==', userId),
+                limit(500)
+              );
+              const fallbackSnapshot = await getDocs(fallbackQuery);
+
+              if (fallbackSnapshot.empty) {
+                hasMoreComments = false;
+                break;
+              }
+
+              fallbackSnapshot.docs.forEach((docSnap) => {
+                const data = docSnap.data();
+                if (data.imageUrl) {
+                  imageUrls.push(data.imageUrl);
+                }
+              });
+
+              const batch = writeBatch(db);
+              fallbackSnapshot.docs.forEach((docSnap) => {
+                batch.delete(docSnap.ref);
+              });
+              await batch.commit();
+
+              commentsDeleted += fallbackSnapshot.docs.length;
+
+              if (fallbackSnapshot.docs.length < 500) {
+                hasMoreComments = false;
+              } else {
+                lastCommentDoc = fallbackSnapshot.docs[fallbackSnapshot.docs.length - 1];
+              }
+            } catch (fallbackError) {
+              console.error('Error in fallback comment deletion:', fallbackError);
+              hasMoreComments = false;
+            }
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // Step 5: Remove user from others' following lists
+      try {
+        const followersQuery = query(
+          collection(db, 'users'),
+          where('following', 'array-contains', userId),
+          limit(500)
+        );
+        const followersSnapshot = await getDocs(followersQuery);
+
+        if (!followersSnapshot.empty) {
+          const updateBatch = writeBatch(db);
+          followersSnapshot.docs.forEach((userDoc) => {
+            const userData = userDoc.data();
+            const following = userData.following || [];
+            const updatedFollowing = following.filter((id: string) => id !== userId);
+            if (updatedFollowing.length !== following.length) {
+              updateBatch.update(userDoc.ref, { following: updatedFollowing });
+              referencesCleaned++;
+            }
+          });
+          if (followersSnapshot.docs.length > 0) {
+            await updateBatch.commit();
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to clean up following references:', error);
+        // Continue even if this fails
+      }
+
+      // Step 6: Remove deleted chirp IDs from others' bookmarks
+      if (deletedChirpIds.length > 0) {
+        try {
+          // Process in chunks of 10 (Firestore array-contains-any limit)
+          const chunkSize = 10;
+          for (let i = 0; i < deletedChirpIds.length; i += chunkSize) {
+            const chunk = deletedChirpIds.slice(i, i + chunkSize);
+
+            const bookmarkQuery = query(
+              collection(db, 'users'),
+              where('bookmarks', 'array-contains-any', chunk),
+              limit(500)
+            );
+
+            const bookmarkSnapshot = await getDocs(bookmarkQuery);
+
+            if (!bookmarkSnapshot.empty) {
+              const updateBatch = writeBatch(db);
+              bookmarkSnapshot.docs.forEach((userDoc) => {
+                const userData = userDoc.data();
+                const bookmarks = userData.bookmarks || [];
+                const updatedBookmarks = bookmarks.filter((id: string) => !chunk.includes(id));
+                if (updatedBookmarks.length !== bookmarks.length) {
+                  updateBatch.update(userDoc.ref, { bookmarks: updatedBookmarks });
+                  referencesCleaned++;
+                }
+              });
+
+              if (bookmarkSnapshot.docs.length > 0) {
+                await updateBatch.commit();
+              }
+            }
+          }
+        } catch (error: any) {
+          if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+            console.warn('Index missing for bookmarks cleanup - this is non-critical, continuing');
+          } else {
+            console.warn('Failed to clean up bookmarks:', error);
+          }
+          // Continue even if this fails
+        }
+      }
+
+      // Step 7: Delete all images from Storage
+      if (imageUrls.length > 0) {
+        const { deleteImage } = await import('./storageService');
+        // Process images in batches of 10
+        const imageBatchSize = 10;
+        for (let i = 0; i < imageUrls.length; i += imageBatchSize) {
+          const batch = imageUrls.slice(i, i + imageBatchSize);
+          await Promise.all(
+            batch.map(async (imageUrl) => {
+              try {
+                await deleteImage(imageUrl);
+                imagesDeleted++;
+              } catch (error) {
+                console.warn('Failed to delete image:', imageUrl, error);
+              }
+            })
+          );
+        }
+      }
+
+      // Step 8: Delete user's notification preferences (subcollection)
+      try {
+        const prefsRef = doc(db, 'users', userId, 'preferences', 'notifications');
+        const prefsDoc = await getDoc(prefsRef);
+        if (prefsDoc.exists()) {
+          await deleteDoc(prefsRef);
+        }
+      } catch (error) {
+        console.warn('Failed to delete notification preferences:', error);
+        // Continue even if this fails
+      }
+
+      // Step 9: Delete user's push tokens (subcollection)
+      try {
+        const pushTokensRef = collection(db, 'users', userId, 'pushTokens');
+        const tokensSnapshot = await getDocs(pushTokensRef);
+        if (!tokensSnapshot.empty) {
+          const deleteBatch = writeBatch(db);
+          tokensSnapshot.docs.forEach((tokenDoc) => {
+            deleteBatch.delete(tokenDoc.ref);
+          });
+          await deleteBatch.commit();
+        }
+      } catch (error) {
+        console.warn('Failed to delete push tokens:', error);
+        // Continue even if this fails
+      }
+
+      // Step 10: Mark account as deleted (soft delete) - This is the final step
+      await updateDoc(doc(db, 'users', userId), {
+        deleted: true,
+        deletedAt: Timestamp.now(),
+        // Clear sensitive data but keep ID for reference
+        email: deleteField(),
+        name: '[Deleted User]',
+        handle: `deleted_${userId.slice(0, 8)}`,
+        displayName: '[Deleted User]',
+        bio: deleteField(),
+        url: deleteField(),
+        location: deleteField(),
+        profilePictureUrl: deleteField(),
+        coverPhotoUrl: deleteField(),
+        interests: [],
+        semanticTopics: [],
+        following: [],
+        bookmarks: [],
+      });
+
+      return {
+        chirpsDeleted,
+        commentsDeleted,
+        imagesDeleted,
+        referencesCleaned,
+        success: true,
+      };
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      throw error;
+    }
+  },
+
+  async getUsersWithSimilarInterests(
+    userInterests: string[],
+    excludeUserId: string,
+    limitCount: number = 10
+  ): Promise<User[]> {
+    if (!userInterests || userInterests.length === 0) {
+      return [];
+    }
+
+    try {
+      const q = query(
+        collection(db, USERS_COLLECTION),
+        orderBy('createdAt', 'desc'),
+        limit(100)
+      );
+      
+      const snapshot = await getDocs(q);
+      const allUsers = snapshot.docs
+        .map((docSnap) => {
+          const data = docSnap.data() as any;
+          return {
+            ...data,
+            id: docSnap.id,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+          } as User;
+        })
+        .filter((user) => user.id !== excludeUserId && user.interests && user.interests.length > 0);
+
+      const normalizedUserInterests = userInterests.map((i) => i.toLowerCase());
+      
+      const usersWithSimilarity = allUsers.map((user) => {
+        const normalizedOtherInterests = (user.interests || []).map((i) => i.toLowerCase());
+        
+        const exactMatches: string[] = [];
+        const partialMatches: string[] = [];
+        
+        normalizedUserInterests.forEach((interest) => {
+          const exactMatch = normalizedOtherInterests.find((otherInterest) => interest === otherInterest);
+          if (exactMatch) {
+            exactMatches.push(exactMatch);
+          } else {
+            const partialMatch = normalizedOtherInterests.find((otherInterest) => 
+              interest.includes(otherInterest) || otherInterest.includes(interest)
+            );
+            if (partialMatch) {
+              partialMatches.push(partialMatch);
+            }
+          }
+        });
+
+        const totalMatches = exactMatches.length + partialMatches.length;
+        const overlap = [...exactMatches, ...partialMatches];
+        const similarity = totalMatches / Math.max(normalizedUserInterests.length, normalizedOtherInterests.length);
+
+        return {
+          user,
+          similarity,
+          overlapCount: totalMatches,
+          matchingInterests: overlap,
+        };
+      });
+
+      usersWithSimilarity.sort((a, b) => {
+        if (b.similarity !== a.similarity) {
+          return b.similarity - a.similarity;
+        }
+        return b.overlapCount - a.overlapCount;
+      });
+
+      const topMatches = usersWithSimilarity
+        .filter((item) => item.similarity > 0)
+        .slice(0, limitCount);
+
+      return topMatches.map((item) => {
+        const userWithMetadata = item.user as User & {
+          _similarityMetadata?: {
+            similarity: number;
+            overlapCount: number;
+            matchingInterests: string[];
+          };
+        };
+        userWithMetadata._similarityMetadata = {
+          similarity: item.similarity,
+          overlapCount: item.overlapCount,
+          matchingInterests: item.matchingInterests,
+        };
+        return userWithMetadata as User;
+      });
+    } catch (error) {
+      console.error('[userService] Error getting users with similar interests:', error);
       return [];
     }
   },

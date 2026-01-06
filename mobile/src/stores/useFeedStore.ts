@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { Chirp, FeedType, ForYouConfig } from '../types';
+import type { Chirp, FeedType, ForYouConfig, Comment, CommentTreeNode } from '../types';
 import { DEFAULT_FOR_YOU_CONFIG } from '../types';
 import { chirpService } from '../services/chirpService';
 import { topicService } from '../services/topicService';
+import { commentService } from '../services/commentService';
 import { processChirpValue } from '../services/valuePipelineService';
 
 type FeedState = {
@@ -14,11 +15,22 @@ type FeedState = {
   error: string | null;
   latestUnsubscribe?: () => void;
   forYouUnsubscribe?: () => void;
+  comments: Record<string, Comment[]>; // Comments by chirpId
+  commentTrees: Record<string, CommentTreeNode[]>; // Comment trees by chirpId
+  commentUnsubscribes: Record<string, () => void>; // Unsubscribers by chirpId
   setActiveFeed: (feed: FeedType) => void;
   addChirp: (
     chirp: Omit<Chirp, 'id' | 'createdAt' | 'commentCount'>,
     options?: { waitForProcessing?: boolean }
   ) => Promise<Chirp>;
+  addComment: (
+    chirpId: string,
+    comment: Omit<Comment, 'id' | 'chirpId' | 'createdAt'>
+  ) => Promise<Comment>;
+  deleteComment: (commentId: string, chirpId: string, authorId?: string) => Promise<void>;
+  loadComments: (chirpId: string, comments: Comment[]) => void;
+  getCommentTreeForChirp: (chirpId: string) => CommentTreeNode[];
+  startCommentListener: (chirpId: string) => () => void;
   startLatestListener: (
     followingIds: string[] | undefined | null,
     currentUserId: string,
@@ -51,6 +63,9 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   error: null,
   latestUnsubscribe: undefined,
   forYouUnsubscribe: undefined,
+  comments: {},
+  commentTrees: {},
+  commentUnsubscribes: {},
 
   setActiveFeed: (feed) => set({ activeFeed: feed }),
 
@@ -113,6 +128,180 @@ export const useFeedStore = create<FeedState>((set, get) => ({
       console.error('Error creating chirp:', error);
       throw error;
     }
+  },
+
+  addComment: async (chirpId, commentData) => {
+    try {
+      const newComment = await commentService.addComment(chirpId, commentData);
+
+      // Optimistic update: Only increment commentCount for top-level comments
+      // commentService already updated Firestore counts, this is just for UI responsiveness
+      if (!commentData.parentCommentId) {
+        set((state) => {
+          const updatedChirps = [...state.latest, ...state.forYou].map(chirp =>
+            chirp.id === chirpId
+              ? { ...chirp, commentCount: (chirp.commentCount || 0) + 1 }
+              : chirp
+          );
+
+          return {
+            latest: updatedChirps.filter(chirp => state.latest.some(c => c.id === chirp.id)),
+            forYou: updatedChirps.filter(chirp => state.forYou.some(c => c.id === chirp.id)),
+          };
+        });
+      } else {
+        // For replies, update parent comment's replyCount in cache
+        set((state) => {
+          const comments = state.comments[chirpId] || [];
+          const updatedComments = comments.map(comment =>
+            comment.id === commentData.parentCommentId
+              ? { ...comment, replyCount: (comment.replyCount || 0) + 1 }
+              : comment
+          );
+
+          return {
+            comments: {
+              ...state.comments,
+              [chirpId]: updatedComments,
+            },
+            commentTrees: {
+              ...state.commentTrees,
+              [chirpId]: commentService.buildCommentTree([...updatedComments, newComment]),
+            },
+          };
+        });
+      }
+
+      // Add to local comments cache (avoid duplicates)
+      set((state) => {
+        const existingComments = state.comments[chirpId] || [];
+        // Check if comment already exists to avoid duplicates
+        const commentExists = existingComments.some(c => c.id === newComment.id);
+        if (commentExists) {
+          return state; // Don't update if comment already exists
+        }
+        const updatedComments = [...existingComments, newComment];
+        return {
+          comments: {
+            ...state.comments,
+            [chirpId]: updatedComments,
+          },
+          commentTrees: {
+            ...state.commentTrees,
+            [chirpId]: commentService.buildCommentTree(updatedComments),
+          },
+        };
+      });
+
+      return newComment;
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      throw error;
+    }
+  },
+
+  deleteComment: async (commentId, chirpId, authorId) => {
+    try {
+      // Get the comment to find all replies before deletion
+      const comments = get().comments[chirpId] || [];
+      const commentToDelete = comments.find(c => c.id === commentId);
+      
+      // Delete comment and all replies (commentService handles count updates)
+      await commentService.deleteComment(commentId, authorId);
+
+      // Find all reply IDs to remove from cache (recursively)
+      const getAllReplyIds = (parentId: string, allComments: Comment[]): string[] => {
+        const replyIds: string[] = [];
+        const directReplies = allComments.filter(c => c.parentCommentId === parentId);
+        directReplies.forEach(reply => {
+          replyIds.push(reply.id);
+          const nestedReplies = getAllReplyIds(reply.id, allComments);
+          replyIds.push(...nestedReplies);
+        });
+        return replyIds;
+      };
+
+      const allReplyIds = commentToDelete ? getAllReplyIds(commentId, comments) : [];
+      const allIdsToRemove = [commentId, ...allReplyIds];
+
+      // Remove from local comments cache (including all replies)
+      set((state) => ({
+        comments: {
+          ...state.comments,
+          [chirpId]: (state.comments[chirpId] || []).filter(comment => !allIdsToRemove.includes(comment.id)),
+        },
+        commentTrees: {
+          ...state.commentTrees,
+          [chirpId]: commentService.buildCommentTree(
+            (state.comments[chirpId] || []).filter(comment => !allIdsToRemove.includes(comment.id))
+          ),
+        },
+      }));
+
+      // Update comment count in chirps (commentService already updated Firestore, but we need to update local state)
+      // Note: We need to get the updated count from Firestore or calculate it
+      // For now, we'll let the real-time listener update it, but we can do optimistic update
+      const deletedCount = allIdsToRemove.length;
+      set((state) => {
+        const updatedChirps = [...state.latest, ...state.forYou].map(chirp =>
+          chirp.id === chirpId
+            ? { ...chirp, commentCount: Math.max(0, (chirp.commentCount || 0) - deletedCount) }
+            : chirp
+        );
+
+        return {
+          latest: updatedChirps.filter(chirp => state.latest.some(c => c.id === chirp.id)),
+          forYou: updatedChirps.filter(chirp => state.forYou.some(c => c.id === chirp.id)),
+        };
+      });
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      throw error;
+    }
+  },
+
+  loadComments: (chirpId, comments) => {
+    set((state) => ({
+      comments: {
+        ...state.comments,
+        [chirpId]: comments,
+      },
+      commentTrees: {
+        ...state.commentTrees,
+        [chirpId]: commentService.buildCommentTree(comments),
+      },
+    }));
+  },
+
+  getCommentTreeForChirp: (chirpId) => {
+    const { commentTrees } = get();
+    return commentTrees[chirpId] || [];
+  },
+
+  startCommentListener: (chirpId) => {
+    const { commentUnsubscribes } = get();
+
+    // Unsubscribe existing listener
+    commentUnsubscribes[chirpId]?.();
+
+    const unsubscribe = commentService.listen(
+      chirpId,
+      (comments) => {
+        get().loadComments(chirpId, comments);
+      },
+      (error) => {
+        console.error(`Error listening to comments for chirp ${chirpId}:`, error);
+      }
+    );
+
+    set((state) => ({
+      commentUnsubscribes: {
+        ...state.commentUnsubscribes,
+        [chirpId]: unsubscribe,
+      },
+    }));
+
+    return unsubscribe;
   },
 
   startLatestListener: (followingIds, currentUserId, max) => {
@@ -220,9 +409,13 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   },
 
   clear: () => {
-    const { latestUnsubscribe, forYouUnsubscribe } = get();
+    const { latestUnsubscribe, forYouUnsubscribe, commentUnsubscribes } = get();
     latestUnsubscribe?.();
     forYouUnsubscribe?.();
+
+    // Unsubscribe from all comment listeners
+    Object.values(commentUnsubscribes).forEach(unsubscribe => unsubscribe?.());
+
     set({
       latest: [],
       forYou: [],
@@ -231,6 +424,9 @@ export const useFeedStore = create<FeedState>((set, get) => ({
       error: null,
       latestUnsubscribe: undefined,
       forYouUnsubscribe: undefined,
+      comments: {},
+      commentTrees: {},
+      commentUnsubscribes: {},
     });
   },
 }));

@@ -6,25 +6,19 @@
  * - Low-risk posts (opinion, personal experience) should skip fact-checking
  * - Ambiguous posts should fail-open (proceed with fact-checking)
  * 
- * Run with: node --input-type=module scripts/test-risk-based-precheck.js
- * OR: node scripts/test-risk-based-precheck.cjs (if renamed)
+ * Run with: node scripts/test-risk-based-precheck.js
  * 
  * Requires:
  * - Firebase Functions to be deployed
  * - TEST_EMAIL and TEST_PASSWORD environment variables (or will create test user)
  */
 
-import { config } from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+require('dotenv').config({ path: require('path').join(__dirname, '../env/.env') });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-config({ path: join(__dirname, '../env/.env') });
+const { initializeApp } = require('firebase/app');
+const { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = require('firebase/auth');
+const { getFunctions, httpsCallable } = require('firebase/functions');
+const { getFirestore, collection, addDoc, Timestamp } = require('firebase/firestore');
 
 // Load Firebase config from environment
 const firebaseConfig = {
@@ -124,6 +118,7 @@ const testCases = [
 async function authenticate() {
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  const db = getFirestore(app);
   const functions = getFunctions(app, 'us-central1');
 
   const testEmail = process.env.TEST_EMAIL || `test-${Date.now()}@example.com`;
@@ -135,14 +130,14 @@ async function authenticate() {
     // Try to sign in
     const userCredential = await signInWithEmailAndPassword(auth, testEmail, testPassword);
     console.log('✅ Authenticated successfully\n');
-    return { auth, functions, userId: userCredential.user.uid };
+    return { auth, db, functions, userId: userCredential.user.uid };
   } catch (signInError) {
     // If sign in fails, try to create the user
     try {
       console.log('⚠️  Sign in failed, attempting to create user...');
       const userCredential = await createUserWithEmailAndPassword(auth, testEmail, testPassword);
       console.log('✅ User created and authenticated successfully\n');
-      return { auth, functions, userId: userCredential.user.uid };
+      return { auth, db, functions, userId: userCredential.user.uid };
     } catch (createError) {
       console.error('❌ Authentication failed:', createError.message);
       throw new Error('Authentication required - please set TEST_EMAIL and TEST_PASSWORD in env/.env');
@@ -150,19 +145,42 @@ async function authenticate() {
   }
 }
 
-async function testPreCheck(testCase, functions, userId) {
-  const testChirp = {
-    id: `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+async function createChirpInFirestore(chirpData, db) {
+  const payload = {
+    authorId: chirpData.authorId,
+    text: chirpData.text,
+    topic: chirpData.topic || 'general',
+    reachMode: chirpData.reachMode || 'forAll',
+    createdAt: Timestamp.now(),
+    commentCount: 0,
+    factCheckingStatus: 'pending',
+    semanticTopics: chirpData.semanticTopics || [],
+    entities: chirpData.entities || [],
+  };
+
+  const docRef = await addDoc(collection(db, 'chirps'), payload);
+  return {
+    id: docRef.id,
+    ...chirpData,
+    createdAt: new Date(),
+  };
+}
+
+async function testPreCheck(testCase, functions, db, userId) {
+  const testChirpData = {
     authorId: userId,
     text: testCase.text,
     topic: testCase.topic,
     semanticTopics: testCase.semanticTopics || [],
-    createdAt: new Date().toISOString(),
     reachMode: 'forAll',
     commentCount: 0
   };
 
   try {
+    // First, create the chirp in Firestore
+    console.log(`   ⏳ Creating chirp in Firestore...`);
+    const testChirp = await createChirpInFirestore(testChirpData, db);
+    
     const processChirpValueFn = httpsCallable(functions, 'processChirpValue');
     
     console.log(`   ⏳ Calling processChirpValue...`);
@@ -216,10 +234,11 @@ async function runTests() {
   console.log(`📊 Total test cases: ${testCases.length}\n`);
 
   // Authenticate
-  let auth, functions, userId;
+  let auth, db, functions, userId;
   try {
     const authResult = await authenticate();
     auth = authResult.auth;
+    db = authResult.db;
     functions = authResult.functions;
     userId = authResult.userId;
   } catch (error) {
@@ -241,7 +260,7 @@ async function runTests() {
     console.log(`   Expected Fact-Check: ${testCase.expectedFactCheck ? 'YES ✅' : 'NO ❌'}`);
     console.log(`   ${testCase.description}`);
 
-    const result = await testPreCheck(testCase, functions, userId);
+    const result = await testPreCheck(testCase, functions, db, userId);
 
     if (result.error) {
       console.log(`   ❌ Error: ${result.error}`);

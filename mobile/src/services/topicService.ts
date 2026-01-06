@@ -129,6 +129,53 @@ export const topicService = {
     }
   },
 
+  async getTrendingTopics(limitCount: number = 10): Promise<TopicMetadata[]> {
+    try {
+      // First try to get topics marked as trending
+      const trendingQuery = query(
+        collection(db, 'topics'),
+        where('isTrending', '==', true),
+        orderBy('postsLast1h', 'desc'),
+        limit(limitCount)
+      );
+      const trendingSnapshot = await getDocs(trendingQuery);
+      const trending = trendingSnapshot.docs.map(topicMetadataFromFirestore);
+      
+      if (trending.length >= limitCount) {
+        return trending.slice(0, limitCount);
+      }
+      
+      // If not enough trending topics, supplement with top velocity topics
+      const velocityQuery = query(
+        collection(db, 'topics'),
+        orderBy('averageVelocity1h', 'desc'),
+        limit(limitCount * 2)
+      );
+      const velocitySnapshot = await getDocs(velocityQuery);
+      const velocityTopics = velocitySnapshot.docs.map(topicMetadataFromFirestore);
+      
+      // Combine and deduplicate
+      const combined = [...trending];
+      const existingNames = new Set(trending.map(t => t.name));
+      for (const topic of velocityTopics) {
+        if (!existingNames.has(topic.name) && combined.length < limitCount) {
+          combined.push(topic);
+        }
+      }
+      
+      return combined.slice(0, limitCount);
+    } catch (error) {
+      console.error('Error fetching trending topics:', error);
+      // Fallback to top engaged topics
+      try {
+        return await this.getTopEngagedTopics(limitCount);
+      } catch (fallbackError) {
+        console.error('Error in fallback trending topics fetch:', fallbackError);
+        return [];
+      }
+    }
+  },
+
   async getTopicsForUser(userTopics: string[]): Promise<TopicMetadata[]> {
     try {
       const top30 = await this.getTopEngagedTopics(30);

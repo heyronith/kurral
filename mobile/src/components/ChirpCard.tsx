@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import type { AppStackParamList } from '../navigation/AppNavigator';
+import type { HomeStackParamList } from '../navigation/AppNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { Chirp, User } from '../types';
 import { colors } from '../theme/colors';
 import { useUserStore } from '../stores/useUserStore';
 import FactCheckStatusModal from './FactCheckStatusModal';
+import { renderFormattedText } from '../utils/formattedText';
 
-type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
+type NavigationProp = NativeStackNavigationProp<HomeStackParamList>;
 
 const formatTimeAgo = (date: Date) => {
   // Validate date
@@ -71,15 +72,14 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
   const displayHandle = author?.handle || chirp.authorId?.slice(0, 8) || 'unknown';
   const avatarLetter = getInitial(author?.name || author?.handle || chirp.authorId);
 
-  const renderFormattedText = () => {
+  const renderFormattedTextContent = () => {
     const source = chirp.formattedText || chirp.text;
-    let output = source;
-    output = output.replace(/<br\s*\/?>/gi, '\n');
-    output = output.replace(/<a[^>]*data-mention="([^"]+)"[^>]*>.*?<\/a>/gi, '@$1');
-    output = output.replace(/<\/?strong>/gi, '');
-    output = output.replace(/<\/?em>/gi, '');
-    output = output.replace(/<\/?[^>]+>/g, '');
-    return output;
+    // If no formattedText, return plain text
+    if (!chirp.formattedText) {
+      return <Text style={styles.body}>{source}</Text>;
+    }
+    // Use the formatted text renderer
+    return renderFormattedText(source, styles.body);
   };
 
   const handleCardPress = () => {
@@ -152,7 +152,7 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
         </View>
       </View>
 
-      <Text style={styles.body}>{renderFormattedText()}</Text>
+      {renderFormattedTextContent()}
 
       {chirp.imageUrl ? (
         <Image

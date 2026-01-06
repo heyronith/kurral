@@ -17,6 +17,7 @@ interface UserState {
   bookmarkChirp: (chirpId: string) => Promise<void>;
   unbookmarkChirp: (chirpId: string) => Promise<void>;
   isBookmarked: (chirpId: string) => boolean;
+  updateInterests: (interests: string[]) => Promise<void>;
 }
 
 export const useUserStore = create<UserState>((set, get) => ({
@@ -235,6 +236,40 @@ export const useUserStore = create<UserState>((set, get) => ({
   isBookmarked: (chirpId: string) => {
     const currentUser = useAuthStore.getState().user;
     return currentUser?.bookmarks?.includes(chirpId) ?? false;
+  },
+
+  updateInterests: async (interests: string[]) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) return;
+
+    const updatedUser = { ...currentUser, interests };
+
+    // Optimistic update
+    useAuthStore.getState().setUser(updatedUser);
+    set((state) => ({
+      users: {
+        ...state.users,
+        [currentUser.id]: updatedUser,
+      },
+      userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+    }));
+
+    // Persist to Firestore
+    try {
+      await userService.updateUser(currentUser.id, { interests });
+    } catch (error) {
+      console.error('[useUserStore] Error updating interests:', error);
+      // Revert on error
+      useAuthStore.getState().setUser(currentUser);
+      set((state) => ({
+        users: {
+          ...state.users,
+          [currentUser.id]: currentUser,
+        },
+        userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+      }));
+      throw error;
+    }
   },
 }));
 

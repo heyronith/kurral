@@ -1,4 +1,5 @@
 import type { Chirp, Comment, Claim, FactCheck, ValueScore, ValueVector, DiscussionQuality } from '../types';
+import { logger } from 'firebase-functions';
 import { chirpService, commentService } from './firestoreService';
 import { extractClaimsForChirp, extractClaimsForComment } from './claimExtractionAgent';
 import { factCheckClaims } from './factCheckAgent';
@@ -247,6 +248,16 @@ export async function processChirpValue(
   chirp: Chirp,
   options?: { skipFactCheck?: boolean }
 ): Promise<Chirp> {
+  // Debug: log presence of OPENAI_API_KEY once per cold start
+  if (!process.env.__OPENAI_ENV_LOGGED) {
+    logger.warn('[ValuePipeline] OPENAI_API_KEY present:', !!process.env.OPENAI_API_KEY);
+    logger.warn(
+      '[ValuePipeline] Env keys containing OPENAI:',
+      Object.keys(process.env).filter((k) => k.includes('OPENAI'))
+    );
+    process.env.__OPENAI_ENV_LOGGED = '1';
+  }
+
   await saveChirpProgress(chirp.id, {}, 'in_progress');
 
   const insights: {
@@ -278,10 +289,18 @@ export async function processChirpValue(
     entities: chirp.entities,
     imageUrl: chirp.imageUrl,
   });
+  logger.info('[ValuePipeline] Risk score', {
+    chirpId: chirp.id,
+    riskScore,
+    topic: chirp.topic,
+    semanticTopicsCount: chirp.semanticTopics?.length || 0,
+    entitiesCount: chirp.entities?.length || 0,
+    textLength: chirp.text?.length || 0,
+    textPreview: chirp.text?.substring(0, 100) || '',
+  });
 
   let preCheckResult: PreCheckResult | undefined;
-  // Fail-open bias: start based on risk (medium/high -> true)
-  let shouldProceedWithFactCheck = riskScore >= 0.4;
+  let shouldProceedWithFactCheck = false;
 
   if (chirp.rechirpOfId) {
     try {
@@ -364,14 +383,15 @@ export async function processChirpValue(
     }
   } else {
     preCheckResult = await safeExecute('pre-check', () => withRetry(() => preCheckChirp(chirp), 'pre-check'));
-    shouldProceedWithFactCheck =
-      preCheckResult?.needsFactCheck ?? (riskScore >= 0.4 ? true : false);
+    shouldProceedWithFactCheck = preCheckResult?.needsFactCheck ?? false;
   }
 
-  // Override: high risk should still be checked even if pre-check skipped
-  if (!shouldProceedWithFactCheck && riskScore > 0.7) {
-    shouldProceedWithFactCheck = true;
-  }
+  logger.info('[ValuePipeline] Pre-check decision', {
+    chirpId: chirp.id,
+    preCheck: preCheckResult?.needsFactCheck,
+    riskScore,
+    shouldProceedWithFactCheck,
+  });
 
   let claimsResult = chirp.claims;
   let quotedChirp: Chirp | null | undefined;
@@ -571,7 +591,7 @@ export async function processChirpValue(
     withRetry(() => scoreChirpValue(chirp, claimsForScoring(), factChecksForScoring(), discussion), 'value scoring')
   );
 
-  if (!computedValueScore) {
+  if (!computedValueScore || Number.isNaN(computedValueScore.total)) {
     console.log('[ValuePipeline] Value scoring skipped - agent not available');
   } else {
     latestValueScore = computedValueScore;
@@ -797,16 +817,8 @@ export async function processCommentValue(comment: Comment): Promise<{
       factCheckStatus?: 'clean' | 'needs_review' | 'blocked';
     } = {};
 
-    const riskScore = calculateContentRiskScore({
-      text: comment.text,
-      topic: undefined,
-      semanticTopics: undefined,
-      entities: undefined,
-      imageUrl: comment.imageUrl,
-    });
-
     let preCheckResult: PreCheckResult | undefined;
-    let shouldProceedWithFactCheck = riskScore >= 0.4;
+    let shouldProceedWithFactCheck = false;
 
     let claimsResult = comment.claims;
 
@@ -814,15 +826,10 @@ export async function processCommentValue(comment: Comment): Promise<{
       preCheckResult = await safeExecute('pre-check (comment)', () =>
         withRetry(() => preCheckComment(comment), 'pre-check')
       );
-      shouldProceedWithFactCheck =
-        preCheckResult?.needsFactCheck ?? (riskScore >= 0.4 ? true : false);
+      shouldProceedWithFactCheck = preCheckResult?.needsFactCheck ?? false;
     } else {
       shouldProceedWithFactCheck = true;
       commentInsights.claims = claimsResult;
-    }
-
-    if (!shouldProceedWithFactCheck && riskScore > 0.7) {
-      shouldProceedWithFactCheck = true;
     }
 
     if (!claimsResult || claimsResult.length === 0) {
@@ -1007,5 +1014,3 @@ export async function processCommentValue(comment: Comment): Promise<{
     return {};
   }
 }
-
-

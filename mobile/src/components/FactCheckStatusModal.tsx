@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,13 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
-import type { Chirp, Claim, FactCheck } from '../types';
+import type { Chirp, Claim, FactCheck, PostReviewContext } from '../types';
 import { colors } from '../theme/colors';
+import ReviewContextModal from './ReviewContextModal';
+import { reviewContextService } from '../services/reviewContextService';
+import { useUserStore } from '../stores/useUserStore';
 
 interface FactCheckStatusModalProps {
   visible: boolean;
@@ -22,6 +26,29 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
   onClose,
   chirp,
 }) => {
+  const [reviewContexts, setReviewContexts] = useState<PostReviewContext[]>([]);
+  const [loadingContexts, setLoadingContexts] = useState(false);
+  const [showReviewContextModal, setShowReviewContextModal] = useState(false);
+  const { currentUser } = useUserStore();
+
+  useEffect(() => {
+    if (visible && chirp) {
+      loadReviewContexts();
+    }
+  }, [visible, chirp]);
+
+  const loadReviewContexts = async () => {
+    setLoadingContexts(true);
+    try {
+      const contexts = await reviewContextService.getReviewContextsForChirp(chirp.id);
+      setReviewContexts(contexts);
+    } catch (error) {
+      console.error('[FactCheckStatusModal] Error loading review contexts:', error);
+    } finally {
+      setLoadingContexts(false);
+    }
+  };
+
   const getStatusInfo = () => {
     switch (chirp.factCheckStatus) {
       case 'clean':
@@ -312,9 +339,96 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                 </View>
               </View>
             )}
+
+            {/* Add Context Button - for needs_review posts */}
+            {chirp.factCheckStatus === 'needs_review' && currentUser && currentUser.id !== chirp.authorId && (
+              <View style={styles.section}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowReviewContextModal(true);
+                  }}
+                  style={styles.addContextButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.addContextButtonText}>Add Context for Review</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Review Contexts */}
+            {loadingContexts ? (
+              <View style={styles.loadingSection}>
+                <ActivityIndicator size="small" color={colors.light.accent} />
+                <Text style={styles.loadingText}>Loading review contexts...</Text>
+              </View>
+            ) : reviewContexts.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>User Reviews</Text>
+                {reviewContexts.map((review) => (
+                  <View
+                    key={review.id}
+                    style={[
+                      styles.reviewCard,
+                      review.action === 'validate' ? styles.validateReviewCard : styles.invalidateReviewCard
+                    ]}
+                  >
+                    <View style={styles.reviewHeader}>
+                      <Text style={[
+                        styles.reviewActionIcon,
+                        review.action === 'validate' ? styles.validateIcon : styles.invalidateIcon
+                      ]}>
+                        {review.action === 'validate' ? '✓' : '✗'}
+                      </Text>
+                      <Text style={[
+                        styles.reviewActionText,
+                        review.action === 'validate' ? styles.validateText : styles.invalidateText
+                      ]}>
+                        {review.action === 'validate' ? 'Validated' : 'Invalidated'}
+                      </Text>
+                      <Text style={styles.reviewDate}>
+                        {new Date(review.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    {review.sources && review.sources.length > 0 && (
+                      <View style={styles.sourcesSection}>
+                        <Text style={styles.sourcesTitle}>Sources:</Text>
+                        {review.sources.map((source, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => handleOpenURL(source)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.sourceLink}>
+                              {source}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                    {review.context && (
+                      <View style={styles.contextSection}>
+                        <Text style={styles.contextTitle}>Context:</Text>
+                        <Text style={styles.contextText}>{review.context}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </ScrollView>
         </View>
       </View>
+
+      {/* Review Context Modal */}
+      <ReviewContextModal
+        visible={showReviewContextModal}
+        onClose={() => setShowReviewContextModal(false)}
+        chirp={chirp}
+        onSubmitted={async () => {
+          // Reload review contexts after submission
+          await loadReviewContexts();
+        }}
+      />
     </Modal>
   );
 };
@@ -634,6 +748,106 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.light.textMuted,
     lineHeight: 20,
+  },
+  addContextButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    alignItems: 'center',
+  },
+  addContextButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F59E0B',
+  },
+  loadingSection: {
+    padding: 32,
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.light.textMuted,
+  },
+  reviewCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  validateReviewCard: {
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  invalidateReviewCard: {
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  reviewActionIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  validateIcon: {
+    color: '#10B981',
+  },
+  invalidateIcon: {
+    color: '#EF4444',
+  },
+  reviewActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  validateText: {
+    color: '#10B981',
+  },
+  invalidateText: {
+    color: '#EF4444',
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: colors.light.textMuted,
+  },
+  sourcesSection: {
+    marginTop: 8,
+  },
+  sourcesTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.light.textPrimary,
+    marginBottom: 4,
+  },
+  sourceLink: {
+    fontSize: 12,
+    color: colors.light.accent,
+    textDecorationLine: 'underline',
+    marginBottom: 2,
+  },
+  contextSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.light.border,
+  },
+  contextTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.light.textPrimary,
+    marginBottom: 4,
+  },
+  contextText: {
+    fontSize: 13,
+    color: colors.light.textMuted,
+    lineHeight: 18,
   },
 });
 

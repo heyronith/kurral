@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   Image,
   ActivityIndicator,
   TouchableOpacity,
+  Share,
+  Alert,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +19,10 @@ import { chirpService } from '../../services/chirpService';
 import { useUserStore } from '../../stores/useUserStore';
 import { useFeedStore } from '../../stores/useFeedStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useComposer } from '../../context/ComposerContext';
 import FactCheckStatusModal from '../../components/FactCheckStatusModal';
+import CommentSection from '../../components/CommentSection';
+import { renderFormattedText } from '../../utils/formattedText';
 
 type RouteParams = {
   postId: string;
@@ -48,9 +53,11 @@ const PostDetailScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
   const { postId } = (route.params as RouteParams) || {};
-  const { getUser, loadUser } = useUserStore();
-  const { latest, forYou } = useFeedStore();
+  const { getUser, loadUser, followUser, unfollowUser, isFollowing, bookmarkChirp, unbookmarkChirp, isBookmarked } = useUserStore();
+  const { latest, forYou, addChirp } = useFeedStore();
   const { user: currentUser } = useAuthStore();
+  const { openWithQuote, openForComment } = useComposer();
+  const scrollViewRef = useRef<ScrollView>(null);
   const [chirp, setChirp] = useState<Chirp | null>(null);
   const [author, setAuthor] = useState<User | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
@@ -199,6 +206,88 @@ const PostDetailScreen = () => {
 
   const factCheckStyle = getFactCheckStyle();
 
+  const handleFollow = async () => {
+    if (!chirp) return;
+    if (isFollowing(chirp.authorId)) {
+      await unfollowUser(chirp.authorId);
+    } else {
+      await followUser(chirp.authorId);
+    }
+  };
+
+  const handleBookmark = async () => {
+    if (!currentUser || !chirp || chirp.authorId === currentUser.id) return;
+
+    if (isBookmarked(chirp.id)) {
+      await unbookmarkChirp(chirp.id);
+    } else {
+      await bookmarkChirp(chirp.id);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!chirp) return;
+
+    try {
+      const message = `Check out this post by @${author?.handle || 'unknown'}: "${chirp.text}"`;
+      await Share.share({
+        message,
+      });
+    } catch (error) {
+      console.error('Error sharing post:', error);
+      Alert.alert('Error', 'Failed to share post');
+    }
+  };
+
+
+  const handleCommentClick = () => {
+    if (!chirp) return;
+    
+    // Open composer for comment
+    openForComment(chirp);
+  };
+
+  const handleRepostClick = () => {
+    if (!chirp || !currentUser) return;
+
+    Alert.alert(
+      'Repost',
+      'How would you like to repost this?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Just repost',
+          onPress: async () => {
+            try {
+              await addChirp({
+                authorId: currentUser.id,
+                text: chirp.text,
+                topic: chirp.topic,
+                reachMode: 'forAll',
+                rechirpOfId: chirp.id,
+                semanticTopics: chirp.semanticTopics?.length ? chirp.semanticTopics : undefined,
+              });
+              Alert.alert('Success', 'Post reposted successfully!');
+            } catch (error) {
+              console.error('Error reposting:', error);
+              Alert.alert('Error', 'Failed to repost. Please try again.');
+            }
+          }
+        },
+        {
+          text: 'Add thoughts',
+          onPress: () => {
+            openWithQuote(chirp);
+          }
+        }
+      ]
+    );
+  };
+
+  const following = chirp ? isFollowing(chirp.authorId) : false;
+  const bookmarked = chirp ? isBookmarked(chirp.id) : false;
+  const isCurrentUser = currentUser?.id === chirp?.authorId;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -209,7 +298,11 @@ const PostDetailScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+      >
         <View style={styles.postCard}>
           <View style={styles.postHeader}>
             <View style={styles.avatar}>
@@ -223,7 +316,20 @@ const PostDetailScreen = () => {
               )}
             </View>
             <View style={styles.meta}>
-              <Text style={styles.author}>{displayName}</Text>
+              <View style={styles.metaRow}>
+                <Text style={styles.author}>{displayName}</Text>
+                {!isCurrentUser && (
+                  <TouchableOpacity
+                    onPress={handleFollow}
+                    style={[styles.followButtonInline, following && styles.followingButtonInline]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.followButtonTextInline, following && styles.followingButtonTextInline]}>
+                      {following ? 'Following' : 'Follow'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <Text style={styles.handle}>
                 @{displayHandle} · {formatTimeAgo(createdAt)}
               </Text>
@@ -243,7 +349,11 @@ const PostDetailScreen = () => {
             )}
           </View>
 
-          <Text style={styles.body}>{chirp.text}</Text>
+          {chirp.formattedText ? (
+            renderFormattedText(chirp.formattedText, styles.body)
+          ) : (
+            <Text style={styles.body}>{chirp.text}</Text>
+          )}
 
           {chirp.imageUrl ? (
             <Image
@@ -257,17 +367,58 @@ const PostDetailScreen = () => {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>#{topicLabel}</Text>
             </View>
-            <Text style={styles.metaText}>
-              {chirp.commentCount ?? 0} { (chirp.commentCount ?? 0) === 1 ? 'comment' : 'comments' }
-            </Text>
+          </View>
+
+          {/* Interaction Actions */}
+          <View style={styles.actions}>
+            <TouchableOpacity
+              onPress={handleCommentClick}
+              style={styles.actionButton}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubble-outline" size={22} color={colors.light.textMuted} />
+              {(chirp.commentCount ?? 0) > 0 && (
+                <Text style={styles.actionCount}>{chirp.commentCount}</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleRepostClick}
+              style={styles.actionButton}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="repeat-outline" size={22} color={colors.light.textMuted} />
+            </TouchableOpacity>
+
+            {!isCurrentUser && (
+              <TouchableOpacity
+                onPress={handleBookmark}
+                style={styles.actionButton}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={bookmarked ? "bookmark" : "bookmark-outline"}
+                  size={22}
+                  color={bookmarked ? colors.light.accent : colors.light.textMuted}
+                />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              onPress={handleShare}
+              style={styles.actionButton}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="share-outline" size={22} color={colors.light.textMuted} />
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.commentsPlaceholder}>
-          <Text style={styles.commentsPlaceholderText}>
-            Comments will be available in Phase 4
-          </Text>
-        </View>
+        {/* Comment Section */}
+        <CommentSection 
+          chirp={chirp} 
+          initialExpanded={false}
+        />
       </ScrollView>
       
       {/* Fact-check status modal */}
@@ -374,6 +525,11 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flex: 1,
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   author: {
     fontSize: 18,
     fontWeight: '700',
@@ -383,6 +539,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.light.textMuted,
     marginTop: 2,
+  },
+  followButtonInline: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
+    backgroundColor: colors.light.accent,
+  },
+  followingButtonInline: {
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.light.border,
+  },
+  followButtonTextInline: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  followingButtonTextInline: {
+    color: colors.light.textPrimary,
   },
   body: {
     fontSize: 16,
@@ -418,14 +593,28 @@ const styles = StyleSheet.create({
     color: colors.light.textMuted,
     fontSize: 14,
   },
-  commentsPlaceholder: {
-    padding: 24,
+  actions: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.light.border,
+    gap: 24,
   },
-  commentsPlaceholderText: {
-    fontSize: 14,
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  actionCount: {
+    fontSize: 13,
     color: colors.light.textMuted,
-    fontStyle: 'italic',
+    fontWeight: '600',
+    marginLeft: 2,
   },
 });
 
