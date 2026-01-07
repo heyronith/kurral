@@ -1,4 +1,4 @@
-import { cosineSimilarity } from './similarity';
+import { cosineSimilarity } from '../../../../shared/lib/utils/similarity';
 const getSimilarityThreshold = (config) => {
     return config.semanticSimilarityThreshold ?? 0.7;
 };

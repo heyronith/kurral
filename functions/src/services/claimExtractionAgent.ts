@@ -13,7 +13,13 @@ Rules:
 - Provide any cited evidence snippets if mentioned (optional).
 - If an image is provided, read ALL text in the image (including overlays, captions, memes, infographics).
 - Extract claims from both the post text AND any text visible in the image.
-- For images, also extract any statistical claims, quotes, or factual statements shown visually.`;
+- For images, also extract any statistical claims, quotes, or factual statements shown visually.
+- NEVER return an empty claims list when input text (or image text) contains any statement.
+- If uncertain, return a single claim that mirrors the input text with low confidence.
+- If the content is a denial or controversy (e.g., "X is a scam"), still treat it as a claim.`;
+
+const STRICT_SUFFIX =
+  '\n\nIMPORTANT: Every claim must have a non-empty "text" field. Do not return empty strings.';
 
 const CLAIM_RESPONSE_SCHEMA = {
   type: 'object',
@@ -118,20 +124,50 @@ const fallbackExtract = (chirp: Pick<Chirp, 'id' | 'text' | 'imageUrl'>): Claim[
   }));
 };
 
+const normalizeType = (value: string | undefined): Claim['type'] => {
+  const t = (value || '').toLowerCase();
+  if (t === 'fact' || t === 'opinion' || t === 'experience') return t;
+  return 'fact';
+};
+
+const normalizeDomain = (value: string | undefined): Claim['domain'] => {
+  const d = (value || '').toLowerCase();
+  const allowed: Claim['domain'][] = [
+    'health',
+    'finance',
+    'politics',
+    'technology',
+    'science',
+    'society',
+    'general',
+  ];
+  return allowed.includes(d as Claim['domain']) ? (d as Claim['domain']) : 'general';
+};
+
+const normalizeRisk = (value: string | undefined): Claim['riskLevel'] => {
+  const r = (value || '').toLowerCase();
+  if (r === 'low' || r === 'medium' || r === 'high') return r;
+  return 'low';
+};
+
 const toClaim = (chirpId: string, raw: ClaimExtractionResponse['claims'][number], index: number): Claim => ({
   id: ensureClaimId(chirpId, raw.id, index),
-  text: raw.text.trim(),
-  type: raw.type,
-  domain: raw.domain || 'general',
-  riskLevel: raw.riskLevel || 'low',
+  text: (raw.text || '').trim(),
+  type: normalizeType(raw.type),
+  domain: normalizeDomain(raw.domain),
+  riskLevel: normalizeRisk(raw.riskLevel),
   confidence: Math.max(0, Math.min(1, Number(raw.confidence) || 0)),
   extractedAt: new Date(),
-  evidence: raw.evidence?.map((item) => ({
-    source: item.source,
-    url: item.url,
-    snippet: item.snippet,
-    quality: Math.max(0, Math.min(1, Number(item.quality) || 0.5)),
-  })),
+  evidence: Array.isArray(raw.evidence)
+    ? raw.evidence
+        .filter((item) => item && (item.source || item.snippet))
+        .map((item) => ({
+          source: item.source,
+          url: item.url,
+          snippet: item.snippet,
+          quality: Math.max(0, Math.min(1, Number(item.quality) || 0.5)),
+        }))
+    : undefined,
 });
 
 export async function extractClaimsForChirp(chirp: Chirp, quotedChirp?: Chirp): Promise<Claim[]> {
@@ -204,29 +240,72 @@ The quoted post also contains an image. Extract claims from any text visible in 
 
 Extract claims following the schema. Ignore emojis or filler text.`;
 
-  try {
+  const imageUrlForVision = hasImage ? chirp.imageUrl : hasQuotedImage ? quotedChirp?.imageUrl : null;
+
+  const runExtraction = async (useStrictPrompt: boolean): Promise<Claim[]> => {
     let response: ClaimExtractionResponse;
-    const imageUrlForVision = hasImage ? chirp.imageUrl : hasQuotedImage ? quotedChirp?.imageUrl : null;
+    const systemPrompt = useStrictPrompt ? `${SYSTEM_PROMPT}${STRICT_SUFFIX}` : SYSTEM_PROMPT;
+    const finalPrompt = useStrictPrompt ? `${prompt}${STRICT_SUFFIX}` : prompt;
 
     if (hasAnyImage && imageUrlForVision) {
       response = await agent.generateJSONWithVision<ClaimExtractionResponse>(
-        prompt,
+        finalPrompt,
         imageUrlForVision || null,
-        SYSTEM_PROMPT,
+        systemPrompt,
         CLAIM_RESPONSE_SCHEMA
       );
     } else {
-      response = await agent.generateJSON<ClaimExtractionResponse>(prompt, SYSTEM_PROMPT, CLAIM_RESPONSE_SCHEMA);
+      response = await agent.generateJSON<ClaimExtractionResponse>(finalPrompt, systemPrompt, CLAIM_RESPONSE_SCHEMA);
     }
 
     if (!response?.claims?.length) {
+      return [];
+    }
+
+    const rawClaims = response.claims || [];
+    const claims = rawClaims
+      .filter((claim) => typeof claim.text === 'string' && claim.text.trim().length > 0)
+      .map((claim, index) => toClaim(chirp.id, claim, index));
+
+    if (claims.length === 0) {
+      console.warn('[ClaimExtraction] Agent returned only empty claims', {
+        chirpId: chirp.id,
+        rawCount: rawClaims.length,
+        emptyTextCount: rawClaims.filter((claim) => !claim?.text || !String(claim.text).trim()).length,
+      });
+    }
+
+    return claims;
+  };
+
+  try {
+    let claims = await runExtraction(false);
+
+    if (claims.length === 0) {
+      console.warn('[ClaimExtraction] Retrying extraction with strict prompt', { chirpId: chirp.id });
+      claims = await runExtraction(true);
+    }
+
+    if (claims.length === 0) {
+      console.warn('[ClaimExtraction] No claims after retry, using fallback', {
+        chirpId: chirp.id,
+        hasText,
+        hasImage,
+        hasQuotedText,
+        hasQuotedImage,
+      });
       return fallbackExtract(chirp);
     }
 
-    return response.claims
-      .filter((claim) => typeof claim.text === 'string' && claim.text.trim().length > 0)
-      .map((claim, index) => toClaim(chirp.id, claim, index));
+    console.log('[ClaimExtraction] Extracted claims', {
+      chirpId: chirp.id,
+      count: claims.length,
+      sample: claims[0]?.text?.slice(0, 120) || null,
+    });
+
+    return claims;
   } catch (error) {
+    console.error('[ClaimExtraction] Agent error, using fallback', { chirpId: chirp.id, error });
     return fallbackExtract(chirp);
   }
 }
@@ -277,32 +356,57 @@ This comment contains only an image. Read ALL text in the image (including any o
 
 Extract claims following the schema. Ignore emojis or filler text.`;
 
-  try {
+  const runExtraction = async (useStrictPrompt: boolean): Promise<Claim[]> => {
     let response: ClaimExtractionResponse;
+    const systemPrompt = useStrictPrompt ? `${SYSTEM_PROMPT}${STRICT_SUFFIX}` : SYSTEM_PROMPT;
+    const finalPrompt = useStrictPrompt ? `${prompt}${STRICT_SUFFIX}` : prompt;
 
     if (hasImage) {
       response = await agent.generateJSONWithVision<ClaimExtractionResponse>(
-        prompt,
+        finalPrompt,
         comment.imageUrl || null,
-        SYSTEM_PROMPT,
+        systemPrompt,
         CLAIM_RESPONSE_SCHEMA
       );
     } else {
-      response = await agent.generateJSON<ClaimExtractionResponse>(prompt, SYSTEM_PROMPT, CLAIM_RESPONSE_SCHEMA);
+      response = await agent.generateJSON<ClaimExtractionResponse>(finalPrompt, systemPrompt, CLAIM_RESPONSE_SCHEMA);
     }
 
     if (!response?.claims?.length) {
+      return [];
+    }
+
+    const rawClaims = response.claims || [];
+    const claims = rawClaims
+      .filter((claim) => typeof claim.text === 'string' && claim.text.trim().length > 0)
+      .map((claim, index) => toClaim(comment.id, claim, index));
+
+    if (claims.length === 0) {
+      console.warn('[ClaimExtraction] Comment agent returned only empty claims', {
+        commentId: comment.id,
+        rawCount: rawClaims.length,
+        emptyTextCount: rawClaims.filter((claim) => !claim?.text || !String(claim.text).trim()).length,
+      });
+    }
+
+    return claims;
+  };
+
+  try {
+    let claims = await runExtraction(false);
+    if (claims.length === 0) {
+      console.warn('[ClaimExtraction] Retrying comment extraction with strict prompt', { commentId: comment.id });
+      claims = await runExtraction(true);
+    }
+
+    if (claims.length === 0) {
       const fallbackChirp = { id: comment.id, text: comment.text || '', imageUrl: comment.imageUrl };
       return fallbackExtract(fallbackChirp);
     }
 
-    return response.claims
-      .filter((claim) => typeof claim.text === 'string' && claim.text.trim().length > 0)
-      .map((claim, index) => toClaim(comment.id, claim, index));
+    return claims;
   } catch (error) {
     const fallbackChirp = { id: comment.id, text: comment.text || '', imageUrl: comment.imageUrl };
     return fallbackExtract(fallbackChirp);
   }
 }
-
-

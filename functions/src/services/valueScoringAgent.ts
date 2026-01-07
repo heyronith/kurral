@@ -32,11 +32,12 @@ const VALUE_SCHEMA = {
   required: ['scores', 'confidence'],
 };
 
-type ValueResponse = {
-  scores: ValueVector;
-  drivers?: string[];
-  confidence: number;
-};
+// ValueResponse type kept for reference but using 'any' for flexibility
+// type ValueResponse = {
+//   scores: ValueVector;
+//   drivers?: string[];
+//   confidence: number;
+// };
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
@@ -287,14 +288,64 @@ Instructions:
 - Effort considers text length, number of claims, and clarity indicators.
 - Return JSON matching schema.`;
 
-  const response = await agent.generateJSON<ValueResponse>(prompt, 'Value scoring agent', VALUE_SCHEMA);
+  const response = await agent.generateJSON<any>(prompt, 'Value scoring agent', VALUE_SCHEMA);
+
+  if (!response) {
+    console.error('[ValueScoringAgent] No response received');
+    return null;
+  }
+
+  // Handle multiple response formats:
+  // 1. Nested: { scores: { epistemic: ..., ... }, confidence: ... }
+  // 2. Flat lowercase: { epistemic: ..., insight: ..., ... }
+  // 3. Flat capitalized: { Epistemic: ..., Insight: ..., ... }
+  let scores: ValueVector;
+  if (response.scores) {
+    // Expected format: { scores: { epistemic: ..., ... }, confidence: ... }
+    scores = response.scores;
+  } else if (
+    typeof response.epistemic === 'number' &&
+    typeof response.insight === 'number' &&
+    typeof response.practical === 'number' &&
+    typeof response.relational === 'number' &&
+    typeof response.effort === 'number'
+  ) {
+    // Flat format (lowercase): { epistemic: ..., insight: ..., ... }
+    console.warn('[ValueScoringAgent] Received flat response format (lowercase), expected nested format');
+    scores = {
+      epistemic: response.epistemic,
+      insight: response.insight,
+      practical: response.practical,
+      relational: response.relational,
+      effort: response.effort,
+    };
+  } else if (
+    typeof response.Epistemic === 'number' &&
+    typeof response.Insight === 'number' &&
+    typeof response.Practical === 'number' &&
+    typeof response.Relational === 'number' &&
+    typeof response.Effort === 'number'
+  ) {
+    // Flat format (capitalized): { Epistemic: ..., Insight: ..., ... }
+    console.warn('[ValueScoringAgent] Received flat response format (capitalized), expected nested format');
+    scores = {
+      epistemic: response.Epistemic,
+      insight: response.Insight,
+      practical: response.Practical,
+      relational: response.Relational,
+      effort: response.Effort,
+    };
+  } else {
+    console.error('[ValueScoringAgent] Invalid response structure:', response);
+    return null;
+  }
 
   let vector: ValueVector = {
-    epistemic: clamp01(response.scores.epistemic),
-    insight: clamp01(response.scores.insight),
-    practical: clamp01(response.scores.practical),
-    relational: clamp01(response.scores.relational),
-    effort: clamp01(response.scores.effort),
+    epistemic: clamp01(scores.epistemic),
+    insight: clamp01(scores.insight),
+    practical: clamp01(scores.practical),
+    relational: clamp01(scores.relational),
+    effort: clamp01(scores.effort),
   };
 
   vector = applyFactCheckPenalty(vector, factChecks);
@@ -311,9 +362,9 @@ Instructions:
   return {
     ...vector,
     total: clamp01(total),
-    confidence: clamp01(response.confidence),
+    confidence: clamp01(response.confidence || 0.7),
     updatedAt: new Date(),
-    drivers: response.drivers?.filter((driver) => driver.trim().length > 0),
+    drivers: response.drivers?.filter((driver: string) => driver.trim().length > 0),
   };
 }
 

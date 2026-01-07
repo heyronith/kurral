@@ -14,12 +14,24 @@ const mergeChirpLists = (existing, incoming) => {
     });
     return Array.from(merged.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 };
+const filterVisibleChirps = (chirps) => {
+    const viewer = useUserStore.getState().currentUser;
+    return chirps.filter((chirp) => {
+        const isProcessing = chirp.factCheckingStatus === 'pending' || chirp.factCheckingStatus === 'in_progress';
+        const isBlocked = chirp.factCheckStatus === 'blocked';
+        if (isProcessing)
+            return false;
+        if (isBlocked && (!viewer || chirp.authorId !== viewer.id))
+            return false;
+        return true;
+    });
+};
 export const useFeedStore = create((set, get) => ({
     chirps: [],
     comments: {},
     activeFeed: 'latest',
     setActiveFeed: (feed) => set({ activeFeed: feed }),
-    addChirp: async (chirpData) => {
+    addChirp: async (chirpData, options) => {
         try {
             // Create chirp in Firestore
             const newChirp = await chirpService.createChirp(chirpData);
@@ -35,20 +47,26 @@ export const useFeedStore = create((set, get) => ({
                     console.error('Error incrementing topic engagement:', error);
                 });
             }
-            // Update local state
-            set((state) => ({
-                chirps: [newChirp, ...state.chirps],
-            }));
-            processChirpValue(newChirp)
-                .then((enrichedChirp) => {
+            let processedChirp = newChirp;
+            if (options?.waitForProcessing) {
+                processedChirp = await processChirpValue(newChirp);
+            }
+            else {
+                // Fire-and-forget legacy
+                processChirpValue(newChirp).catch((error) => {
+                    console.error('[ValuePipeline] Failed to enrich chirp:', error);
+                });
+            }
+            const isBlocked = processedChirp.factCheckStatus === 'blocked';
+            const isProcessing = processedChirp.factCheckingStatus === 'pending' ||
+                processedChirp.factCheckingStatus === 'in_progress';
+            const canShowInFeed = !isBlocked && !isProcessing;
+            if (canShowInFeed) {
                 set((state) => ({
-                    chirps: state.chirps.map((chirp) => (chirp.id === enrichedChirp.id ? enrichedChirp : chirp)),
+                    chirps: [processedChirp, ...state.chirps],
                 }));
-            })
-                .catch((error) => {
-                console.error('[ValuePipeline] Failed to enrich chirp:', error);
-            });
-            return newChirp;
+            }
+            return processedChirp;
         }
         catch (error) {
             console.error('Error creating chirp:', error);
@@ -119,7 +137,7 @@ export const useFeedStore = create((set, get) => ({
         return buildCommentTree(flatComments);
     },
     getLatestFeed: () => {
-        const { chirps } = get();
+        const chirps = filterVisibleChirps(get().chirps);
         const currentUser = useUserStore.getState().currentUser;
         if (!currentUser)
             return [];
@@ -129,7 +147,7 @@ export const useFeedStore = create((set, get) => ({
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     },
     getForYouFeed: () => {
-        const { chirps } = get();
+        const chirps = filterVisibleChirps(get().chirps);
         const currentUser = useUserStore.getState().currentUser;
         const config = useConfigStore.getState().forYouConfig;
         const getUser = useUserStore.getState().getUser;
@@ -137,9 +155,9 @@ export const useFeedStore = create((set, get) => ({
             return [];
         return generateForYouFeed(chirps, currentUser, config, getUser);
     },
-    loadChirps: (chirps) => set({ chirps }),
+    loadChirps: (chirps) => set({ chirps: filterVisibleChirps(chirps) }),
     upsertChirps: (chirps) => set((state) => ({
-        chirps: mergeChirpLists(state.chirps, chirps),
+        chirps: filterVisibleChirps(mergeChirpLists(state.chirps, chirps)),
     })),
     loadComments: (chirpId, comments) => set((state) => ({
         comments: {

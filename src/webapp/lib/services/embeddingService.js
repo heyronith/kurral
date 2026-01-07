@@ -1,9 +1,9 @@
+import { auth } from '../firebase';
 /**
  * Embedding Service - Secure OpenAI Client
  *
  * Generates embeddings using OpenAI API through secure proxy
  */
-import { auth } from '../firebase';
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const PROXY_ENDPOINT = '/api/openai-proxy';
 /**

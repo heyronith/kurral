@@ -482,18 +482,25 @@ export async function processChirpValue(
     }
   } else if (!claimsResult || claimsResult.length === 0) {
     if (shouldFactCheck && shouldProceedWithFactCheck) {
-      claimsResult = await safeExecute('claim extraction', () =>
-        withRetry(() => extractClaimsForChirp(chirp, undefined), 'claim extraction')
-      );
+        claimsResult = await safeExecute('claim extraction', () =>
+          withRetry(() => extractClaimsForChirp(chirp, undefined), 'claim extraction')
+        );
 
-      if (claimsResult && claimsResult.length > 0) {
-        insights.claims = claimsResult;
-        await saveChirpProgress(chirp.id, { claims: claimsResult }, 'in_progress');
-      }
-    } else if (shouldFactCheck && !shouldProceedWithFactCheck) {
-      console.log(
-        `[ValuePipeline] Pre-check determined chirp ${chirp.id} does not need fact-checking (${preCheckResult?.contentType || 'unknown'})`
-      );
+        if (claimsResult && claimsResult.length > 0) {
+          console.log('[ValuePipeline] Claims extracted', {
+            chirpId: chirp.id,
+            count: claimsResult.length,
+            sample: claimsResult[0]?.text?.slice(0, 120) || null,
+          });
+          insights.claims = claimsResult;
+          await saveChirpProgress(chirp.id, { claims: claimsResult }, 'in_progress');
+        } else {
+          console.warn('[ValuePipeline] Claim extraction returned no claims', { chirpId: chirp.id });
+        }
+      } else if (shouldFactCheck && !shouldProceedWithFactCheck) {
+        console.log(
+          `[ValuePipeline] Pre-check determined chirp ${chirp.id} does not need fact-checking (${preCheckResult?.contentType || 'unknown'})`
+        );
       insights.factCheckStatus = 'clean';
       await saveChirpProgress(chirp.id, { factCheckStatus: 'clean' }, 'in_progress');
     }
@@ -504,6 +511,14 @@ export async function processChirpValue(
   const claimsForScoring = (): Claim[] => insights.claims ?? chirp.claims ?? [];
   const currentClaims = claimsForScoring();
   let factChecksResult = chirp.factChecks;
+
+  if (shouldFactCheck && shouldProceedWithFactCheck && currentClaims.length === 0) {
+    console.warn('[ValuePipeline] Pre-check requested fact-checking but no claims were extracted', {
+      chirpId: chirp.id,
+    });
+    insights.factCheckStatus = 'needs_review';
+    await saveChirpProgress(chirp.id, { factCheckStatus: 'needs_review' }, 'in_progress');
+  }
 
   if (shouldFactCheck && shouldProceedWithFactCheck && currentClaims.length > 0) {
     if (!factChecksResult || factChecksResult.length === 0) {
@@ -555,8 +570,15 @@ export async function processChirpValue(
         );
 
         if (factChecksResult && factChecksResult.length > 0) {
+          console.log('[ValuePipeline] Fact checks generated', {
+            chirpId: chirp.id,
+            count: factChecksResult.length,
+            verdicts: factChecksResult.map((fc) => fc.verdict),
+          });
           insights.factChecks = factChecksResult;
           await saveChirpProgress(chirp.id, { factChecks: factChecksResult }, 'in_progress');
+        } else {
+          console.warn('[ValuePipeline] Fact check returned no results', { chirpId: chirp.id });
         }
       }
     } else {
@@ -583,6 +605,12 @@ export async function processChirpValue(
 
   const policyDecision = evaluatePolicy(claimsForScoring(), factChecksForScoring());
   if (policyDecision.status) {
+    console.log('[ValuePipeline] Policy decision', {
+      chirpId: chirp.id,
+      status: policyDecision.status,
+      reasons: policyDecision.reasons,
+      escalateToHuman: policyDecision.escalateToHuman,
+    });
     insights.factCheckStatus = policyDecision.status;
     await saveChirpProgress(chirp.id, { factCheckStatus: policyDecision.status }, 'in_progress');
   }
