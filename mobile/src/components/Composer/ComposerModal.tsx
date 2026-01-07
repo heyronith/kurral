@@ -768,7 +768,9 @@ const ComposerModal = () => {
       setAnalysisStatus('Running fact-check and content analysis...');
       const processed = await addChirp(chirpData, { waitForProcessing: true });
 
-      const decision = processed.factCheckStatus || 'clean';
+      // Ensure we have a factCheckStatus (should never be undefined after processing)
+      const decision = processed.factCheckStatus || 'needs_review';
+      
       if (decision === 'blocked') {
         setAnalysisStatus('Post blocked');
         setAnalysisDecision('This post was blocked and will only be visible to you in your profile.');

@@ -6,6 +6,34 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
 import type { Chirp, Comment } from '../../types';
 
+// Pipeline result type (matches Cloud Function response)
+export interface PipelineResult {
+  success: boolean;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  claims: any[];
+  factChecks: any[];
+  factCheckStatus: 'clean' | 'needs_review' | 'blocked';
+  valueScore?: {
+    epistemic: number;
+    insight: number;
+    practical: number;
+    relational: number;
+    effort: number;
+    total: number;
+    confidence: number;
+    updatedAt: Date;
+    drivers?: string[];
+  };
+  processedAt: Date;
+  durationMs: number;
+  stepsCompleted: string[];
+  error?: {
+    step: string;
+    message: string;
+    isRetryable: boolean;
+  };
+}
+
 /**
  * Process chirp through value pipeline
  * 
@@ -22,7 +50,31 @@ export async function processChirpValue(
   try {
     const callable = httpsCallable(functions, 'processChirpValue');
     const result = await callable({ chirpId: chirp.id, chirp, options });
-    return result.data as Chirp;
+    
+    // The Cloud Function returns an enriched Chirp
+    const enrichedChirp = result.data as Chirp;
+    
+    // Ensure dates are properly converted
+    return {
+      ...enrichedChirp,
+      createdAt: enrichedChirp.createdAt instanceof Date 
+        ? enrichedChirp.createdAt 
+        : new Date(enrichedChirp.createdAt as any),
+      valueScore: enrichedChirp.valueScore ? {
+        ...enrichedChirp.valueScore,
+        updatedAt: enrichedChirp.valueScore.updatedAt instanceof Date
+          ? enrichedChirp.valueScore.updatedAt
+          : new Date(enrichedChirp.valueScore.updatedAt as any),
+      } : undefined,
+      claims: enrichedChirp.claims?.map((c: any) => ({
+        ...c,
+        extractedAt: c.extractedAt instanceof Date ? c.extractedAt : new Date(c.extractedAt),
+      })),
+      factChecks: enrichedChirp.factChecks?.map((f: any) => ({
+        ...f,
+        checkedAt: f.checkedAt instanceof Date ? f.checkedAt : new Date(f.checkedAt),
+      })),
+    };
   } catch (error: any) {
     console.error('[ValuePipeline] Failed to process chirp value:', error);
     // Return the original chirp on error - pipeline will handle retries

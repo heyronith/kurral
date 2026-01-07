@@ -95,9 +95,26 @@ export const useFeedStore = create<FeedState>((set, get) => ({
       if (options?.waitForProcessing) {
         try {
           processedChirp = await processChirpValue(newChirp);
+          
+          // If processing failed or returned without factCheckStatus, mark as needs_review
+          if (!processedChirp.factCheckStatus) {
+            console.warn('[ValuePipeline] Processing returned without factCheckStatus, marking as needs_review');
+            processedChirp = {
+              ...processedChirp,
+              factCheckStatus: 'needs_review',
+              factCheckingStatus: 'failed',
+            };
+          }
         } catch (error) {
           console.error('[ValuePipeline] Failed to process chirp before publish:', error);
-          throw error;
+          // On error, mark as needs_review to prevent auto-approval
+          processedChirp = {
+            ...newChirp,
+            factCheckStatus: 'needs_review',
+            factCheckingStatus: 'failed',
+          };
+          // Don't throw - let the post be created but marked for review
+          // The Firestore trigger will retry processing
         }
       } else {
         // Fire-and-forget fallback (legacy)

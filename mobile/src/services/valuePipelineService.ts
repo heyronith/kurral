@@ -1,11 +1,11 @@
 // Value pipeline service for mobile app
-// TODO: This will be replaced with Firebase Cloud Functions implementation
-// The previous Vercel serverless function approach has been removed
+// Uses Firebase Cloud Functions (server-side processing)
 
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
 import type { Chirp, Claim, FactCheck, ValueScore } from '../types';
 
+// Helper to convert Firestore timestamps to Date objects
 const toDate = (value: any): Date | undefined => {
   if (!value) return undefined;
   if (value instanceof Date) return value;
@@ -46,18 +46,84 @@ const normalizeChirp = (chirp: Chirp): Chirp => ({
   valueScore: normalizeValueScore((chirp as any).valueScore),
 });
 
+// Pipeline result type (matches Cloud Function response)
+export interface PipelineResult {
+  success: boolean;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  claims: any[];
+  factChecks: any[];
+  factCheckStatus: 'clean' | 'needs_review' | 'blocked';
+  valueScore?: ValueScore;
+  processedAt: Date;
+  durationMs: number;
+  stepsCompleted: string[];
+  error?: {
+    step: string;
+    message: string;
+    isRetryable: boolean;
+  };
+}
+
 /**
  * Process chirp through value pipeline
- * TODO: Implement using Firebase Cloud Functions (callable function)
  * 
- * This function will call a Firebase Cloud Function to process the chirp
+ * This function calls a Firebase Cloud Function to process the chirp
  * through the value pipeline (fact-checking, value scoring, etc.)
+ * 
+ * All processing happens server-side in Firebase Cloud Functions.
  */
 export async function processChirpValue(
   chirp: Chirp,
   options?: { skipFactCheck?: boolean }
 ): Promise<Chirp> {
-  const callable = httpsCallable(functions, 'processChirpValue');
-  const result = await callable({ chirpId: chirp.id, chirp, options });
-  return normalizeChirp(result.data as Chirp);
+  try {
+    const callable = httpsCallable(functions, 'processChirpValue');
+    const result = await callable({ chirpId: chirp.id, chirp, options });
+    
+    // The Cloud Function returns an enriched Chirp
+    return normalizeChirp(result.data as Chirp);
+  } catch (error: any) {
+    console.error('[ValuePipeline] Failed to process chirp value:', error);
+    // Return the original chirp on error - pipeline will handle retries
+    return chirp;
+  }
+}
+
+/**
+ * Process comment through value pipeline
+ * 
+ * This function calls a Firebase Cloud Function to process the comment
+ * through the value pipeline (fact-checking, value scoring, etc.)
+ */
+export async function processCommentValue(
+  comment: any
+): Promise<{
+  commentInsights?: Record<string, any>;
+  updatedChirp?: Chirp;
+}> {
+  try {
+    const callable = httpsCallable(functions, 'processCommentValue');
+    const result = await callable({ commentId: comment.id, comment });
+    const data = result.data as {
+      commentInsights?: Record<string, any>;
+      updatedChirp?: Chirp;
+    };
+    
+    return {
+      commentInsights: data.commentInsights,
+      updatedChirp: data.updatedChirp ? normalizeChirp(data.updatedChirp) : undefined,
+    };
+  } catch (error: any) {
+    console.error('[ValuePipeline] Failed to process comment value:', error);
+    // Return empty object on error
+    return {};
+  }
+}
+
+/**
+ * Process pending rechirps (no-op for mobile - handled by scheduled Cloud Function)
+ */
+export async function processPendingRechirps(limitCount: number = 50): Promise<void> {
+  // No-op: rechirps are processed by scheduled Cloud Function
+  console.log('[ValuePipeline] processPendingRechirps is handled by scheduled Cloud Function');
 }

@@ -1,13 +1,10 @@
 import * as functions from 'firebase-functions/v2';
+import * as functionsV1 from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { Resend } from 'resend';
 import Parser from 'rss-parser';
 import type { Chirp, Comment } from './types';
-import {
-  processChirpValue as runChirpValue,
-  processPendingRechirps,
-  processCommentValue as runCommentValue,
-} from './services/valuePipelineService';
+import { processChirp, processComment } from './services/pipeline';
 import { chirpService } from './services/firestoreService';
 
 // Firebase Admin is initialized in firestoreService.ts
@@ -1602,14 +1599,105 @@ export const processChirpValue = functions.https.onCall(
     }
 
     try {
-      const result = await runChirpValue(chirp, options);
-      return result;
+      // Use the new simplified pipeline
+      const result = await processChirp({ 
+        chirp, 
+        skipPreCheck: options?.skipFactCheck === false // Force processing if skipFactCheck is explicitly false
+      });
+
+      if (!result.success) {
+        console.error('[processChirpValue] Pipeline failed:', result.error);
+        throw new functions.https.HttpsError(
+          'internal', 
+          result.error?.message || 'Pipeline processing failed'
+        );
+      }
+
+      // Return enriched chirp for backward compatibility
+      const enrichedChirp: Chirp = {
+        ...chirp,
+        claims: result.claims,
+        factChecks: result.factChecks,
+        factCheckStatus: result.factCheckStatus,
+        valueScore: result.valueScore,
+        factCheckingStatus: undefined,
+        factCheckingStartedAt: undefined,
+      };
+
+      return enrichedChirp;
     } catch (error: any) {
       console.error('[processChirpValue] Failed', error);
+      
+      // Still throw the error so client knows processing failed
+      // The Firestore trigger will handle processing as a fallback
       throw new functions.https.HttpsError('internal', error?.message || 'Failed to process chirp value');
     }
   }
 );
+
+/**
+ * Firestore trigger: Automatically process new chirps
+ * 
+ * This ensures posts are processed even if the client-side call fails.
+ * Uses v1 syntax for Firestore triggers (v2 doesn't support Firestore triggers yet)
+ */
+export const onChirpCreate = functionsV1.firestore
+  .document('chirps/{chirpId}')
+  .onCreate(async (snapshot, context) => {
+    const chirpData = snapshot.data();
+    const chirpId = context.params.chirpId;
+
+    // Skip if already processed or if it's a rechirp (for now)
+    if (
+      chirpData.factCheckStatus === 'clean' ||
+      chirpData.factCheckStatus === 'blocked' ||
+      chirpData.factCheckStatus === 'needs_review' ||
+      chirpData.rechirpOfId
+    ) {
+      console.log(`[onChirpCreate] Skipping chirp ${chirpId} - already processed or rechirp`);
+      return;
+    }
+
+    // Skip if processing already started (client-side call succeeded)
+    if (chirpData.factCheckingStatus === 'completed') {
+      console.log(`[onChirpCreate] Skipping chirp ${chirpId} - already completed`);
+      return;
+    }
+
+    console.log(`[onChirpCreate] Processing new chirp ${chirpId}`);
+
+    try {
+      const chirp: Chirp = normalizeChirpPayload({
+        id: chirpId,
+        ...chirpData,
+      });
+
+      // Process through pipeline
+      const result = await processChirp({ chirp });
+
+      if (!result.success) {
+        console.error(`[onChirpCreate] Pipeline failed for chirp ${chirpId}:`, result.error);
+        // Mark as needs_review on failure
+        await chirpService.updateChirpInsights(chirpId, {
+          factCheckStatus: 'needs_review',
+          factCheckingStatus: 'failed',
+        });
+        return;
+      }
+
+      // Pipeline already saved the result atomically, so we're done
+      console.log(`[onChirpCreate] Successfully processed chirp ${chirpId} - status: ${result.factCheckStatus}`);
+    } catch (error: any) {
+      console.error(`[onChirpCreate] Error processing chirp ${chirpId}:`, error);
+      // Mark as needs_review on error
+      await chirpService.updateChirpInsights(chirpId, {
+        factCheckStatus: 'needs_review',
+        factCheckingStatus: 'failed',
+      }).catch((saveError) => {
+        console.error(`[onChirpCreate] Failed to save error status for chirp ${chirpId}:`, saveError);
+      });
+    }
+  });
 
 export const processCommentValue = functions.https.onCall(
   { 
@@ -1631,8 +1719,32 @@ export const processCommentValue = functions.https.onCall(
 
     try {
       const normalizedComment = normalizeCommentPayload(comment);
-      const result = await runCommentValue(normalizedComment);
-      return result;
+      
+      // Get parent chirp for context
+      const parentChirp = await chirpService.getChirp(normalizedComment.chirpId);
+      if (!parentChirp) {
+        throw new functions.https.HttpsError('not-found', 'Parent chirp not found');
+      }
+
+      // Use the new simplified pipeline
+      const result = await processComment({ 
+        comment: normalizedComment,
+        parentChirp,
+      });
+
+      if (!result.success) {
+        console.error('[processCommentValue] Pipeline failed:', result.error);
+        throw new functions.https.HttpsError(
+          'internal', 
+          result.error?.message || 'Pipeline processing failed'
+        );
+      }
+
+      // Return result for backward compatibility
+      return {
+        commentInsights: {},
+        updatedChirp: parentChirp,
+      };
     } catch (error: any) {
       console.error('[processCommentValue] Failed', error);
       throw new functions.https.HttpsError('internal', error?.message || 'Failed to process comment value');
@@ -1640,14 +1752,4 @@ export const processCommentValue = functions.https.onCall(
   }
 );
 
-export const processPendingRechirpsCron = functions.scheduler.onSchedule(
-  {
-    schedule: 'every 30 minutes',
-    timeZone: 'Etc/UTC',
-    maxInstances: 1,
-    secrets: ['OPENAI_API_KEY'],
-  },
-  async () => {
-    await processPendingRechirps();
-  }
-);
+// Note: processPendingRechirpsCron removed - rechirp handling is skipped in v2 pipeline
