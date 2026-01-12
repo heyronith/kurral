@@ -7,6 +7,7 @@ import type { Chirp, Comment } from './types';
 import { processChirp, processComment } from './services/pipeline';
 import { chirpService } from './services/firestoreService';
 import { validateEngagementPredictions } from './services/validationService';
+import { getReachAgent } from './agents/reachAgent';
 
 // Firebase Admin is initialized in firestoreService.ts
 // No need to initialize here to avoid duplicate initialization
@@ -1170,27 +1171,80 @@ const BREAKING_KEYWORDS = [
   'unprecedented',
 ];
 
-// Get Kural News platform account user ID
-async function getKuralNewsUserId(): Promise<string | null> {
+// Map topics to platform account types
+const TOPIC_TO_ACCOUNT_TYPE: Record<string, string> = {
+  'technology': 'tech',
+  'tech': 'tech',
+  'science': 'science',
+  'business': 'business',
+  'finance': 'business',
+  'economy': 'business',
+  'sports': 'sports',
+  'health': 'health',
+  'medical': 'health',
+  'wellness': 'health',
+  'entertainment': 'entertainment',
+  'movies': 'entertainment',
+  'tv': 'entertainment',
+  'music': 'entertainment',
+  'news': 'news',
+  'politics': 'news',
+  'general': 'news',
+};
+
+// Get platform account user ID by topic
+async function getPlatformAccountByTopic(topic: string): Promise<string | null> {
   try {
+    // Normalize topic to lowercase
+    const normalizedTopic = topic.toLowerCase().trim();
+    
+    // Map topic to account type
+    const accountType = TOPIC_TO_ACCOUNT_TYPE[normalizedTopic] || 'news';
+    
+    // Map account type to handle
+    const handleMap: Record<string, string> = {
+      'main': 'kural',
+      'news': 'kuralnews',
+      'tech': 'kuraltech',
+      'science': 'kuralscience',
+      'business': 'kuralbusiness',
+      'sports': 'kuralsports',
+      'health': 'kuralhealth',
+      'entertainment': 'kuralentertainment',
+    };
+    
+    const handle = handleMap[accountType] || 'kuralnews';
+    
     const usersSnapshot = await db
       .collection('users')
       .where('isPlatformAccount', '==', true)
-      .where('platformAccountType', '==', 'news')
-      .where('handle', '==', 'kuralnews')
+      .where('platformAccountType', '==', accountType)
+      .where('handle', '==', handle)
       .limit(1)
       .get();
 
     if (usersSnapshot.empty) {
-      console.error('[RSSPoll] Kural News platform account not found');
-      return null;
+      console.warn(`[RSSPoll] Platform account not found for topic "${topic}" (type: ${accountType}, handle: ${handle}), falling back to news`);
+      // Fallback to news account
+      return await getPlatformAccountByTopic('news');
     }
 
     return usersSnapshot.docs[0].id;
   } catch (error) {
-    console.error('[RSSPoll] Error finding Kural News account:', error);
-    return null;
+    console.error(`[RSSPoll] Error finding platform account for topic "${topic}":`, error);
+    // Fallback to news account
+    try {
+      return await getPlatformAccountByTopic('news');
+    } catch (fallbackError) {
+      console.error('[RSSPoll] Fallback to news account also failed:', fallbackError);
+      return null;
+    }
   }
+}
+
+// Get Kural News platform account user ID (legacy function for backward compatibility)
+async function getKuralNewsUserId(): Promise<string | null> {
+  return getPlatformAccountByTopic('news');
 }
 
 // Check if article is breaking news
@@ -1225,16 +1279,21 @@ function isBreakingNews(article: Article): boolean {
 }
 
 // Generate article ID for deduplication
+// IMPROVED: Use article link as primary identifier to prevent duplicates across feeds
 function generateArticleId(article: Article, feedUrl: string): string {
-  // Use link as primary identifier, fallback to title + pubDate
+  // Primary: Use normalized article link (same story = same link across feeds)
   if (article.link) {
     try {
       const url = new URL(article.link);
-      return `${feedUrl}_${url.pathname}_${article.pubDate.getTime()}`;
+      // Normalize URL: remove query params, fragments, trailing slashes, and www
+      const normalizedLink = `${url.protocol}//${url.host.replace(/^www\./, '')}${url.pathname.replace(/\/$/, '')}`.toLowerCase();
+      // Use normalized link as ID (same article from different feeds will have same ID)
+      return `article_${normalizedLink}`;
     } catch {
-      // Invalid URL, use title + date
+      // Invalid URL, fallback to feed-specific ID
     }
   }
+  // Fallback: feed + title + date (for articles without links)
   return `${feedUrl}_${article.title}_${article.pubDate.getTime()}`;
 }
 
@@ -1301,32 +1360,106 @@ function formatArticleForPost(article: Article, feedName: string): string {
   return postText;
 }
 
-// Create chirp as Kural News account
+// Create chirp with semantic topic extraction and route to appropriate platform account
 async function createNewsChirp(
-  userId: string,
+  fallbackUserId: string,
   text: string,
   articleLink: string
 ): Promise<string | null> {
   try {
-    const chirpData = {
+    // Extract semantic topics using ReachAgent (same as user posts)
+    let semanticTopics: string[] = [];
+    let entities: string[] = [];
+    let intent: string | undefined;
+    let analyzedAt: Date | undefined;
+    let resolvedTopic: string = 'news'; // Default to 'news'
+
+    try {
+      const reachAgent = getReachAgent();
+      if (reachAgent) {
+        // Get available topics from Firestore for better context
+        let availableTopics: Array<{ name: string; postsLast48h?: number; totalUsers?: number }> = [];
+        try {
+          const topicsSnapshot = await db.collection('topics')
+            .orderBy('postsLast48h', 'desc')
+            .limit(30)
+            .get();
+          availableTopics = topicsSnapshot.docs.map(doc => ({
+            name: doc.id,
+            postsLast48h: doc.data().postsLast48h || 0,
+            totalUsers: doc.data().totalUsers || 0,
+          }));
+        } catch (topicsError) {
+          console.warn('[RSSPoll] Could not load topics for analysis:', topicsError);
+        }
+
+        // Analyze content to extract semantic topics
+        const analysis = await reachAgent.analyzePostContent(text, availableTopics, []);
+        semanticTopics = analysis.semanticTopics || [];
+        entities = analysis.entities || [];
+        intent = analysis.intent;
+        resolvedTopic = analysis.suggestedBucket || 'news';
+        analyzedAt = new Date();
+
+        console.log(`[RSSPoll] Extracted semantic topics: ${semanticTopics.join(', ')}`);
+        console.log(`[RSSPoll] Resolved topic: ${resolvedTopic}`);
+      } else {
+        console.warn('[RSSPoll] ReachAgent not available, skipping semantic analysis');
+      }
+    } catch (analysisError) {
+      console.warn('[RSSPoll] Failed to extract semantic topics:', analysisError);
+      // Continue without semantic topics - post will still be created
+    }
+
+    // Get the appropriate platform account based on resolved topic
+    let userId = fallbackUserId;
+    try {
+      const topicBasedUserId = await getPlatformAccountByTopic(resolvedTopic);
+      if (topicBasedUserId) {
+        userId = topicBasedUserId;
+        console.log(`[RSSPoll] Routing to platform account for topic "${resolvedTopic}" (userId: ${userId})`);
+      } else {
+        console.warn(`[RSSPoll] Could not find platform account for topic "${resolvedTopic}", using fallback`);
+      }
+    } catch (accountError) {
+      console.warn(`[RSSPoll] Error getting platform account for topic "${resolvedTopic}":`, accountError);
+      // Use fallback userId
+    }
+
+    const chirpData: any = {
       authorId: userId,
       text: text,
-      topic: 'news',
+      topic: resolvedTopic,
       reachMode: 'forAll',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       commentCount: 0,
-      factCheckingStatus: 'pending',
-      factCheckingStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Skip value pipeline for automated posts - mark as clean immediately
+      factCheckingStatus: 'completed',
+      factCheckStatus: 'clean',
       // Store original article link for reference
       sourceUrl: articleLink,
       isAutomatedPost: true,
     };
 
+    // Add semantic analysis fields if available
+    if (semanticTopics.length > 0) {
+      chirpData.semanticTopics = semanticTopics;
+    }
+    if (entities.length > 0) {
+      chirpData.entities = entities;
+    }
+    if (intent) {
+      chirpData.intent = intent;
+    }
+    if (analyzedAt) {
+      chirpData.analyzedAt = admin.firestore.Timestamp.fromDate(analyzedAt);
+    }
+
     const docRef = await db.collection('chirps').add(chirpData);
 
-    // Update topic engagement
+    // Update topic engagement for resolved topic
     try {
-      const topicRef = db.collection('topics').doc('news');
+      const topicRef = db.collection('topics').doc(resolvedTopic);
       const topicSnap = await topicRef.get();
 
       if (topicSnap.exists) {
@@ -1338,7 +1471,7 @@ async function createNewsChirp(
         });
       } else {
         await topicRef.set({
-          name: 'news',
+          name: resolvedTopic,
           postsLast48h: 1,
           postsLast1h: 1,
           postsLast4h: 1,
@@ -1347,6 +1480,40 @@ async function createNewsChirp(
           isTrending: false,
           lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
         });
+      }
+
+      // Also update semantic topic engagement
+      if (semanticTopics.length > 0) {
+        for (const semanticTopic of semanticTopics) {
+          if (semanticTopic !== resolvedTopic) {
+            try {
+              const semanticTopicRef = db.collection('topics').doc(semanticTopic);
+              const semanticTopicSnap = await semanticTopicRef.get();
+              
+              if (semanticTopicSnap.exists) {
+                await semanticTopicRef.update({
+                  postsLast48h: admin.firestore.FieldValue.increment(1),
+                  postsLast1h: admin.firestore.FieldValue.increment(1),
+                  postsLast4h: admin.firestore.FieldValue.increment(1),
+                  lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              } else {
+                await semanticTopicRef.set({
+                  name: semanticTopic,
+                  postsLast48h: 1,
+                  postsLast1h: 1,
+                  postsLast4h: 1,
+                  totalUsers: 0,
+                  averageVelocity1h: 0,
+                  isTrending: false,
+                  lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              }
+            } catch (semanticTopicError) {
+              console.warn(`[RSSPoll] Could not update semantic topic engagement for ${semanticTopic}:`, semanticTopicError);
+            }
+          }
+        }
       }
     } catch (topicError) {
       console.warn('[RSSPoll] Could not update topic engagement:', topicError);
@@ -1359,8 +1526,69 @@ async function createNewsChirp(
   }
 }
 
-// Poll a single RSS feed
-async function pollRSSFeed(feed: RSSFeed, kuralNewsUserId: string): Promise<number> {
+// Score article for smart selection
+interface ArticleScore {
+  article: Article;
+  score: number;
+  reasons: string[];
+}
+
+function scoreArticle(article: Article): ArticleScore {
+  let score = 0;
+  const reasons: string[] = [];
+
+  // Breaking news gets highest priority
+  if (isBreakingNews(article)) {
+    score += 100;
+    reasons.push('breaking-news');
+  }
+
+  // Recency bonus (more recent = higher score)
+  const ageMinutes = (Date.now() - article.pubDate.getTime()) / (1000 * 60);
+  if (ageMinutes < 30) {
+    score += 50;
+    reasons.push('very-recent');
+  } else if (ageMinutes < 120) {
+    score += 20;
+    reasons.push('recent');
+  } else if (ageMinutes < 360) {
+    score += 10;
+    reasons.push('moderately-recent');
+  }
+
+  // Title quality (length, clarity)
+  if (article.title) {
+    const titleLength = article.title.length;
+    if (titleLength > 20 && titleLength < 100) {
+      score += 10;
+      reasons.push('good-title-length');
+    }
+    // Check for important keywords
+    const titleLower = article.title.toLowerCase();
+    const importantKeywords = ['breaking', 'urgent', 'major', 'significant', 'announcement', 'update', 'report'];
+    if (importantKeywords.some(keyword => titleLower.includes(keyword))) {
+      score += 15;
+      reasons.push('important-keywords');
+    }
+  }
+
+  // Has description
+  if (article.description && article.description.length > 50) {
+    score += 10;
+    reasons.push('has-description');
+  }
+
+  // Has content
+  if (article.content && article.content.length > 100) {
+    score += 5;
+    reasons.push('has-content');
+  }
+
+  return { article, score, reasons };
+}
+
+// Poll a single RSS feed for breaking news
+async function pollRSSFeed(feed: RSSFeed, fallbackUserId: string): Promise<number> {
   if (!feed.enabled) {
     return 0;
   }
@@ -1400,9 +1628,9 @@ async function pollRSSFeed(feed: RSSFeed, kuralNewsUserId: string): Promise<numb
           continue;
         }
 
-        // Format and post
+        // Format and post (will route to appropriate platform account based on topic)
         const postText = formatArticleForPost(article, feed.name);
-        const chirpId = await createNewsChirp(kuralNewsUserId, postText, article.link);
+        const chirpId = await createNewsChirp(fallbackUserId, postText, article.link);
 
         if (chirpId) {
           await markArticleProcessed(article, feed.url);
@@ -1438,20 +1666,112 @@ async function pollRSSFeed(feed: RSSFeed, kuralNewsUserId: string): Promise<numb
   }
 }
 
-// Main RSS polling function
-async function pollAllRSSFeeds(): Promise<void> {
-  console.log('[RSSPoll] Starting RSS feed polling...');
+// Poll RSS feed for top headlines (not just breaking news) with smart scoring
+async function pollRSSFeedForTopHeadlines(
+  feed: RSSFeed,
+  fallbackUserId: string,
+  maxArticles: number = 5
+): Promise<number> {
+  if (!feed.enabled) {
+    return 0;
+  }
 
-  // Get Kural News user ID
+  try {
+    const parser = new Parser();
+    const feedData = await parser.parseURL(feed.url);
+
+    if (!feedData.items || feedData.items.length === 0) {
+      console.log(`[RSSPoll] No items found in feed: ${feed.name}`);
+      return 0;
+    }
+
+    // Score all articles
+    const articles: Article[] = [];
+    for (const item of feedData.items) {
+      try {
+        const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+        const article: Article = {
+          title: item.title || 'Untitled',
+          link: item.link || '',
+          pubDate: pubDate,
+          description: item.contentSnippet || item.content || '',
+          content: item.content || item.contentSnippet || '',
+        };
+        articles.push(article);
+      } catch (itemError) {
+        console.error(`[RSSPoll] Error parsing article from ${feed.name}:`, itemError);
+        continue;
+      }
+    }
+
+    // Score and sort articles
+    const scoredArticles = articles.map(article => scoreArticle(article));
+    scoredArticles.sort((a, b) => b.score - a.score);
+
+    // Take top N articles
+    const topArticles = scoredArticles.slice(0, maxArticles);
+    let postedCount = 0;
+
+    for (const { article, score, reasons } of topArticles) {
+      try {
+        // Generate article ID and check if processed
+        const articleId = generateArticleId(article, feed.url);
+        if (await isArticleProcessed(articleId)) {
+          continue; // Skip already processed articles
+        }
+
+        // Format and post (will route to appropriate platform account based on topic)
+        const postText = formatArticleForPost(article, feed.name);
+        const chirpId = await createNewsChirp(fallbackUserId, postText, article.link);
+
+        if (chirpId) {
+          await markArticleProcessed(article, feed.url);
+          postedCount++;
+          console.log(`[RSSPoll] Posted top headline (score: ${score}, reasons: ${reasons.join(', ')}): ${article.title.substring(0, 50)}...`);
+        }
+      } catch (itemError) {
+        console.error(`[RSSPoll] Error processing article from ${feed.name}:`, itemError);
+        continue;
+      }
+    }
+
+    // Update feed last checked timestamp
+    try {
+      const feedRef = db.collection('rssFeeds').doc(feed.url);
+      await feedRef.set(
+        {
+          url: feed.url,
+          name: feed.name,
+          enabled: feed.enabled,
+          lastChecked: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (updateError) {
+      console.warn(`[RSSPoll] Could not update feed timestamp for ${feed.name}:`, updateError);
+    }
+
+    return postedCount;
+  } catch (error) {
+    console.error(`[RSSPoll] Error polling feed ${feed.name} for top headlines:`, error);
+    return 0;
+  }
+}
+
+// Main RSS polling function - polls for breaking news
+async function pollAllRSSFeeds(): Promise<void> {
+  console.log('[RSSPoll] Starting RSS feed polling (breaking news)...');
+
+  // Get Kural News user ID as fallback
   const kuralNewsUserId = await getKuralNewsUserId();
   if (!kuralNewsUserId) {
     console.error('[RSSPoll] Cannot proceed without Kural News account');
     return;
   }
 
-  let totalPosted = 0;
+  let totalBreaking = 0;
 
-  // Poll each enabled feed
+  // Poll each enabled feed for breaking news
   for (const feed of RSS_FEEDS) {
     if (!feed.enabled) {
       continue;
@@ -1459,24 +1779,67 @@ async function pollAllRSSFeeds(): Promise<void> {
 
     try {
       const posted = await pollRSSFeed(feed, kuralNewsUserId);
-      totalPosted += posted;
+      totalBreaking += posted;
     } catch (error) {
       console.error(`[RSSPoll] Error processing feed ${feed.name}:`, error);
     }
   }
 
-  console.log(`[RSSPoll] Completed. Posted ${totalPosted} breaking news articles.`);
+  console.log(`[RSSPoll] Completed. Posted ${totalBreaking} breaking news articles.`);
 }
 
-// Scheduled Cloud Function: Poll RSS feeds every 5 minutes
+// Poll RSS feeds for top headlines (with smart scoring)
+async function pollAllRSSFeedsForHeadlines(): Promise<void> {
+  console.log('[RSSPoll] Starting RSS feed polling (top headlines)...');
+
+  // Get Kural News user ID as fallback
+  const kuralNewsUserId = await getKuralNewsUserId();
+  if (!kuralNewsUserId) {
+    console.error('[RSSPoll] Cannot proceed without Kural News account');
+    return;
+  }
+
+  let totalHeadlines = 0;
+
+  // Poll each enabled feed for top headlines
+  for (const feed of RSS_FEEDS) {
+    if (!feed.enabled) {
+      continue;
+    }
+
+    try {
+      // Post top 3 headlines per feed (smart scoring will select best ones)
+      const posted = await pollRSSFeedForTopHeadlines(feed, kuralNewsUserId, 3);
+      totalHeadlines += posted;
+    } catch (error) {
+      console.error(`[RSSPoll] Error processing feed ${feed.name} for headlines:`, error);
+    }
+  }
+
+  console.log(`[RSSPoll] Completed. Posted ${totalHeadlines} top headline articles.`);
+}
+
+// Scheduled Cloud Function: Poll RSS feeds for breaking news every 2 minutes (faster polling)
 export const pollRSSFeedsCron = functions.scheduler.onSchedule(
   {
-    schedule: 'every 5 minutes',
+    schedule: 'every 2 minutes',
     timeZone: 'Etc/UTC',
     maxInstances: 1,
   },
   async () => {
     await pollAllRSSFeeds();
+  }
+);
+
+// Scheduled Cloud Function: Poll RSS feeds for top headlines every 15 minutes (with smart scoring)
+export const pollRSSFeedsHeadlinesCron = functions.scheduler.onSchedule(
+  {
+    schedule: 'every 15 minutes',
+    timeZone: 'Etc/UTC',
+    maxInstances: 1,
+  },
+  async () => {
+    await pollAllRSSFeedsForHeadlines();
   }
 );
 
@@ -1512,8 +1875,21 @@ export const pollRSSFeedsManual = functions.https.onCall(
     }
 
     try {
-      await pollAllRSSFeeds();
-      return { success: true, message: 'RSS polling completed' };
+      const mode = request.data?.mode || 'breaking'; // 'breaking' or 'headlines' or 'both'
+      
+      if (mode === 'breaking' || mode === 'both') {
+        await pollAllRSSFeeds();
+      }
+      
+      if (mode === 'headlines' || mode === 'both') {
+        await pollAllRSSFeedsForHeadlines();
+      }
+      
+      return { 
+        success: true, 
+        message: `RSS polling completed (mode: ${mode})`,
+        mode 
+      };
     } catch (error: any) {
       console.error('[RSSPoll] Manual trigger error:', error);
       throw new functions.https.HttpsError(
@@ -1700,6 +2076,14 @@ export const onChirpCreate = functionsV1.firestore
     console.log(`📄 Text: "${(chirpData.text || '').substring(0, 100)}${chirpData.text && chirpData.text.length > 100 ? '...' : ''}"`);
     console.log(`📊 Current Status: ${chirpData.factCheckStatus || 'none'}`);
     console.log(`⏳ Processing Status: ${chirpData.factCheckingStatus || 'none'}`);
+    console.log(`🤖 Is Automated Post: ${chirpData.isAutomatedPost || false}`);
+
+    // Skip automated posts - they don't need value pipeline processing
+    if (chirpData.isAutomatedPost) {
+      console.log(`⏭️  Skipping - automated post (no value pipeline needed)`);
+      console.log('='.repeat(80) + '\n');
+      return;
+    }
 
     // Skip if already processed or if it's a rechirp (for now)
     if (

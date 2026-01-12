@@ -94,6 +94,7 @@ const PLATFORM_ACCOUNTS = [
     bio: 'Official Kural platform account. Updates, announcements, and community highlights.',
     interests: ['platform', 'announcements', 'community'],
     topics: ['platform', 'announcements', 'community'],
+    platformAccountType: 'main',
   },
   {
     name: 'Kural News',
@@ -103,6 +104,67 @@ const PLATFORM_ACCOUNTS = [
     bio: 'Official Kural News account. Curated news, updates, and important information.',
     interests: ['news', 'updates', 'information'],
     topics: ['news', 'updates', 'information'],
+    platformAccountType: 'news',
+  },
+  {
+    name: 'Kural Tech',
+    handle: 'kuraltech',
+    email: process.env.KURAL_TECH_EMAIL || 'tech@kurral.app',
+    password: process.env.KURAL_TECH_PASSWORD || generateSecurePassword(),
+    bio: 'Technology news, innovations, and updates. AI, software, startups, and the future of tech.',
+    interests: ['technology', 'tech', 'ai', 'software', 'innovation', 'startups'],
+    topics: ['technology', 'tech', 'ai', 'software', 'innovation'],
+    platformAccountType: 'tech',
+  },
+  {
+    name: 'Kural Science',
+    handle: 'kuralscience',
+    email: process.env.KURAL_SCIENCE_EMAIL || 'science@kurral.app',
+    password: process.env.KURAL_SCIENCE_PASSWORD || generateSecurePassword(),
+    bio: 'Science news, discoveries, and research. Space, climate, medicine, and breakthroughs.',
+    interests: ['science', 'research', 'discovery', 'space', 'climate', 'medicine'],
+    topics: ['science', 'research', 'discovery', 'space', 'climate'],
+    platformAccountType: 'science',
+  },
+  {
+    name: 'Kural Business',
+    handle: 'kuralbusiness',
+    email: process.env.KURAL_BUSINESS_EMAIL || 'business@kurral.app',
+    password: process.env.KURAL_BUSINESS_PASSWORD || generateSecurePassword(),
+    bio: 'Business and finance news. Markets, economy, startups, and corporate updates.',
+    interests: ['business', 'finance', 'economy', 'markets', 'startups', 'corporate'],
+    topics: ['business', 'finance', 'economy', 'markets'],
+    platformAccountType: 'business',
+  },
+  {
+    name: 'Kural Sports',
+    handle: 'kuralsports',
+    email: process.env.KURAL_SPORTS_EMAIL || 'sports@kurral.app',
+    password: process.env.KURAL_SPORTS_PASSWORD || generateSecurePassword(),
+    bio: 'Sports news, scores, and updates. All major leagues and competitions.',
+    interests: ['sports', 'football', 'basketball', 'soccer', 'olympics', 'athletics'],
+    topics: ['sports', 'football', 'basketball', 'soccer', 'olympics'],
+    platformAccountType: 'sports',
+  },
+  {
+    name: 'Kural Health',
+    handle: 'kuralhealth',
+    email: process.env.KURAL_HEALTH_EMAIL || 'health@kurral.app',
+    password: process.env.KURAL_HEALTH_PASSWORD || generateSecurePassword(),
+    bio: 'Health and wellness news. Medical breakthroughs, public health, and wellness tips.',
+    interests: ['health', 'medical', 'wellness', 'medicine', 'public health', 'fitness'],
+    topics: ['health', 'medical', 'wellness', 'medicine'],
+    platformAccountType: 'health',
+  },
+  {
+    name: 'Kural Entertainment',
+    handle: 'kuralentertainment',
+    email: process.env.KURAL_ENTERTAINMENT_EMAIL || 'entertainment@kurral.app',
+    password: process.env.KURAL_ENTERTAINMENT_PASSWORD || generateSecurePassword(),
+    bio: 'Entertainment news. Movies, TV, music, celebrities, and pop culture.',
+    interests: ['entertainment', 'movies', 'tv', 'music', 'celebrity', 'pop culture'],
+    topics: ['entertainment', 'movies', 'tv', 'music'],
+    platformAccountType: 'entertainment',
   },
 ];
 
@@ -110,7 +172,7 @@ const PLATFORM_ACCOUNTS = [
  * Create or update a platform account
  */
 async function createPlatformAccount(accountData) {
-  const { name, handle, email, password, bio, interests, topics } = accountData;
+  const { name, handle, email, password, bio, interests, topics, platformAccountType } = accountData;
   
   console.log(`\n📝 Creating platform account: ${name} (@${handle})`);
   console.log(`   Email: ${email}`);
@@ -162,7 +224,7 @@ async function createPlatformAccount(accountData) {
       firstTimeUser: false,
       // Mark as platform account (custom field)
       isPlatformAccount: true,
-      platformAccountType: handle === 'kural' ? 'main' : 'news',
+      platformAccountType: platformAccountType || (handle === 'kural' ? 'main' : 'news'),
       // Kurral Score setup
       kurralScore: userDocSnap.exists() && userDocSnap.data().kurralScore ? userDocSnap.data().kurralScore : {
         score: 100, // Platform accounts start with high score
@@ -305,7 +367,17 @@ async function main() {
   console.log(`   2. Store credentials in environment variables for automation:`);
   successful.forEach(result => {
     if (result.isNewUser) {
-      const envVar = result.handle === 'kural' ? 'KURAL_PLATFORM_PASSWORD' : 'KURAL_NEWS_PASSWORD';
+      const envVarMap = {
+        'kural': 'KURAL_PLATFORM_PASSWORD',
+        'kuralnews': 'KURAL_NEWS_PASSWORD',
+        'kuraltech': 'KURAL_TECH_PASSWORD',
+        'kuralscience': 'KURAL_SCIENCE_PASSWORD',
+        'kuralbusiness': 'KURAL_BUSINESS_PASSWORD',
+        'kuralsports': 'KURAL_SPORTS_PASSWORD',
+        'kuralhealth': 'KURAL_HEALTH_PASSWORD',
+        'kuralentertainment': 'KURAL_ENTERTAINMENT_PASSWORD',
+      };
+      const envVar = envVarMap[result.handle] || `KURAL_${result.handle.toUpperCase()}_PASSWORD`;
       console.log(`      ${envVar}=${result.password}`);
     }
   });
