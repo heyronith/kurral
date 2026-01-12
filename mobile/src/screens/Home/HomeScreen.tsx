@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { HomeStackParamList } from '../../navigation/AppNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFeedStore } from '../../stores/useFeedStore';
 import LatestFeed from './LatestFeed';
@@ -33,6 +33,7 @@ const getGreeting = (): string => {
 
 const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { colors } = useTheme();
   const { user } = useAuthStore();
   const {
     activeFeed,
@@ -131,25 +132,26 @@ const HomeScreen = () => {
     .toUpperCase()
     .slice(0, 2) || '?';
 
+  const dynamicStyles = getStyles(colors);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={dynamicStyles.container}>
       <View style={{ flex: 1 }}>
-      <View style={styles.headerContainer}>
-        <View style={styles.headerGradient} />
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-            <View style={styles.greetingRow}>
-              <Text style={styles.greetingText}>
-                <Text style={styles.greetingTime}>{getGreeting()}</Text>
-                <Text style={styles.greetingName}>, {firstName}</Text>
+      <View style={dynamicStyles.headerContainer}>
+      <View style={dynamicStyles.header}>
+        <View style={dynamicStyles.headerLeft}>
+            <View style={dynamicStyles.greetingRow}>
+              <Text style={dynamicStyles.greetingText}>
+                <Text style={dynamicStyles.greetingTime}>{getGreeting()}</Text>
+                <Text style={dynamicStyles.greetingName}>, {firstName}</Text>
           </Text>
               {newKuralsCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{newKuralsCount}</Text>
+                <View style={dynamicStyles.badge}>
+                  <Text style={dynamicStyles.badgeText}>{newKuralsCount}</Text>
                 </View>
               )}
             </View>
-          <Text style={styles.subhead}>
+          <Text style={dynamicStyles.subhead}>
             {newKuralsCount > 0
                 ? `${newKuralsCount} new Kural${newKuralsCount !== 1 ? 's' : ''} waiting`
               : "Catch up on what's happening"}
@@ -157,8 +159,8 @@ const HomeScreen = () => {
         </View>
         <TouchableOpacity
             style={[
-              styles.profileButton,
-              user?.profilePictureUrl && styles.profileButtonWithImage,
+              dynamicStyles.profileButton,
+              user?.profilePictureUrl && dynamicStyles.profileButtonWithImage,
             ]}
             onPress={() => navigation.navigate('Profile')}
           activeOpacity={0.7}
@@ -166,31 +168,31 @@ const HomeScreen = () => {
             {user?.profilePictureUrl ? (
               <Image
                 source={{ uri: user.profilePictureUrl }}
-                style={styles.profileImage}
+                style={dynamicStyles.profileImage}
                 resizeMode="cover"
               />
             ) : (
-              <View style={styles.profilePlaceholder}>
-                <Text style={styles.profileInitials}>{userInitials}</Text>
+              <View style={dynamicStyles.profilePlaceholder}>
+                <Text style={dynamicStyles.profileInitials}>{userInitials}</Text>
               </View>
             )}
         </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.feedSwitch}>
+      <View style={dynamicStyles.feedSwitch}>
         <TouchableOpacity
           style={[
-            styles.switchButton,
-            styles.switchButtonSpacing,
-            activeFeed === 'latest' && styles.switchButtonActive,
+            dynamicStyles.switchButton,
+            dynamicStyles.switchButtonSpacing,
+            activeFeed === 'latest' && dynamicStyles.switchButtonActive,
           ]}
           onPress={() => setActiveFeed('latest')}
         >
           <Text
             style={[
-              styles.switchText,
-              activeFeed === 'latest' && styles.switchTextActive,
+              dynamicStyles.switchText,
+              activeFeed === 'latest' && dynamicStyles.switchTextActive,
             ]}
           >
             Following
@@ -198,17 +200,17 @@ const HomeScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={[
-            styles.switchButton,
-            styles.switchButtonSpacing,
-            activeFeed === 'forYou' && styles.switchButtonActive,
+            dynamicStyles.switchButton,
+            dynamicStyles.switchButtonSpacing,
+            activeFeed === 'forYou' && dynamicStyles.switchButtonActive,
           ]}
           onPress={() => setActiveFeed('forYou')}
         >
-          <View style={styles.switchButtonContent}>
+          <View style={dynamicStyles.switchButtonContent}>
             <Text
               style={[
-                styles.switchText,
-                activeFeed === 'forYou' && styles.switchTextActive,
+                dynamicStyles.switchText,
+                activeFeed === 'forYou' && dynamicStyles.switchTextActive,
               ]}
             >
               Kurals
@@ -219,7 +221,7 @@ const HomeScreen = () => {
                   e.stopPropagation();
                   navigation.navigate('ForYouControls');
                 }}
-                style={styles.gearButton}
+                style={dynamicStyles.gearButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons name="settings-outline" size={16} color="#fff" />
@@ -229,13 +231,13 @@ const HomeScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => navigation.navigate('Bookmarks')}
-          style={styles.bookmarkButton}
+          style={dynamicStyles.bookmarkButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons 
             name="bookmark-outline" 
             size={20} 
-            color={activeFeed === 'forYou' ? colors.light.accent : colors.light.textMuted} 
+            color={activeFeed === 'forYou' ? colors.accent : colors.textMuted} 
           />
         </TouchableOpacity>
       </View>
@@ -270,23 +272,15 @@ const HomeScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
   },
   headerContainer: {
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: colors.light.background,
-  },
-  headerGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: `${colors.light.accent}08`,
+    backgroundColor: 'transparent',
   },
   header: {
     paddingHorizontal: 20,
@@ -312,21 +306,21 @@ const styles = StyleSheet.create({
   greetingText: {
     fontSize: 22,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   greetingTime: {
     fontSize: 22,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     textTransform: 'capitalize',
   },
   greetingName: {
     fontSize: 22,
     fontWeight: '700',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   badge: {
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -341,19 +335,19 @@ const styles = StyleSheet.create({
   },
   subhead: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     lineHeight: 20,
   },
   profileButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderWidth: 1.5,
-    borderColor: `${colors.light.accent}20`,
+    borderColor: colors.accent + '33',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: colors.light.accent,
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -363,7 +357,7 @@ const styles = StyleSheet.create({
   },
   profileButtonWithImage: {
     borderWidth: 2,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     backgroundColor: 'transparent',
   },
   profileImage: {
@@ -374,7 +368,7 @@ const styles = StyleSheet.create({
   profilePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -393,17 +387,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: '#EFE9FB',
+    backgroundColor: colors.accent + '14',
   },
   switchButtonSpacing: {
     marginRight: 8,
   },
   switchButtonActive: {
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   switchText: {
     fontWeight: '700',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   switchTextActive: {
     color: '#fff',

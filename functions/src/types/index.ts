@@ -168,6 +168,8 @@ export type Chirp = {
   quotedChirpId?: string;
   quotedChirp?: Chirp;
   commentCount: number;
+  bookmarkCount?: number;
+  rechirpCount?: number;
   countryCode?: string;
   imageUrl?: string;
   scheduledAt?: Date;
@@ -181,6 +183,22 @@ export type Chirp = {
   valueScore?: ValueScore;
   valueExplanation?: string;
   discussionQuality?: DiscussionQuality;
+  qualityWeightedBookmarkScore?: number;
+  qualityWeightedRechirpScore?: number;
+  qualityWeightedCommentScore?: number;
+  qualityScoresLastUpdated?: Date;
+  predictedEngagement?: {
+    expectedViews7d: number;
+    expectedBookmarks7d: number;
+    expectedRechirps7d: number;
+    expectedComments7d: number;
+    predictedAt: Date;
+  };
+  predictionValidation?: {
+    flaggedForReview: boolean;
+    overallError: number;
+    validatedAt: Date;
+  };
 };
 
 export type Comment = {

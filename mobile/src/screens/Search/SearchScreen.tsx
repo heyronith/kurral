@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import type { HomeStackParamList } from '../../navigation/AppNavigator';
+import type { HomeStackParamList, SearchStackParamList } from '../../navigation/AppNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSearchStore } from '../../stores/useSearchStore';
 import { useFeedStore } from '../../stores/useFeedStore';
@@ -27,15 +27,16 @@ import { userService } from '../../services/userService';
 import { topicService } from '../../services/topicService';
 import ChirpCard from '../../components/ChirpCard';
 import UserSearchResult from '../../components/UserSearchResult';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import { shouldDisplayChirp } from '../../utils/chirpVisibility';
 import { filterChirpsForViewer } from '../../utils/chirpVisibility';
 import type { TopicMetadata, User, TrendingNews } from '../../types';
 
-type NavigationProp = NativeStackNavigationProp<HomeStackParamList>;
+type NavigationProp = NativeStackNavigationProp<HomeStackParamList & SearchStackParamList>;
 
 const SearchScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { colors } = useTheme();
   const { query, setQuery, results, userResults, topicResults, activeTab, setActiveTab, setResults, setUserResults, setTopicResults, setIsSearching, isSearching } = useSearchStore();
   const { chirps } = useFeedStore();
   const getUser = useUserStore((state) => state.getUser);
@@ -332,26 +333,28 @@ const SearchScreen = () => {
     return `${count} posts`;
   };
 
+  const dynamicStyles = getStyles(colors);
+
   const getCategoryColor = (category: string): string => {
-    const colors: Record<string, string> = {
-      technology: colors.light.accent,
-      business: colors.light.success,
+    const categoryColors: Record<string, string> = {
+      technology: colors.accent,
+      business: colors.success,
       entertainment: '#8B5CF6',
       sports: '#F59E0B',
-      health: colors.light.error,
+      health: colors.error,
       science: '#06B6D4',
-      general: colors.light.textMuted,
+      general: colors.textMuted,
     };
-    return colors[category.toLowerCase()] || colors.general;
+    return categoryColors[category.toLowerCase()] || categoryColors.general;
   };
 
   const renderValueBadge = (value?: number) => {
     if (value === undefined || value === null) return null;
     const score = Math.round(value * 100);
-    const color = score >= 90 ? colors.light.success : score >= 70 ? '#3B82F6' : colors.light.textMuted;
+    const color = score >= 90 ? colors.success : score >= 70 ? '#3B82F6' : colors.textMuted;
     return (
-      <View style={[styles.valueBadge, { backgroundColor: color + '20' }]}>
-        <Text style={[styles.valueBadgeText, { color }]}>{score} value</Text>
+      <View style={[dynamicStyles.valueBadge, { backgroundColor: color + '20' }]}>
+        <Text style={[dynamicStyles.valueBadgeText, { color }]}>{score} value</Text>
       </View>
     );
   };
@@ -366,24 +369,24 @@ const SearchScreen = () => {
     return (
       <TouchableOpacity
         key={chirp.id}
-        style={styles.mostValuedItem}
+        style={dynamicStyles.mostValuedItem}
         onPress={() => navigation.navigate('PostDetail', { postId: chirp.id })}
         activeOpacity={0.7}
       >
-        <View style={styles.mostValuedHeader}>
-          <View style={styles.mostValuedAuthor}>
-            <Text style={styles.mostValuedAuthorName}>{authorName}</Text>
-            {authorHandle && <Text style={styles.mostValuedAuthorHandle}>{authorHandle}</Text>}
+        <View style={dynamicStyles.mostValuedHeader}>
+          <View style={dynamicStyles.mostValuedAuthor}>
+            <Text style={dynamicStyles.mostValuedAuthorName}>{authorName}</Text>
+            {authorHandle && <Text style={dynamicStyles.mostValuedAuthorHandle}>{authorHandle}</Text>}
           </View>
-          <View style={styles.mostValuedMeta}>
+          <View style={dynamicStyles.mostValuedMeta}>
             {renderValueBadge(chirp.valueScore?.total)}
-            <Text style={styles.mostValuedTime}>{timeAgo}</Text>
+            <Text style={dynamicStyles.mostValuedTime}>{timeAgo}</Text>
           </View>
         </View>
         {chirp.topic && (
-          <Text style={styles.mostValuedTopic}>#{chirp.topic}</Text>
+          <Text style={dynamicStyles.mostValuedTopic}>#{chirp.topic}</Text>
         )}
-        <Text style={styles.mostValuedText} numberOfLines={2}>{preview}</Text>
+        <Text style={dynamicStyles.mostValuedText} numberOfLines={2}>{preview}</Text>
       </TouchableOpacity>
     );
   };
@@ -395,31 +398,31 @@ const SearchScreen = () => {
     return (
       <TouchableOpacity
         key={news.id}
-        style={styles.newsItem}
+        style={dynamicStyles.newsItem}
         onPress={() => {
           selectNews(news.id);
           navigation.navigate('NewsDetail', { newsId: news.id });
         }}
         activeOpacity={0.7}
       >
-        <View style={styles.newsHeader}>
-          <View style={styles.newsRank}>
-            <Text style={styles.newsRankText}>#{index + 1}</Text>
+        <View style={dynamicStyles.newsHeader}>
+          <View style={dynamicStyles.newsRank}>
+            <Text style={dynamicStyles.newsRankText}>#{index + 1}</Text>
             {isRecent && (
-              <View style={styles.trendingBadge}>
-                <Text style={styles.trendingBadgeText}>Trending</Text>
+              <View style={dynamicStyles.trendingBadge}>
+                <Text style={dynamicStyles.trendingBadgeText}>Trending</Text>
               </View>
             )}
             {!isRecent && (
-              <Text style={styles.newsTime}>{formatTimeAgo(news.publishedAt)}</Text>
+              <Text style={dynamicStyles.newsTime}>{formatTimeAgo(news.publishedAt)}</Text>
             )}
           </View>
-          <View style={[styles.categoryBadge, { backgroundColor: categoryColor + '20' }]}>
-            <Text style={[styles.categoryText, { color: categoryColor }]}>{news.category}</Text>
+          <View style={[dynamicStyles.categoryBadge, { backgroundColor: categoryColor + '20' }]}>
+            <Text style={[dynamicStyles.categoryText, { color: categoryColor }]}>{news.category}</Text>
           </View>
         </View>
-        <Text style={styles.newsTitle} numberOfLines={2}>{news.title}</Text>
-        <Text style={styles.newsEngagement}>{formatEngagement(news.engagementCount)}</Text>
+        <Text style={dynamicStyles.newsTitle} numberOfLines={2}>{news.title}</Text>
+        <Text style={dynamicStyles.newsEngagement}>{formatEngagement(news.engagementCount)}</Text>
       </TouchableOpacity>
     );
   };
@@ -437,40 +440,40 @@ const SearchScreen = () => {
       .slice(0, 2);
 
     return (
-      <View key={person.id} style={styles.userSuggestion}>
+      <View key={person.id} style={dynamicStyles.userSuggestion}>
         <TouchableOpacity
-          style={styles.userSuggestionContent}
+          style={dynamicStyles.userSuggestionContent}
           onPress={() => navigation.navigate('Profile', { userId: person.id })}
           activeOpacity={0.7}
         >
-          <View style={styles.userSuggestionAvatar}>
+          <View style={dynamicStyles.userSuggestionAvatar}>
             {person.profilePictureUrl ? (
-              <Image source={{ uri: person.profilePictureUrl }} style={styles.userAvatarImage} />
+              <Image source={{ uri: person.profilePictureUrl }} style={dynamicStyles.userAvatarImage} />
             ) : (
-              <View style={styles.userAvatarPlaceholder}>
-                <Text style={styles.userAvatarText}>{personInitials}</Text>
+              <View style={dynamicStyles.userAvatarPlaceholder}>
+                <Text style={dynamicStyles.userAvatarText}>{personInitials}</Text>
               </View>
             )}
           </View>
-          <View style={styles.userSuggestionInfo}>
-            <Text style={styles.userSuggestionName}>{person.name}</Text>
-            <Text style={styles.userSuggestionHandle}>@{person.handle}</Text>
+          <View style={dynamicStyles.userSuggestionInfo}>
+            <Text style={dynamicStyles.userSuggestionName}>{person.name}</Text>
+            <Text style={dynamicStyles.userSuggestionHandle}>@{person.handle}</Text>
             {matchingInterests.length > 0 && (
-              <View style={styles.matchingInterests}>
+              <View style={dynamicStyles.matchingInterests}>
                 {matchingInterests.slice(0, 2).map((interest: string, idx: number) => (
-                  <View key={idx} style={styles.interestTag}>
-                    <Text style={styles.interestTagText}>{interest}</Text>
+                  <View key={idx} style={dynamicStyles.interestTag}>
+                    <Text style={dynamicStyles.interestTagText}>{interest}</Text>
                   </View>
                 ))}
                 {matchingInterests.length > 2 && (
-                  <Text style={styles.moreInterests}>+{matchingInterests.length - 2} more</Text>
+                  <Text style={dynamicStyles.moreInterests}>+{matchingInterests.length - 2} more</Text>
                 )}
               </View>
             )}
           </View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.followButton, following && styles.followButtonActive]}
+          style={[dynamicStyles.followButton, following && dynamicStyles.followButtonActive]}
           onPress={() => {
             if (following) {
               useUserStore.getState().unfollowUser(person.id);
@@ -480,7 +483,7 @@ const SearchScreen = () => {
           }}
           activeOpacity={0.7}
         >
-          <Text style={[styles.followButtonText, following && styles.followButtonTextActive]}>
+          <Text style={[dynamicStyles.followButtonText, following && dynamicStyles.followButtonTextActive]}>
             {following ? 'Following' : 'Follow'}
           </Text>
         </TouchableOpacity>
@@ -490,8 +493,8 @@ const SearchScreen = () => {
 
   const renderChirpResult = ({ item }: { item: typeof results[0] }) => (
     <View>
-      <View style={styles.resultHeader}>
-        <Text style={styles.resultHeaderText}>
+      <View style={dynamicStyles.resultHeader}>
+        <Text style={dynamicStyles.resultHeaderText}>
           {item.explanation} ({(item.relevanceScore * 100).toFixed(0)}%)
         </Text>
       </View>
@@ -505,65 +508,65 @@ const SearchScreen = () => {
 
   const renderTopicResult = ({ item }: { item: TopicMetadata }) => (
     <TouchableOpacity
-      style={styles.topicResult}
+      style={dynamicStyles.topicResult}
       onPress={() => {
         selectTopic(item.name);
         navigation.navigate('TopicDetail', { topicName: item.name });
       }}
       activeOpacity={0.7}
     >
-      <Text style={styles.topicName}>#{item.name}</Text>
-      <Text style={styles.topicStats}>
+      <Text style={dynamicStyles.topicName}>#{item.name}</Text>
+      <Text style={dynamicStyles.topicStats}>
         {item.postsLast48h} posts • {item.totalUsers} users
       </Text>
     </TouchableOpacity>
   );
 
   const renderExploreContent = () => (
-    <ScrollView style={styles.exploreContent} showsVerticalScrollIndicator={false}>
+    <ScrollView style={dynamicStyles.exploreContent} showsVerticalScrollIndicator={false}>
       {/* Most Valued Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
+      <View style={dynamicStyles.section}>
+        <View style={dynamicStyles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>Most Valued</Text>
-            <Text style={styles.sectionSubtitle}>Top value-ranked posts</Text>
+            <Text style={dynamicStyles.sectionTitle}>Most Valued</Text>
+            <Text style={dynamicStyles.sectionSubtitle}>Top value-ranked posts</Text>
           </View>
           {currentUser?.interests && currentUser.interests.length > 0 && (
             <TouchableOpacity
-              style={styles.filterToggle}
+              style={dynamicStyles.filterToggle}
               onPress={() => setFilterByInterests(!filterByInterests)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.filterToggleText, filterByInterests && styles.filterToggleTextActive]}>
+              <Text style={[dynamicStyles.filterToggleText, filterByInterests && dynamicStyles.filterToggleTextActive]}>
                 My interests
               </Text>
             </TouchableOpacity>
           )}
         </View>
         {isLoadingTop ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.light.accent} />
+          <View style={dynamicStyles.loadingContainer}>
+            <ActivityIndicator size="small" color={colors.accent} />
           </View>
         ) : visibleMostValued.length === 0 ? (
-          <Text style={styles.emptySectionText}>No high-value posts yet.</Text>
+          <Text style={dynamicStyles.emptySectionText}>No high-value posts yet.</Text>
         ) : (
-          <View style={styles.mostValuedList}>
+          <View style={dynamicStyles.mostValuedList}>
             {visibleMostValued.slice(0, 5).map((chirp) => renderMostValuedItem(chirp))}
           </View>
         )}
       </View>
 
       {/* Trending Topics Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Trending Topics</Text>
+      <View style={dynamicStyles.section}>
+        <Text style={dynamicStyles.sectionTitle}>Trending Topics</Text>
         {isLoadingTrending ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.light.accent} />
+          <View style={dynamicStyles.loadingContainer}>
+            <ActivityIndicator size="small" color={colors.accent} />
           </View>
         ) : displayTrendingTopics.length === 0 ? (
-          <Text style={styles.emptySectionText}>No trending topics yet</Text>
+          <Text style={dynamicStyles.emptySectionText}>No trending topics yet</Text>
         ) : (
-          <View style={styles.trendingTopicsList}>
+          <View style={dynamicStyles.trendingTopicsList}>
             {displayTrendingTopics.map((topic) => {
               const matchesInterest = currentUser?.interests?.some(interest =>
                 topic.name.toLowerCase().includes(interest.toLowerCase()) ||
@@ -572,14 +575,14 @@ const SearchScreen = () => {
               return (
                 <TouchableOpacity
                   key={topic.name}
-                  style={[styles.topicChip, matchesInterest && styles.topicChipActive]}
+                  style={[dynamicStyles.topicChip, matchesInterest && dynamicStyles.topicChipActive]}
                   onPress={() => {
                     selectTopic(topic.name);
                     navigation.navigate('TopicDetail', { topicName: topic.name });
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.topicChipText, matchesInterest && styles.topicChipTextActive]}>
+                  <Text style={[dynamicStyles.topicChipText, matchesInterest && dynamicStyles.topicChipTextActive]}>
                     {topic.name}
                   </Text>
                 </TouchableOpacity>
@@ -591,9 +594,9 @@ const SearchScreen = () => {
 
       {/* Trending News Section */}
       {trendingNews.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's News</Text>
-          <View style={styles.newsList}>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Today's News</Text>
+          <View style={dynamicStyles.newsList}>
             {trendingNews.slice(0, 3).map((news, index) => renderTrendingNewsItem(news, index))}
           </View>
         </View>
@@ -601,18 +604,18 @@ const SearchScreen = () => {
 
       {/* People to Follow Section */}
       {suggestedUsers.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>
             {currentUser?.interests && currentUser.interests.length > 0
               ? 'People with similar interests'
               : 'People to follow'}
           </Text>
           {isLoadingSuggestions ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={colors.light.accent} />
+            <View style={dynamicStyles.loadingContainer}>
+              <ActivityIndicator size="small" color={colors.accent} />
             </View>
           ) : (
-            <View style={styles.userSuggestionsList}>
+            <View style={dynamicStyles.userSuggestionsList}>
               {suggestedUsers.map((person) => renderUserSuggestion(person))}
             </View>
           )}
@@ -624,24 +627,24 @@ const SearchScreen = () => {
   const renderEmpty = () => {
     if (isSearching) {
       return (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={colors.light.accent} />
-          <Text style={styles.emptyText}>Searching...</Text>
+        <View style={dynamicStyles.emptyContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={dynamicStyles.emptyText}>Searching...</Text>
         </View>
       );
     }
 
     if (error) {
       return (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={dynamicStyles.emptyContainer}>
+          <Text style={dynamicStyles.errorText}>{error}</Text>
         </View>
       );
     }
 
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No results found for "{query}"</Text>
+      <View style={dynamicStyles.emptyContainer}>
+        <Text style={dynamicStyles.emptyText}>No results found for "{query}"</Text>
       </View>
     );
   };
@@ -659,49 +662,49 @@ const SearchScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={colors.light.textMuted} style={styles.searchIcon} />
+    <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+      <View style={dynamicStyles.header}>
+        <View style={dynamicStyles.searchContainer}>
+          <Ionicons name="search" size={20} color={colors.textMuted} style={dynamicStyles.searchIcon} />
           <TextInput
-            style={styles.input}
+            style={dynamicStyles.input}
             placeholder="Search people, topics, or kural"
-            placeholderTextColor={colors.light.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={query}
             onChangeText={setQuery}
             autoCapitalize="none"
             autoCorrect={false}
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={20} color={colors.light.textMuted} />
+            <TouchableOpacity onPress={() => setQuery('')} style={dynamicStyles.clearButton}>
+              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
 
         {hasSearchQuery && (
-          <View style={styles.tabs}>
+          <View style={dynamicStyles.tabs}>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'kural' && styles.activeTab]}
+              style={[dynamicStyles.tab, activeTab === 'kural' && dynamicStyles.activeTab]}
               onPress={() => setActiveTab('kural')}
             >
-              <Text style={[styles.tabText, activeTab === 'kural' && styles.activeTabText]}>
+              <Text style={[dynamicStyles.tabText, activeTab === 'kural' && dynamicStyles.activeTabText]}>
                 Kural
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'users' && styles.activeTab]}
+              style={[dynamicStyles.tab, activeTab === 'users' && dynamicStyles.activeTab]}
               onPress={() => setActiveTab('users')}
             >
-              <Text style={[styles.tabText, activeTab === 'users' && styles.activeTabText]}>
+              <Text style={[dynamicStyles.tabText, activeTab === 'users' && dynamicStyles.activeTabText]}>
                 Users
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'topics' && styles.activeTab]}
+              style={[dynamicStyles.tab, activeTab === 'topics' && dynamicStyles.activeTab]}
               onPress={() => setActiveTab('topics')}
             >
-              <Text style={[styles.tabText, activeTab === 'topics' && styles.activeTabText]}>
+              <Text style={[dynamicStyles.tabText, activeTab === 'topics' && dynamicStyles.activeTabText]}>
                 Topics
               </Text>
             </TouchableOpacity>
@@ -719,8 +722,8 @@ const SearchScreen = () => {
             return item.name;
           }}
           ListEmptyComponent={renderEmpty}
-          contentContainerStyle={styles.listContent}
-          style={styles.list}
+          contentContainerStyle={dynamicStyles.listContent}
+          style={dynamicStyles.list}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         />
@@ -731,15 +734,15 @@ const SearchScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -755,13 +758,13 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     paddingHorizontal: 40,
     paddingVertical: 12,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     fontSize: 15,
   },
   clearButton: {
@@ -772,8 +775,8 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
-    backgroundColor: colors.light.background,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   tab: {
     flex: 1,
@@ -783,15 +786,15 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: colors.light.accent,
+    borderBottomColor: colors.accent,
   },
   tabText: {
     fontSize: 15,
     fontWeight: '500',
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   activeTabText: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
   },
   list: {
@@ -810,40 +813,40 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
   },
   errorText: {
     fontSize: 15,
-    color: colors.light.error,
+    color: colors.error,
     textAlign: 'center',
   },
   resultHeader: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   resultHeaderText: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   topicResult: {
     padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
-    backgroundColor: colors.light.background,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   topicName: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   topicStats: {
     fontSize: 13,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   exploreContent: {
     flex: 1,
@@ -851,7 +854,7 @@ const styles = StyleSheet.create({
   section: {
     padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -862,26 +865,26 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   filterToggle: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   filterToggleText: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
   },
   filterToggleTextActive: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
   },
   loadingContainer: {
@@ -890,7 +893,7 @@ const styles = StyleSheet.create({
   },
   emptySectionText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
     padding: 16,
   },
@@ -899,10 +902,10 @@ const styles = StyleSheet.create({
   },
   mostValuedItem: {
     padding: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   mostValuedHeader: {
     flexDirection: 'row',
@@ -918,11 +921,11 @@ const styles = StyleSheet.create({
   mostValuedAuthorName: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   mostValuedAuthorHandle: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   mostValuedMeta: {
     flexDirection: 'row',
@@ -931,16 +934,16 @@ const styles = StyleSheet.create({
   },
   mostValuedTime: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   mostValuedTopic: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 6,
   },
   mostValuedText: {
     fontSize: 14,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     lineHeight: 20,
   },
   valueBadge: {
@@ -961,21 +964,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   topicChipActive: {
-    backgroundColor: colors.light.accent + '20',
-    borderColor: colors.light.accent + '40',
+    backgroundColor: colors.accent + '20',
+    borderColor: colors.accent + '40',
   },
   topicChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   topicChipTextActive: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
   },
   newsList: {
@@ -983,10 +986,10 @@ const styles = StyleSheet.create({
   },
   newsItem: {
     padding: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   newsHeader: {
     flexDirection: 'row',
@@ -1001,22 +1004,22 @@ const styles = StyleSheet.create({
   },
   newsRankText: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   trendingBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
   },
   trendingBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   newsTime: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   categoryBadge: {
     paddingHorizontal: 8,
@@ -1031,13 +1034,13 @@ const styles = StyleSheet.create({
   newsTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 6,
     lineHeight: 20,
   },
   newsEngagement: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   userSuggestionsList: {
     gap: 12,
@@ -1046,10 +1049,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   userSuggestionContent: {
     flex: 1,
@@ -1062,7 +1065,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
   },
   userAvatarImage: {
     width: '100%',
@@ -1077,7 +1080,7 @@ const styles = StyleSheet.create({
   userAvatarText: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   userSuggestionInfo: {
     flex: 1,
@@ -1085,12 +1088,12 @@ const styles = StyleSheet.create({
   userSuggestionName: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 2,
   },
   userSuggestionHandle: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 6,
   },
   matchingInterests: {
@@ -1103,29 +1106,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
     borderWidth: 1,
-    borderColor: colors.light.accent + '30',
+    borderColor: colors.accent + '30',
   },
   interestTagText: {
     fontSize: 10,
     fontWeight: '600',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   moreInterests: {
     fontSize: 10,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   followButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   followButtonActive: {
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   followButtonText: {
     fontSize: 12,
@@ -1133,7 +1136,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   followButtonTextActive: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
 });
 

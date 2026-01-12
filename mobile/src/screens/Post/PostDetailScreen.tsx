@@ -8,19 +8,21 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Share,
-  Alert,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { Chirp, User } from '../../types';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import { chirpService } from '../../services/chirpService';
 import { useUserStore } from '../../stores/useUserStore';
 import { useFeedStore } from '../../stores/useFeedStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useComposer } from '../../context/ComposerContext';
 import FactCheckStatusModal from '../../components/FactCheckStatusModal';
+import RepostModal from '../../components/RepostModal';
+import ActionModal from '../../components/ActionModal';
+import BookmarkFolderModal from '../../components/BookmarkFolderModal';
 import CommentSection from '../../components/CommentSection';
 import { renderFormattedText } from '../../utils/formattedText';
 
@@ -50,10 +52,23 @@ const getInitial = (value?: string) =>
   value?.charAt(0)?.toUpperCase() || 'U';
 
 const PostDetailScreen = () => {
+  const { colors } = useTheme();
   const route = useRoute();
   const navigation = useNavigation();
   const { postId } = (route.params as RouteParams) || {};
-  const { getUser, loadUser, followUser, unfollowUser, isFollowing, bookmarkChirp, unbookmarkChirp, isBookmarked } = useUserStore();
+  const {
+    getUser,
+    loadUser,
+    followUser,
+    unfollowUser,
+    isFollowing,
+    bookmarkChirp,
+    unbookmarkChirp,
+    isBookmarked,
+    createBookmarkFolder,
+    getBookmarkFolders,
+    addBookmarkToFolder,
+  } = useUserStore();
   const { latest, forYou, addChirp } = useFeedStore();
   const { user: currentUser } = useAuthStore();
   const { openWithQuote, openForComment } = useComposer();
@@ -62,6 +77,14 @@ const PostDetailScreen = () => {
   const [author, setAuthor] = useState<User | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [showFactCheckModal, setShowFactCheckModal] = useState(false);
+  const [showRepostModal, setShowRepostModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showBookmarkFolderModal, setShowBookmarkFolderModal] = useState(false);
+  const [actionModalConfig, setActionModalConfig] = useState<{
+    title: string;
+    message: string;
+    type?: 'info' | 'success' | 'error' | 'warning';
+  } | null>(null);
 
   useEffect(() => {
     if (!postId) {
@@ -125,18 +148,20 @@ const PostDetailScreen = () => {
     }
   }, [chirp, getUser]);
 
+  const dynamicStyles = getStyles(colors);
+
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={dynamicStyles.container}>
+        <View style={dynamicStyles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={colors.light.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Post</Text>
+          <Text style={dynamicStyles.headerTitle}>Post</Text>
           <View style={{ width: 24 }} />
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.light.accent} />
+        <View style={dynamicStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -144,16 +169,16 @@ const PostDetailScreen = () => {
 
   if (!chirp) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={dynamicStyles.container}>
+        <View style={dynamicStyles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={colors.light.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Post</Text>
+          <Text style={dynamicStyles.headerTitle}>Post</Text>
           <View style={{ width: 24 }} />
         </View>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Post not found</Text>
+        <View style={dynamicStyles.errorContainer}>
+          <Text style={dynamicStyles.errorText}>Post not found</Text>
         </View>
       </SafeAreaView>
     );
@@ -221,7 +246,51 @@ const PostDetailScreen = () => {
     if (isBookmarked(chirp.id)) {
       await unbookmarkChirp(chirp.id);
     } else {
-      await bookmarkChirp(chirp.id);
+      // Show folder selection modal
+      setShowBookmarkFolderModal(true);
+    }
+  };
+
+  const handleSelectFolder = async (folderId: string) => {
+    if (!chirp) return;
+    try {
+      await addBookmarkToFolder(chirp.id, folderId);
+      setActionModalConfig({
+        title: 'Success',
+        message: 'Post saved to folder!',
+        type: 'success',
+      });
+      setShowActionModal(true);
+    } catch (error) {
+      console.error('Error adding bookmark to folder:', error);
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to save bookmark. Please try again.',
+        type: 'error',
+      });
+      setShowActionModal(true);
+    }
+  };
+
+  const handleCreateFolder = async (folderName: string) => {
+    if (!chirp) return;
+    try {
+      const folderId = await createBookmarkFolder(folderName);
+      await addBookmarkToFolder(chirp.id, folderId);
+      setActionModalConfig({
+        title: 'Success',
+        message: 'Folder created and post saved!',
+        type: 'success',
+      });
+      setShowActionModal(true);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to create folder. Please try again.',
+        type: 'error',
+      });
+      setShowActionModal(true);
     }
   };
 
@@ -235,7 +304,12 @@ const PostDetailScreen = () => {
       });
     } catch (error) {
       console.error('Error sharing post:', error);
-      Alert.alert('Error', 'Failed to share post');
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to share post',
+        type: 'error',
+      });
+      setShowActionModal(true);
     }
   };
 
@@ -249,39 +323,40 @@ const PostDetailScreen = () => {
 
   const handleRepostClick = () => {
     if (!chirp || !currentUser) return;
+    setShowRepostModal(true);
+  };
 
-    Alert.alert(
-      'Repost',
-      'How would you like to repost this?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Just repost',
-          onPress: async () => {
-            try {
-              await addChirp({
-                authorId: currentUser.id,
-                text: chirp.text,
-                topic: chirp.topic,
-                reachMode: 'forAll',
-                rechirpOfId: chirp.id,
-                semanticTopics: chirp.semanticTopics?.length ? chirp.semanticTopics : undefined,
-              });
-              Alert.alert('Success', 'Post reposted successfully!');
-            } catch (error) {
-              console.error('Error reposting:', error);
-              Alert.alert('Error', 'Failed to repost. Please try again.');
-            }
-          }
-        },
-        {
-          text: 'Add thoughts',
-          onPress: () => {
-            openWithQuote(chirp);
-          }
-        }
-      ]
-    );
+  const handleJustRepost = async () => {
+    if (!chirp || !currentUser) return;
+    try {
+      await addChirp({
+        authorId: currentUser.id,
+        text: chirp.text,
+        topic: chirp.topic,
+        reachMode: 'forAll',
+        rechirpOfId: chirp.id,
+        semanticTopics: chirp.semanticTopics?.length ? chirp.semanticTopics : undefined,
+      });
+      setActionModalConfig({
+        title: 'Success',
+        message: 'Post reposted successfully!',
+        type: 'success',
+      });
+      setShowActionModal(true);
+    } catch (error) {
+      console.error('Error reposting:', error);
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to repost. Please try again.',
+        type: 'error',
+      });
+      setShowActionModal(true);
+    }
+  };
+
+  const handleAddThoughts = () => {
+    if (!chirp) return;
+    openWithQuote(chirp);
   };
 
   const following = chirp ? isFollowing(chirp.authorId) : false;
@@ -289,48 +364,48 @@ const PostDetailScreen = () => {
   const isCurrentUser = currentUser?.id === chirp?.authorId;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={dynamicStyles.container}>
+      <View style={dynamicStyles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={colors.light.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Post</Text>
+        <Text style={dynamicStyles.headerTitle}>Post</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView 
         ref={scrollViewRef}
-        style={styles.content} 
-        contentContainerStyle={styles.contentContainer}
+        style={dynamicStyles.content} 
+        contentContainerStyle={dynamicStyles.contentContainer}
       >
-        <View style={styles.postCard}>
-          <View style={styles.postHeader}>
-            <View style={styles.avatar}>
+        <View style={dynamicStyles.postCard}>
+          <View style={dynamicStyles.postHeader}>
+            <View style={dynamicStyles.avatar}>
               {author?.profilePictureUrl ? (
                 <Image
                   source={{ uri: author.profilePictureUrl }}
-                  style={styles.avatarImage}
+                  style={dynamicStyles.avatarImage}
                 />
               ) : (
-                <Text style={styles.avatarText}>{avatarLetter}</Text>
+                <Text style={dynamicStyles.avatarText}>{avatarLetter}</Text>
               )}
             </View>
-            <View style={styles.meta}>
-              <View style={styles.metaRow}>
-                <Text style={styles.author}>{displayName}</Text>
+            <View style={dynamicStyles.meta}>
+              <View style={dynamicStyles.metaRow}>
+                <Text style={dynamicStyles.author}>{displayName}</Text>
                 {!isCurrentUser && (
                   <TouchableOpacity
                     onPress={handleFollow}
-                    style={[styles.followButtonInline, following && styles.followingButtonInline]}
+                    style={[dynamicStyles.followButtonInline, following && dynamicStyles.followingButtonInline]}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.followButtonTextInline, following && styles.followingButtonTextInline]}>
+                    <Text style={[dynamicStyles.followButtonTextInline, following && dynamicStyles.followingButtonTextInline]}>
                       {following ? 'Following' : 'Follow'}
                     </Text>
                   </TouchableOpacity>
                 )}
               </View>
-              <Text style={styles.handle}>
+              <Text style={dynamicStyles.handle}>
                 @{displayHandle} · {formatTimeAgo(createdAt)}
               </Text>
             </View>
@@ -338,11 +413,11 @@ const PostDetailScreen = () => {
             {/* Fact-check status badge - top right */}
             {chirp.factCheckStatus && factCheckStyle && (
               <TouchableOpacity
-                style={[styles.factCheckBadge, { backgroundColor: factCheckStyle.backgroundColor }]}
+                style={[dynamicStyles.factCheckBadge, { backgroundColor: factCheckStyle.backgroundColor }]}
                 onPress={() => setShowFactCheckModal(true)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.factCheckIcon, { color: factCheckStyle.iconColor }]}>
+                <Text style={[dynamicStyles.factCheckIcon, { color: factCheckStyle.iconColor }]}>
                   {factCheckStyle.icon}
                 </Text>
               </TouchableOpacity>
@@ -350,66 +425,66 @@ const PostDetailScreen = () => {
           </View>
 
           {chirp.formattedText ? (
-            renderFormattedText(chirp.formattedText, styles.body)
+            renderFormattedText(chirp.formattedText, dynamicStyles.body)
           ) : (
-            <Text style={styles.body}>{chirp.text}</Text>
+            <Text style={dynamicStyles.body}>{chirp.text}</Text>
           )}
 
           {chirp.imageUrl ? (
             <Image
               source={{ uri: chirp.imageUrl }}
-              style={styles.image}
+              style={dynamicStyles.image}
               resizeMode="cover"
             />
           ) : null}
 
-          <View style={styles.footer}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>#{topicLabel}</Text>
+          <View style={dynamicStyles.footer}>
+            <View style={dynamicStyles.badge}>
+              <Text style={dynamicStyles.badgeText}>#{topicLabel}</Text>
             </View>
           </View>
 
           {/* Interaction Actions */}
-          <View style={styles.actions}>
+          <View style={dynamicStyles.actions}>
             <TouchableOpacity
               onPress={handleCommentClick}
-              style={styles.actionButton}
+              style={dynamicStyles.actionButton}
               activeOpacity={0.8}
             >
-              <Ionicons name="chatbubble-outline" size={22} color={colors.light.textMuted} />
+              <Ionicons name="chatbubble-outline" size={22} color={colors.textMuted} />
               {(chirp.commentCount ?? 0) > 0 && (
-                <Text style={styles.actionCount}>{chirp.commentCount}</Text>
+                <Text style={dynamicStyles.actionCount}>{chirp.commentCount}</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleRepostClick}
-              style={styles.actionButton}
+              style={dynamicStyles.actionButton}
               activeOpacity={0.8}
             >
-              <Ionicons name="repeat-outline" size={22} color={colors.light.textMuted} />
+              <Ionicons name="repeat-outline" size={22} color={colors.textMuted} />
             </TouchableOpacity>
 
             {!isCurrentUser && (
               <TouchableOpacity
                 onPress={handleBookmark}
-                style={styles.actionButton}
+                style={dynamicStyles.actionButton}
                 activeOpacity={0.8}
               >
                 <Ionicons
                   name={bookmarked ? "bookmark" : "bookmark-outline"}
                   size={22}
-                  color={bookmarked ? colors.light.accent : colors.light.textMuted}
+                  color={bookmarked ? colors.accent : colors.textMuted}
                 />
               </TouchableOpacity>
             )}
 
             <TouchableOpacity
               onPress={handleShare}
-              style={styles.actionButton}
+              style={dynamicStyles.actionButton}
               activeOpacity={0.8}
             >
-              <Ionicons name="share-outline" size={22} color={colors.light.textMuted} />
+              <Ionicons name="share-outline" size={22} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -429,14 +504,45 @@ const PostDetailScreen = () => {
           chirp={chirp}
         />
       )}
+
+      {/* Repost modal */}
+      <RepostModal
+        visible={showRepostModal}
+        onClose={() => setShowRepostModal(false)}
+        onJustRepost={handleJustRepost}
+        onAddThoughts={handleAddThoughts}
+      />
+
+      {/* Action modal for success/error messages */}
+      {actionModalConfig && (
+        <ActionModal
+          visible={showActionModal}
+          onClose={() => {
+            setShowActionModal(false);
+            setActionModalConfig(null);
+          }}
+          title={actionModalConfig.title}
+          message={actionModalConfig.message}
+          type={actionModalConfig.type}
+        />
+      )}
+
+      {/* Bookmark folder modal */}
+      <BookmarkFolderModal
+        visible={showBookmarkFolderModal}
+        onClose={() => setShowBookmarkFolderModal(false)}
+        folders={getBookmarkFolders()}
+        onSelectFolder={handleSelectFolder}
+        onCreateFolder={handleCreateFolder}
+      />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -445,12 +551,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   loadingContainer: {
     flex: 1,
@@ -465,7 +571,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   content: {
     flex: 1,
@@ -474,11 +580,11 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   postCard: {
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 14,
     padding: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     marginBottom: 16,
   },
   postHeader: {
@@ -506,7 +612,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -533,23 +639,23 @@ const styles = StyleSheet.create({
   author: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   handle: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
   },
   followButtonInline: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 16,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   followingButtonInline: {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: colors.border + '80',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   followButtonTextInline: {
     color: '#fff',
@@ -557,11 +663,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   followingButtonTextInline: {
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   body: {
     fontSize: 16,
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
     lineHeight: 24,
     marginBottom: 12,
   },
@@ -570,7 +676,7 @@ const styles = StyleSheet.create({
     height: 300,
     borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: colors.border,
   },
   footer: {
     flexDirection: 'row',
@@ -582,15 +688,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    backgroundColor: colors.accent + '14',
   },
   badgeText: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
     fontSize: 13,
   },
   metaText: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
   },
   actions: {
@@ -600,7 +706,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
     gap: 24,
   },
   actionButton: {
@@ -612,7 +718,7 @@ const styles = StyleSheet.create({
   },
   actionCount: {
     fontSize: 13,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
     marginLeft: 2,
   },

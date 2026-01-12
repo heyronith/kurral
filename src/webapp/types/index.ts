@@ -173,6 +173,8 @@ export type Chirp = {
   quotedChirpId?: string; // If this is a quote repost, reference original
   quotedChirp?: Chirp; // Hydrated quoted chirp (client-side only, not in Firestore)
   commentCount: number;
+  bookmarkCount?: number;
+  rechirpCount?: number;
   countryCode?: string; // ISO 3166-1 alpha-2 country code where post was made
   imageUrl?: string; // Optional image URL
   scheduledAt?: Date; // Optional scheduled post time
@@ -186,6 +188,22 @@ export type Chirp = {
   valueScore?: ValueScore;
   valueExplanation?: string;
   discussionQuality?: DiscussionQuality;
+  qualityWeightedBookmarkScore?: number;
+  qualityWeightedRechirpScore?: number;
+  qualityWeightedCommentScore?: number;
+  qualityScoresLastUpdated?: Date;
+  predictedEngagement?: {
+    expectedViews7d: number;
+    expectedBookmarks7d: number;
+    expectedRechirps7d: number;
+    expectedComments7d: number;
+    predictedAt: Date;
+  };
+  predictionValidation?: {
+    flaggedForReview: boolean;
+    overallError: number;
+    validatedAt: Date;
+  };
 };
 
 export type Comment = {

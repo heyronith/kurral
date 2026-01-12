@@ -15,7 +15,7 @@ import { useUserStore } from '../../stores/useUserStore';
 import { userService } from '../../services/userService';
 import { chirpService } from '../../services/chirpService';
 import { commentService } from '../../services/commentService';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import type { User, Chirp, Comment } from '../../types';
 
 interface DashboardMetrics {
@@ -77,18 +77,19 @@ const getKurralTier = (score: number): string => {
   return 'Very Poor';
 };
 
-const getTierColor = (tier: string): string => {
+const getTierColor = (tier: string, colors: ReturnType<typeof useTheme>['colors']): string => {
   switch (tier) {
-    case 'Excellent': return colors.light.success;
+    case 'Excellent': return colors.success;
     case 'Good': return '#3B82F6';
     case 'Fair': return '#F59E0B';
     case 'Poor': return '#F97316';
-    case 'Very Poor': return colors.light.error;
-    default: return colors.light.textMuted;
+    case 'Very Poor': return colors.error;
+    default: return colors.textMuted;
   }
 };
 
 const DashboardScreen = () => {
+  const { colors } = useTheme();
   const navigation = useNavigation();
   const { user: currentUser } = useAuthStore();
   const { users } = useUserStore();
@@ -299,12 +300,14 @@ const DashboardScreen = () => {
     loadDashboardData();
   }, [currentUser, users]);
 
+  const dynamicStyles = getStyles(colors);
+
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.light.accent} />
-          <Text style={styles.loadingText}>Loading dashboard...</Text>
+      <SafeAreaView style={dynamicStyles.container}>
+        <View style={dynamicStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={dynamicStyles.loadingText}>Loading dashboard...</Text>
         </View>
       </SafeAreaView>
     );
@@ -312,127 +315,127 @@ const DashboardScreen = () => {
 
   if (!metrics) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>No data available</Text>
+      <SafeAreaView style={dynamicStyles.container}>
+        <View style={dynamicStyles.errorContainer}>
+          <Text style={dynamicStyles.errorText}>No data available</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const tierColor = getTierColor(metrics.kurralTier);
+  const tierColor = getTierColor(metrics.kurralTier, colors);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+      <View style={dynamicStyles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={dynamicStyles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.light.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dashboard</Text>
-        <View style={styles.backButton} />
+        <Text style={dynamicStyles.headerTitle}>Dashboard</Text>
+        <View style={dynamicStyles.backButton} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={dynamicStyles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Overview Section */}
-        <View style={styles.section}>
+        <View style={dynamicStyles.section}>
           {/* Kurral Score Card */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Kurral Score</Text>
-              <View style={[styles.tierBadge, { backgroundColor: tierColor + '20' }]}>
-                <Text style={[styles.tierText, { color: tierColor }]}>{metrics.kurralTier}</Text>
+          <View style={dynamicStyles.card}>
+            <View style={dynamicStyles.cardHeader}>
+              <Text style={dynamicStyles.cardTitle}>Kurral Score</Text>
+              <View style={[dynamicStyles.tierBadge, { backgroundColor: tierColor + '20' }]}>
+                <Text style={[dynamicStyles.tierText, { color: tierColor }]}>{metrics.kurralTier}</Text>
               </View>
             </View>
-            <Text style={styles.scoreValue}>{metrics.kurralScore.toFixed(0)}</Text>
-            <View style={styles.progressBarContainer}>
+            <Text style={dynamicStyles.scoreValue}>{metrics.kurralScore.toFixed(0)}</Text>
+            <View style={dynamicStyles.progressBarContainer}>
               <View
                 style={[
-                  styles.progressBar,
+                  dynamicStyles.progressBar,
                   { width: `${metrics.kurralScore}%`, backgroundColor: tierColor },
                 ]}
               />
             </View>
-            <View style={styles.componentsGrid}>
-              <View style={styles.componentItem}>
-                <Text style={styles.componentLabel}>Quality</Text>
-                <Text style={styles.componentValue}>{metrics.kurralComponents.qualityHistory}</Text>
+            <View style={dynamicStyles.componentsGrid}>
+              <View style={dynamicStyles.componentItem}>
+                <Text style={dynamicStyles.componentLabel}>Quality</Text>
+                <Text style={dynamicStyles.componentValue}>{metrics.kurralComponents.qualityHistory}</Text>
               </View>
-              <View style={styles.componentItem}>
-                <Text style={styles.componentLabel}>Engagement</Text>
-                <Text style={styles.componentValue}>{metrics.kurralComponents.engagementQuality}</Text>
+              <View style={dynamicStyles.componentItem}>
+                <Text style={dynamicStyles.componentLabel}>Engagement</Text>
+                <Text style={dynamicStyles.componentValue}>{metrics.kurralComponents.engagementQuality}</Text>
               </View>
-              <View style={styles.componentItem}>
-                <Text style={styles.componentLabel}>Consistency</Text>
-                <Text style={styles.componentValue}>{metrics.kurralComponents.consistency}</Text>
+              <View style={dynamicStyles.componentItem}>
+                <Text style={dynamicStyles.componentLabel}>Consistency</Text>
+                <Text style={dynamicStyles.componentValue}>{metrics.kurralComponents.consistency}</Text>
               </View>
-              <View style={styles.componentItem}>
-                <Text style={styles.componentLabel}>Trust</Text>
-                <Text style={styles.componentValue}>{metrics.kurralComponents.communityTrust}</Text>
+              <View style={dynamicStyles.componentItem}>
+                <Text style={dynamicStyles.componentLabel}>Trust</Text>
+                <Text style={dynamicStyles.componentValue}>{metrics.kurralComponents.communityTrust}</Text>
               </View>
             </View>
           </View>
 
           {/* Value Stats Card */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Value (30d)</Text>
-            <View style={styles.valueItem}>
-              <Text style={styles.valueLabel}>Posts</Text>
-              <Text style={styles.valueNumber}>{(metrics.postValue30d * 100).toFixed(0)}</Text>
+          <View style={dynamicStyles.card}>
+            <Text style={dynamicStyles.cardTitle}>Value (30d)</Text>
+            <View style={dynamicStyles.valueItem}>
+              <Text style={dynamicStyles.valueLabel}>Posts</Text>
+              <Text style={dynamicStyles.valueNumber}>{(metrics.postValue30d * 100).toFixed(0)}</Text>
             </View>
-            <View style={styles.progressBarContainer}>
+            <View style={dynamicStyles.progressBarContainer}>
               <View
                 style={[
-                  styles.progressBar,
+                  dynamicStyles.progressBar,
                   {
                     width: `${Math.min(100, (metrics.postValue30d / Math.max(metrics.totalValue30d, 0.01)) * 100)}%`,
-                    backgroundColor: colors.light.accent,
+                    backgroundColor: colors.accent,
                   },
                 ]}
               />
             </View>
-            <View style={styles.valueItem}>
-              <Text style={styles.valueLabel}>Comments</Text>
-              <Text style={styles.valueNumber}>{(metrics.commentValue30d * 100).toFixed(0)}</Text>
+            <View style={dynamicStyles.valueItem}>
+              <Text style={dynamicStyles.valueLabel}>Comments</Text>
+              <Text style={dynamicStyles.valueNumber}>{(metrics.commentValue30d * 100).toFixed(0)}</Text>
             </View>
-            <View style={styles.progressBarContainer}>
+            <View style={dynamicStyles.progressBarContainer}>
               <View
                 style={[
-                  styles.progressBar,
+                  dynamicStyles.progressBar,
                   {
                     width: `${Math.min(100, (metrics.commentValue30d / Math.max(metrics.totalValue30d, 0.01)) * 100)}%`,
-                    backgroundColor: colors.light.accent,
+                    backgroundColor: colors.accent,
                   },
                 ]}
               />
             </View>
-            <View style={[styles.valueItem, styles.valueTotal]}>
-              <Text style={styles.valueLabel}>Total</Text>
-              <Text style={[styles.valueNumber, { color: colors.light.accent }]}>
+            <View style={[dynamicStyles.valueItem, dynamicStyles.valueTotal]}>
+              <Text style={dynamicStyles.valueLabel}>Total</Text>
+              <Text style={[dynamicStyles.valueNumber, { color: colors.accent }]}>
                 {(metrics.totalValue30d * 100).toFixed(0)}
               </Text>
             </View>
           </View>
 
           {/* Monetization Status Card */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Monetization</Text>
-            <View style={[styles.monetizationBox, metrics.isMonetizationEligible && styles.monetizationBoxEligible]}>
-              <Text style={styles.monetizationStatus}>
+          <View style={dynamicStyles.card}>
+            <Text style={dynamicStyles.cardTitle}>Monetization</Text>
+            <View style={[dynamicStyles.monetizationBox, metrics.isMonetizationEligible && dynamicStyles.monetizationBoxEligible]}>
+              <Text style={dynamicStyles.monetizationStatus}>
                 {metrics.isMonetizationEligible ? 'Eligible' : 'Not Eligible'}
               </Text>
-              <View style={styles.monetizationCriteria}>
-                <View style={styles.criteriaRow}>
-                  <Text style={styles.criteriaLabel}>Score ≥ 77</Text>
-                  <Text style={[styles.criteriaValue, metrics.meetsScoreThreshold && styles.criteriaMet]}>
+              <View style={dynamicStyles.monetizationCriteria}>
+                <View style={dynamicStyles.criteriaRow}>
+                  <Text style={dynamicStyles.criteriaLabel}>Score ≥ 77</Text>
+                  <Text style={[dynamicStyles.criteriaValue, metrics.meetsScoreThreshold && dynamicStyles.criteriaMet]}>
                     {metrics.meetsScoreThreshold ? '✓' : '✗'} {metrics.kurralScore.toFixed(0)}
                   </Text>
                 </View>
-                <View style={styles.criteriaRow}>
-                  <Text style={styles.criteriaLabel}>Account Age ≥ 30d</Text>
-                  <Text style={[styles.criteriaValue, metrics.meetsAccountAgeThreshold && styles.criteriaMet]}>
+                <View style={dynamicStyles.criteriaRow}>
+                  <Text style={dynamicStyles.criteriaLabel}>Account Age ≥ 30d</Text>
+                  <Text style={[dynamicStyles.criteriaValue, metrics.meetsAccountAgeThreshold && dynamicStyles.criteriaMet]}>
                     {metrics.meetsAccountAgeThreshold ? '✓' : '✗'} {metrics.accountAgeDays}d
                   </Text>
                 </View>
@@ -442,137 +445,137 @@ const DashboardScreen = () => {
         </View>
 
         {/* Content Performance Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Content Performance</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{metrics.totalPosts}</Text>
-              <Text style={styles.statLabel}>Total Posts</Text>
-              <Text style={styles.statSubtext}>Avg: {(metrics.averagePostValue * 100).toFixed(0)}</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Content Performance</Text>
+          <View style={dynamicStyles.statsGrid}>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{metrics.totalPosts}</Text>
+              <Text style={dynamicStyles.statLabel}>Total Posts</Text>
+              <Text style={dynamicStyles.statSubtext}>Avg: {(metrics.averagePostValue * 100).toFixed(0)}</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{metrics.totalComments}</Text>
-              <Text style={styles.statLabel}>Total Comments</Text>
-              <Text style={styles.statSubtext}>Avg: {(metrics.averageCommentValue * 100).toFixed(0)}</Text>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{metrics.totalComments}</Text>
+              <Text style={dynamicStyles.statLabel}>Total Comments</Text>
+              <Text style={dynamicStyles.statSubtext}>Avg: {(metrics.averageCommentValue * 100).toFixed(0)}</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{metrics.totalCommentsReceived}</Text>
-              <Text style={styles.statLabel}>Comments Received</Text>
-              <Text style={styles.statSubtext}>On your posts</Text>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{metrics.totalCommentsReceived}</Text>
+              <Text style={dynamicStyles.statLabel}>Comments Received</Text>
+              <Text style={dynamicStyles.statSubtext}>On your posts</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{(metrics.averageDiscussionQuality * 100).toFixed(0)}</Text>
-              <Text style={styles.statLabel}>Avg Discussion Quality</Text>
-              <Text style={styles.statSubtext}>{metrics.highQualityDiscussions} high-quality</Text>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{(metrics.averageDiscussionQuality * 100).toFixed(0)}</Text>
+              <Text style={dynamicStyles.statLabel}>Avg Discussion Quality</Text>
+              <Text style={dynamicStyles.statSubtext}>{metrics.highQualityDiscussions} high-quality</Text>
             </View>
           </View>
 
-          <View style={styles.qualityDistribution}>
-            <Text style={styles.subsectionTitle}>Post Quality Distribution</Text>
-            <View style={styles.qualityGrid}>
-              <View style={styles.qualityCard}>
-                <Text style={[styles.qualityNumber, { color: colors.light.success }]}>
+          <View style={dynamicStyles.qualityDistribution}>
+            <Text style={dynamicStyles.subsectionTitle}>Post Quality Distribution</Text>
+            <View style={dynamicStyles.qualityGrid}>
+              <View style={dynamicStyles.qualityCard}>
+                <Text style={[dynamicStyles.qualityNumber, { color: colors.success }]}>
                   {metrics.highValuePosts}
                 </Text>
-                <Text style={styles.qualityLabel}>High (70+)</Text>
+                <Text style={dynamicStyles.qualityLabel}>High (70+)</Text>
               </View>
-              <View style={styles.qualityCard}>
-                <Text style={[styles.qualityNumber, { color: '#F59E0B' }]}>
+              <View style={dynamicStyles.qualityCard}>
+                <Text style={[dynamicStyles.qualityNumber, { color: '#F59E0B' }]}>
                   {metrics.mediumValuePosts}
                 </Text>
-                <Text style={styles.qualityLabel}>Medium (40-70)</Text>
+                <Text style={dynamicStyles.qualityLabel}>Medium (40-70)</Text>
               </View>
-              <View style={styles.qualityCard}>
-                <Text style={[styles.qualityNumber, { color: colors.light.error }]}>
+              <View style={dynamicStyles.qualityCard}>
+                <Text style={[dynamicStyles.qualityNumber, { color: colors.error }]}>
                   {metrics.lowValuePosts}
                 </Text>
-                <Text style={styles.qualityLabel}>Low (&lt;40)</Text>
+                <Text style={dynamicStyles.qualityLabel}>Low (&lt;40)</Text>
               </View>
             </View>
           </View>
         </View>
 
         {/* Fact-Check & Policy Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Fact-Check & Policy Compliance</Text>
-          <View style={styles.factCheckGrid}>
-            <View style={styles.factCheckColumn}>
-              <Text style={styles.subsectionTitle}>Post Status</Text>
-              <View style={styles.factCheckItem}>
-                <View style={[styles.factCheckDot, { backgroundColor: colors.light.success }]} />
-                <Text style={styles.factCheckLabel}>Clean</Text>
-                <Text style={styles.factCheckValue}>{metrics.cleanPosts}</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Fact-Check & Policy Compliance</Text>
+          <View style={dynamicStyles.factCheckGrid}>
+            <View style={dynamicStyles.factCheckColumn}>
+              <Text style={dynamicStyles.subsectionTitle}>Post Status</Text>
+              <View style={dynamicStyles.factCheckItem}>
+                <View style={[dynamicStyles.factCheckDot, { backgroundColor: colors.success }]} />
+                <Text style={dynamicStyles.factCheckLabel}>Clean</Text>
+                <Text style={dynamicStyles.factCheckValue}>{metrics.cleanPosts}</Text>
               </View>
-              <View style={styles.factCheckItem}>
-                <View style={[styles.factCheckDot, { backgroundColor: '#F59E0B' }]} />
-                <Text style={styles.factCheckLabel}>Needs Review</Text>
-                <Text style={styles.factCheckValue}>{metrics.needsReviewPosts}</Text>
+              <View style={dynamicStyles.factCheckItem}>
+                <View style={[dynamicStyles.factCheckDot, { backgroundColor: '#F59E0B' }]} />
+                <Text style={dynamicStyles.factCheckLabel}>Needs Review</Text>
+                <Text style={dynamicStyles.factCheckValue}>{metrics.needsReviewPosts}</Text>
               </View>
-              <View style={styles.factCheckItem}>
-                <View style={[styles.factCheckDot, { backgroundColor: colors.light.error }]} />
-                <Text style={styles.factCheckLabel}>Blocked</Text>
-                <Text style={styles.factCheckValue}>{metrics.blockedPosts}</Text>
+              <View style={dynamicStyles.factCheckItem}>
+                <View style={[dynamicStyles.factCheckDot, { backgroundColor: colors.error }]} />
+                <Text style={dynamicStyles.factCheckLabel}>Blocked</Text>
+                <Text style={dynamicStyles.factCheckValue}>{metrics.blockedPosts}</Text>
               </View>
             </View>
-            <View style={styles.factCheckColumn}>
-              <Text style={styles.subsectionTitle}>Claims Verification</Text>
-              <View style={styles.factCheckItem}>
-                <View style={[styles.factCheckDot, { backgroundColor: colors.light.success }]} />
-                <Text style={styles.factCheckLabel}>Verified</Text>
-                <Text style={styles.factCheckValue}>{metrics.verifiedClaims}</Text>
+            <View style={dynamicStyles.factCheckColumn}>
+              <Text style={dynamicStyles.subsectionTitle}>Claims Verification</Text>
+              <View style={dynamicStyles.factCheckItem}>
+                <View style={[dynamicStyles.factCheckDot, { backgroundColor: colors.success }]} />
+                <Text style={dynamicStyles.factCheckLabel}>Verified</Text>
+                <Text style={dynamicStyles.factCheckValue}>{metrics.verifiedClaims}</Text>
               </View>
-              <View style={styles.factCheckItem}>
-                <View style={[styles.factCheckDot, { backgroundColor: colors.light.error }]} />
-                <Text style={styles.factCheckLabel}>False</Text>
-                <Text style={styles.factCheckValue}>{metrics.falseClaims}</Text>
+              <View style={dynamicStyles.factCheckItem}>
+                <View style={[dynamicStyles.factCheckDot, { backgroundColor: colors.error }]} />
+                <Text style={dynamicStyles.factCheckLabel}>False</Text>
+                <Text style={dynamicStyles.factCheckValue}>{metrics.falseClaims}</Text>
               </View>
-              <View style={styles.factCheckItem}>
-                <View style={[styles.factCheckDot, { backgroundColor: colors.light.textMuted }]} />
-                <Text style={styles.factCheckLabel}>Unverified</Text>
-                <Text style={styles.factCheckValue}>{metrics.unverifiedClaims}</Text>
+              <View style={dynamicStyles.factCheckItem}>
+                <View style={[dynamicStyles.factCheckDot, { backgroundColor: colors.textMuted }]} />
+                <Text style={dynamicStyles.factCheckLabel}>Unverified</Text>
+                <Text style={dynamicStyles.factCheckValue}>{metrics.unverifiedClaims}</Text>
               </View>
             </View>
           </View>
         </View>
 
         {/* Activity & Social Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Activity & Social</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{metrics.followingCount}</Text>
-              <Text style={styles.statLabel}>Following</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Activity & Social</Text>
+          <View style={dynamicStyles.statsGrid}>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{metrics.followingCount}</Text>
+              <Text style={dynamicStyles.statLabel}>Following</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{metrics.followersCount}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{metrics.followersCount}</Text>
+              <Text style={dynamicStyles.statLabel}>Followers</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{metrics.bookmarksCount}</Text>
-              <Text style={styles.statLabel}>Bookmarks</Text>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{metrics.bookmarksCount}</Text>
+              <Text style={dynamicStyles.statLabel}>Bookmarks</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{metrics.accountAgeDays}</Text>
-              <Text style={styles.statLabel}>Days Active</Text>
+            <View style={dynamicStyles.statCard}>
+              <Text style={dynamicStyles.statNumber}>{metrics.accountAgeDays}</Text>
+              <Text style={dynamicStyles.statLabel}>Days Active</Text>
             </View>
           </View>
 
-          <View style={styles.recentActivity}>
-            <Text style={styles.subsectionTitle}>Recent Activity (Last 7 Days)</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{metrics.postsLast7d}</Text>
-                <Text style={styles.statLabel}>Posts</Text>
+          <View style={dynamicStyles.recentActivity}>
+            <Text style={dynamicStyles.subsectionTitle}>Recent Activity (Last 7 Days)</Text>
+            <View style={dynamicStyles.statsGrid}>
+              <View style={dynamicStyles.statCard}>
+                <Text style={dynamicStyles.statNumber}>{metrics.postsLast7d}</Text>
+                <Text style={dynamicStyles.statLabel}>Posts</Text>
               </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{metrics.commentsLast7d}</Text>
-                <Text style={styles.statLabel}>Comments</Text>
+              <View style={dynamicStyles.statCard}>
+                <Text style={dynamicStyles.statNumber}>{metrics.commentsLast7d}</Text>
+                <Text style={dynamicStyles.statLabel}>Comments</Text>
               </View>
-              <View style={styles.statCard}>
-                <Text style={[styles.statNumber, { color: colors.light.accent }]}>
+              <View style={dynamicStyles.statCard}>
+                <Text style={[dynamicStyles.statNumber, { color: colors.accent }]}>
                   {(metrics.valueLast7d * 100).toFixed(0)}
                 </Text>
-                <Text style={styles.statLabel}>Value Generated</Text>
+                <Text style={dynamicStyles.statLabel}>Value Generated</Text>
               </View>
             </View>
           </View>
@@ -580,16 +583,16 @@ const DashboardScreen = () => {
 
         {/* Reputation Section */}
         {Object.keys(metrics.reputationByDomain).length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reputation by Domain</Text>
-            <View style={styles.reputationGrid}>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Reputation by Domain</Text>
+            <View style={dynamicStyles.reputationGrid}>
               {Object.entries(metrics.reputationByDomain)
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 8)
                 .map(([domain, score]) => (
-                  <View key={domain} style={styles.reputationCard}>
-                    <Text style={styles.reputationDomain}>{domain}</Text>
-                    <Text style={[styles.reputationScore, { color: colors.light.accent }]}>
+                  <View key={domain} style={dynamicStyles.reputationCard}>
+                    <Text style={dynamicStyles.reputationDomain}>{domain}</Text>
+                    <Text style={[dynamicStyles.reputationScore, { color: colors.accent }]}>
                       {(score * 100).toFixed(0)}
                     </Text>
                   </View>
@@ -602,10 +605,10 @@ const DashboardScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -614,7 +617,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
   },
   errorContainer: {
@@ -623,7 +626,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
   },
   header: {
@@ -633,8 +636,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.light.border,
-    backgroundColor: colors.light.backgroundElevated,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.backgroundElevated,
   },
   backButton: {
     width: 40,
@@ -645,7 +648,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   scrollView: {
     flex: 1,
@@ -657,23 +660,23 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   subsectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   card: {
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -684,7 +687,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
@@ -700,13 +703,13 @@ const styles = StyleSheet.create({
   scoreValue: {
     fontSize: 36,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   progressBarContainer: {
     width: '100%',
     height: 8,
-    backgroundColor: colors.light.border,
+    backgroundColor: colors.border,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 16,
@@ -726,13 +729,13 @@ const styles = StyleSheet.create({
   },
   componentLabel: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 4,
   },
   componentValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   valueItem: {
     flexDirection: 'row',
@@ -744,32 +747,32 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   valueLabel: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   valueNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   monetizationBox: {
     padding: 16,
     borderRadius: 8,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   monetizationBoxEligible: {
-    backgroundColor: colors.light.success + '10',
-    borderColor: colors.light.success + '30',
+    backgroundColor: colors.success + '1A',
+    borderColor: colors.success + '4D',
   },
   monetizationStatus: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   monetizationCriteria: {
@@ -782,15 +785,15 @@ const styles = StyleSheet.create({
   },
   criteriaLabel: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   criteriaValue: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.error,
+    color: colors.error,
   },
   criteriaMet: {
-    color: colors.light.success,
+    color: colors.success,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -800,27 +803,27 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     alignItems: 'center',
   },
   statNumber: {
     fontSize: 24,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
   },
   statSubtext: {
     fontSize: 10,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -833,11 +836,11 @@ const styles = StyleSheet.create({
   },
   qualityCard: {
     flex: 1,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     alignItems: 'center',
   },
   qualityNumber: {
@@ -847,7 +850,7 @@ const styles = StyleSheet.create({
   },
   qualityLabel: {
     fontSize: 10,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
   },
   factCheckGrid: {
@@ -861,10 +864,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     marginBottom: 8,
   },
   factCheckDot: {
@@ -876,12 +879,12 @@ const styles = StyleSheet.create({
   factCheckLabel: {
     flex: 1,
     fontSize: 14,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   factCheckValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   recentActivity: {
     marginTop: 16,
@@ -894,16 +897,16 @@ const styles = StyleSheet.create({
   reputationCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   reputationDomain: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 8,
     textTransform: 'capitalize',
   },

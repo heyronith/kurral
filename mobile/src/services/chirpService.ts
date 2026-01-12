@@ -23,6 +23,34 @@ import type { Chirp, FirestoreChirp, ForYouConfig, Claim, FactCheck, ValueScore,
 const CHIRPS_COLLECTION = 'chirps';
 const DEFAULT_LIMIT = 50;
 
+// Helper to convert Firestore timestamps to Date objects
+const toDate = (value: any): Date | undefined => {
+  if (!value) return undefined;
+  if (value instanceof Date) return value;
+  if (value.toDate && typeof value.toDate === 'function') return value.toDate();
+  if (typeof value === 'number') return new Date(value);
+  if (typeof value === 'string') return new Date(value);
+  return undefined;
+};
+
+// Normalize claims array (convert Firestore timestamps to Date objects)
+const normalizeClaims = (claims?: Claim[]): Claim[] | undefined => {
+  if (!claims || !Array.isArray(claims)) return undefined;
+  return claims.map((claim) => ({
+    ...claim,
+    extractedAt: toDate((claim as any).extractedAt) || new Date(),
+  }));
+};
+
+// Normalize factChecks array (convert Firestore timestamps to Date objects)
+const normalizeFactChecks = (factChecks?: FactCheck[]): FactCheck[] | undefined => {
+  if (!factChecks || !Array.isArray(factChecks)) return undefined;
+  return factChecks.map((factCheck) => ({
+    ...factCheck,
+    checkedAt: toDate((factCheck as any).checkedAt) || new Date(),
+  }));
+};
+
 const toChirp = (docSnap: QuerySnapshot<DocumentData>['docs'][number] | any): Chirp => {
   const data = docSnap.data() as FirestoreChirp;
 
@@ -35,6 +63,9 @@ const toChirp = (docSnap: QuerySnapshot<DocumentData>['docs'][number] | any): Ch
       : undefined,
     analyzedAt: data.analyzedAt?.toDate ? data.analyzedAt.toDate() : undefined,
     commentCount: data.commentCount ?? 0,
+    // Normalize claims and factChecks to ensure dates are properly converted
+    claims: normalizeClaims(data.claims),
+    factChecks: normalizeFactChecks(data.factChecks),
   } as Chirp;
 };
 
@@ -267,17 +298,7 @@ export const chirpService = {
     const ref = doc(db, CHIRPS_COLLECTION, id);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null;
-    const data = snap.data() as FirestoreChirp;
-    return {
-      ...data,
-      id: snap.id,
-      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-      scheduledAt: data.scheduledAt?.toDate
-        ? data.scheduledAt.toDate()
-        : undefined,
-      analyzedAt: data.analyzedAt?.toDate ? data.analyzedAt.toDate() : undefined,
-      commentCount: data.commentCount ?? 0,
-    } as Chirp;
+    return toChirp(snap);
   },
 
   async getChirpsByAuthor(authorId: string, limitCount: number = 50): Promise<Chirp[]> {

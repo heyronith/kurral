@@ -108,11 +108,60 @@ const FactCheckStatusPopup = ({ open, onClose, chirp, onChirpUpdated }: FactChec
             </button>
           </div>
 
-          {/* Claims & Fact Checks */}
+          {/* Decision Summary - Prominent Section */}
+          {chirp.factCheckStatus && (
+            <div className="mb-6 p-4 rounded-lg border-2" style={{
+              backgroundColor: chirp.factCheckStatus === 'blocked' 
+                ? 'rgba(239, 68, 68, 0.1)' 
+                : chirp.factCheckStatus === 'needs_review'
+                ? 'rgba(245, 158, 11, 0.1)'
+                : 'rgba(16, 185, 129, 0.1)',
+              borderColor: chirp.factCheckStatus === 'blocked'
+                ? 'rgba(239, 68, 68, 0.3)'
+                : chirp.factCheckStatus === 'needs_review'
+                ? 'rgba(245, 158, 11, 0.3)'
+                : 'rgba(16, 185, 129, 0.3)',
+            }}>
+              <h3 className="text-base font-bold text-textPrimary mb-2">Why {statusInfo.label}?</h3>
+              {chirp.factChecks && chirp.factChecks.length > 0 ? (
+                <div className="space-y-2">
+                  {chirp.factChecks.map((fc, idx) => {
+                    const claim = chirp.claims?.find(c => c.id === fc.claimId);
+                    return (
+                      <div key={idx} className="text-sm text-textPrimary">
+                        <p className="font-semibold mb-1">
+                          Claim: "{claim?.text || 'Unknown claim'}"
+                        </p>
+                        <p className="text-textSecondary">
+                          Verdict: <span className="font-semibold">{fc.verdict.toUpperCase()}</span> 
+                          {' '}({(fc.confidence * 100).toFixed(0)}% confidence)
+                          {fc.evidence && fc.evidence.length > 0 && (
+                            <span className="ml-2 text-xs">
+                              • {fc.evidence.length} source{fc.evidence.length !== 1 ? 's' : ''} cited
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-textSecondary">
+                  {chirp.factCheckStatus === 'blocked' 
+                    ? 'This post contains false or misleading claims that were verified as incorrect.'
+                    : chirp.factCheckStatus === 'needs_review'
+                    ? 'This post requires additional review by human experts.'
+                    : 'This post has been verified and contains accurate information.'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Claims & Fact Checks - Detailed View */}
           {chirp.claims && chirp.claims.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-textPrimary mb-3">Claims & Verification</h3>
-              <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-textPrimary mb-3">Detailed Evidence</h3>
+              <div className="space-y-4">
                 {chirp.claims.map((claim) => {
                   const factCheck = chirp.factChecks?.find((fc) => fc.claimId === claim.id);
                   return (
@@ -120,66 +169,123 @@ const FactCheckStatusPopup = ({ open, onClose, chirp, onChirpUpdated }: FactChec
                       key={claim.id}
                       className="p-4 bg-backgroundElevated/40 rounded-lg border border-border/50"
                     >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <p className="text-sm text-textPrimary flex-1">{claim.text}</p>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Claim Header */}
+                      <div className="mb-3">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <p className="text-sm font-medium text-textPrimary flex-1 leading-relaxed">
+                            "{claim.text}"
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs px-2 py-0.5 bg-backgroundElevated/60 text-textMuted rounded border border-border/50">
                             {claim.type}
                           </span>
                           <span className="text-xs px-2 py-0.5 bg-backgroundElevated/60 text-textMuted rounded border border-border/50">
                             {claim.domain}
                           </span>
+                          <span className="text-xs px-2 py-0.5 bg-backgroundElevated/60 text-textMuted rounded border border-border/50">
+                            Risk: {claim.riskLevel}
+                          </span>
                         </div>
                       </div>
-                      {factCheck && (
-                        <div className="mt-3 pt-3 border-t border-border/50">
-                          <div className="flex items-center gap-3 mb-2">
+
+                      {/* Fact Check Result */}
+                      {factCheck ? (
+                        <div className="mt-4 pt-4 border-t border-border/50">
+                          <div className="flex items-center gap-3 mb-4">
                             <span
-                              className={`text-xs font-semibold px-2 py-1 rounded ${
+                              className={`text-sm font-bold px-3 py-1.5 rounded-lg ${
                                 factCheck.verdict === 'true'
-                                  ? 'bg-green-500/10 text-green-600 border border-green-500/20'
+                                  ? 'bg-green-500/20 text-green-700 border-2 border-green-500/40'
                                   : factCheck.verdict === 'false'
-                                  ? 'bg-red-500/10 text-red-600 border border-red-500/20'
+                                  ? 'bg-red-500/20 text-red-700 border-2 border-red-500/40'
                                   : factCheck.verdict === 'mixed'
-                                  ? 'bg-yellow-500/10 text-yellow-600 border border-yellow-500/20'
-                                  : 'bg-backgroundElevated/60 text-textMuted border border-border/50'
+                                  ? 'bg-yellow-500/20 text-yellow-700 border-2 border-yellow-500/40'
+                                  : 'bg-backgroundElevated/60 text-textMuted border-2 border-border/50'
                               }`}
                             >
                               {factCheck.verdict.toUpperCase()}
                             </span>
-                            <span className="text-xs text-textMuted">
-                              {(factCheck.confidence * 100).toFixed(0)}% confidence
-                            </span>
+                            <div className="flex-1">
+                              <div className="text-xs font-semibold text-textPrimary">
+                                Confidence: {(factCheck.confidence * 100).toFixed(0)}%
+                              </div>
+                              <div className="text-xs text-textMuted">
+                                {factCheck.checkedAt && `Checked on ${new Date(factCheck.checkedAt).toLocaleDateString()}`}
+                              </div>
+                            </div>
                           </div>
-                          {factCheck.evidence && factCheck.evidence.length > 0 && (
-                            <div className="mt-3 space-y-2">
-                              <p className="text-xs font-semibold text-textPrimary mb-1">Evidence:</p>
-                              {factCheck.evidence.map((evidence, idx) => (
-                                <div
-                                  key={idx}
-                                  className="text-xs text-textMuted bg-background/50 p-2 rounded border border-border/30"
-                                >
-                                  <div className="font-medium text-textSecondary mb-1">{evidence.source}</div>
-                                  <div className="text-textMuted mb-1">{evidence.snippet}</div>
-                                  {evidence.url && (
-                                    <a
-                                      href={evidence.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:underline inline-flex items-center gap-1"
-                                    >
-                                      View source →
-                                    </a>
-                                  )}
-                                </div>
-                              ))}
+
+                          {/* Evidence Section - Prominent */}
+                          {factCheck.evidence && factCheck.evidence.length > 0 ? (
+                            <div className="mt-4">
+                              <h4 className="text-sm font-bold text-textPrimary mb-3 flex items-center gap-2">
+                                <span>📚</span>
+                                Evidence Sources ({factCheck.evidence.length})
+                              </h4>
+                              <div className="space-y-3">
+                                {factCheck.evidence.map((evidence, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-3 bg-background/60 rounded-lg border border-border/40 hover:border-primary/40 transition-colors"
+                                  >
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                      <div className="flex-1">
+                                        <div className="font-semibold text-sm text-textPrimary mb-1">
+                                          {evidence.source}
+                                        </div>
+                                        {evidence.quality && (
+                                          <div className="text-xs text-textMuted mb-2">
+                                            Source Quality: {(evidence.quality * 100).toFixed(0)}%
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-sm text-textSecondary mb-3 leading-relaxed">
+                                      "{evidence.snippet}"
+                                    </div>
+                                    {evidence.url && (
+                                      <a
+                                        href={evidence.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                        View Full Source
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-4 p-3 bg-backgroundElevated/40 rounded-lg border border-border/30">
+                              <p className="text-sm text-textMuted">
+                                No evidence sources were found for this claim.
+                              </p>
                             </div>
                           )}
+
+                          {/* Caveats */}
                           {factCheck.caveats && factCheck.caveats.length > 0 && (
-                            <div className="mt-2 text-xs text-yellow-600 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
-                              <strong>Note:</strong> {factCheck.caveats.join(' ')}
+                            <div className="mt-4 p-3 text-sm text-yellow-700 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                              <div className="font-semibold mb-1">⚠️ Important Notes:</div>
+                              <ul className="list-disc list-inside space-y-1">
+                                {factCheck.caveats.map((caveat, idx) => (
+                                  <li key={idx} className="text-xs">{caveat}</li>
+                                ))}
+                              </ul>
                             </div>
                           )}
+                        </div>
+                      ) : (
+                        <div className="mt-4 pt-4 border-t border-border/50">
+                          <p className="text-sm text-textMuted italic">
+                            This claim has not been fact-checked yet.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -262,8 +368,18 @@ const FactCheckStatusPopup = ({ open, onClose, chirp, onChirpUpdated }: FactChec
           ) : null}
 
           {!chirp.claims || chirp.claims.length === 0 ? (
-            <div className="text-sm text-textMuted text-center py-4">
-              No claims have been extracted from this post yet.
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-textPrimary mb-3">Evidence</h3>
+              <div className="text-sm text-textMuted text-center py-4">
+                {chirp.factCheckingStatus === 'in_progress' || chirp.factCheckingStatus === 'pending'
+                  ? 'Fact-checking is still in progress. Evidence will appear here once processing is complete.'
+                  : chirp.factCheckStatus
+                  ? `Evidence details are not available yet. This post has been marked as ${
+                      chirp.factCheckStatus === 'blocked' ? 'blocked' : 
+                      chirp.factCheckStatus === 'needs_review' ? 'needing review' : 'verified'
+                    } but the detailed claims and evidence have not been loaded.`
+                  : 'No claims have been extracted from this post yet.'}
+              </div>
             </div>
           ) : null}
 

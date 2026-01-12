@@ -12,7 +12,7 @@ import {
   TextInputSelectionChangeEventData,
   Alert,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { useTheme } from '../hooks/useTheme';
 import { extractMentionHandles, linkifyMentions } from '../utils/mentions';
 import { userService } from '../services/userService';
 import type { Chirp, Comment, CommentTreeNode, User } from '../types';
@@ -199,15 +199,16 @@ const CommentEditor: React.FC<CommentEditorProps> = ({
   };
 
   const canSubmit = text.trim().length > 0 && !isSubmitting;
+  const dynamicStyles = getEditorStyles(colors);
 
   return (
-    <View style={styles.editorContainer}>
-      <View style={styles.inputContainer}>
+    <View style={dynamicStyles.editorContainer}>
+      <View style={dynamicStyles.inputContainer}>
         <TextInput
           ref={textInputRef}
-          style={styles.input}
+          style={dynamicStyles.input}
           placeholder={placeholder}
-          placeholderTextColor={colors.light.textMuted}
+          placeholderTextColor={colors.textMuted}
           multiline
           value={text}
           onChangeText={handleTextChange}
@@ -219,30 +220,30 @@ const CommentEditor: React.FC<CommentEditorProps> = ({
 
         {/* Mention Dropdown */}
         {mentionQuery !== null && mentionResults.length > 0 && (
-          <View style={styles.mentionDropdown}>
+          <View style={dynamicStyles.mentionDropdown}>
             {mentionResults.map((candidate) => (
               <TouchableOpacity
                 key={candidate.id}
-                style={styles.mentionItem}
+                style={dynamicStyles.mentionItem}
                 onPress={() => handleMentionSelect(candidate)}
               >
                 {candidate.profilePictureUrl ? (
                   <Image
                     source={{ uri: candidate.profilePictureUrl }}
-                    style={styles.mentionAvatar}
+                    style={dynamicStyles.mentionAvatar}
                   />
                 ) : (
-                  <View style={styles.mentionAvatarPlaceholder}>
-                    <Text style={styles.mentionAvatarText}>
+                  <View style={dynamicStyles.mentionAvatarPlaceholder}>
+                    <Text style={dynamicStyles.mentionAvatarText}>
                       {candidate.name.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                 )}
-                <View style={styles.mentionInfo}>
-                  <Text style={styles.mentionName} numberOfLines={1}>
+                <View style={dynamicStyles.mentionInfo}>
+                  <Text style={dynamicStyles.mentionName} numberOfLines={1}>
                     {candidate.name}
                   </Text>
-                  <Text style={styles.mentionHandle} numberOfLines={1}>
+                  <Text style={dynamicStyles.mentionHandle} numberOfLines={1}>
                     @{candidate.handle}
                   </Text>
                 </View>
@@ -252,21 +253,21 @@ const CommentEditor: React.FC<CommentEditorProps> = ({
         )}
       </View>
 
-      <View style={styles.editorActions}>
+      <View style={dynamicStyles.editorActions}>
         {onCancel && (
-          <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
-            <Text style={styles.cancelText}>Cancel</Text>
+          <TouchableOpacity onPress={onCancel} style={dynamicStyles.cancelButton}>
+            <Text style={dynamicStyles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
           onPress={handleSubmit}
-          style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+          style={[dynamicStyles.submitButton, !canSubmit && dynamicStyles.submitButtonDisabled]}
           disabled={!canSubmit}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text style={styles.submitText}>Post</Text>
+            <Text style={dynamicStyles.submitText}>Post</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -282,6 +283,7 @@ const CommentItem: React.FC<CommentItemProps> = ({
   depth,
   maxDepth = 5
 }) => {
+  const { colors } = useTheme();
   const [isReplying, setIsReplying] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -289,6 +291,7 @@ const CommentItem: React.FC<CommentItemProps> = ({
   const { user: currentUser } = useAuthStore();
   const users = useUserStore((state) => state.users);
   const { loadUser } = useUserStore();
+  const dynamicStyles = getCommentStyles(colors);
   
   // Get users from store state (read-only, no setState during render)
   const author = users[comment.authorId];
@@ -361,13 +364,13 @@ const CommentItem: React.FC<CommentItemProps> = ({
   const renderCommentText = () => {
     if (comment.formattedText) {
       return (
-        <Text style={styles.commentText}>
+        <Text style={dynamicStyles.commentText}>
           {comment.formattedText}
         </Text>
       );
     }
     return (
-      <Text style={styles.commentText}>
+      <Text style={dynamicStyles.commentText}>
         {comment.text}
       </Text>
     );
@@ -387,32 +390,32 @@ const CommentItem: React.FC<CommentItemProps> = ({
     <View style={{ marginLeft: indentPx }}>
       {depth > 0 && (
         <View
-          style={styles.replyLine}
+          style={dynamicStyles.replyLine}
         />
       )}
 
-      <View style={styles.commentCard}>
+      <View style={dynamicStyles.commentCard}>
         {/* Comment header */}
-        <View style={styles.commentHeader}>
-          <View style={styles.authorInfo}>
-            <View style={styles.avatar}>
+        <View style={dynamicStyles.commentHeader}>
+          <View style={dynamicStyles.authorInfo}>
+            <View style={dynamicStyles.avatar}>
               {author.profilePictureUrl ? (
                 <Image
                   source={{ uri: author.profilePictureUrl }}
-                  style={styles.avatarImage}
+                  style={dynamicStyles.avatarImage}
                 />
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
+                <View style={dynamicStyles.avatarPlaceholder}>
+                  <Text style={dynamicStyles.avatarText}>
                     {author.name.charAt(0).toUpperCase()}
                   </Text>
                 </View>
               )}
             </View>
-            <View style={styles.authorMeta}>
-              <Text style={styles.authorName}>{author.name}</Text>
-              <Text style={styles.authorHandle}>@{author.handle}</Text>
-              <Text style={styles.commentTime}>· {formatTime(comment.createdAt)}</Text>
+            <View style={dynamicStyles.authorMeta}>
+              <Text style={dynamicStyles.authorName}>{author.name}</Text>
+              <Text style={dynamicStyles.authorHandle}>@{author.handle}</Text>
+              <Text style={dynamicStyles.commentTime}>· {formatTime(comment.createdAt)}</Text>
             </View>
           </View>
         </View>
@@ -424,64 +427,64 @@ const CommentItem: React.FC<CommentItemProps> = ({
         {comment.imageUrl && (
           <Image
             source={{ uri: comment.imageUrl }}
-            style={styles.commentImage}
+            style={dynamicStyles.commentImage}
             resizeMode="cover"
           />
         )}
 
         {/* Value Contribution & Discussion Role */}
         {(comment.valueContribution || comment.discussionRole) && (
-          <View style={styles.commentMeta}>
+          <View style={dynamicStyles.commentMeta}>
             {comment.valueContribution && (
-              <View style={styles.valueBadge}>
-                <Text style={styles.valueText}>⭐ {(comment.valueContribution.total * 100).toFixed(0)}</Text>
+              <View style={dynamicStyles.valueBadge}>
+                <Text style={dynamicStyles.valueText}>⭐ {(comment.valueContribution.total * 100).toFixed(0)}</Text>
               </View>
             )}
             {comment.discussionRole && (
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleText}>{comment.discussionRole}</Text>
+              <View style={dynamicStyles.roleBadge}>
+                <Text style={dynamicStyles.roleText}>{comment.discussionRole}</Text>
               </View>
             )}
           </View>
         )}
 
         {/* Actions */}
-        <View style={styles.commentActions}>
+        <View style={dynamicStyles.commentActions}>
           {currentUser && depth < maxDepth && (
             <TouchableOpacity
               onPress={() => setIsReplying(!isReplying)}
-              style={styles.actionButton}
+              style={dynamicStyles.actionButton}
             >
-              <Text style={styles.actionText}>Reply</Text>
+              <Text style={dynamicStyles.actionText}>Reply</Text>
             </TouchableOpacity>
           )}
           {canDelete && (
             <>
               <TouchableOpacity
                 onPress={handleDeleteClick}
-                style={styles.actionButton}
+                style={dynamicStyles.actionButton}
               >
-                <Text style={styles.deleteText}>Delete</Text>
+                <Text style={dynamicStyles.deleteText}>Delete</Text>
               </TouchableOpacity>
               {showDeleteConfirm && (
-                <View style={styles.confirmDialog}>
-                  <Text style={styles.confirmText}>
+                <View style={dynamicStyles.confirmDialog}>
+                  <Text style={dynamicStyles.confirmText}>
                     {isChirpAuthor && !isCommentAuthor
                       ? "Are you sure you want to delete this comment from your post?"
                       : "Are you sure you want to delete this comment?"}
                   </Text>
-                  <View style={styles.confirmActions}>
+                  <View style={dynamicStyles.confirmActions}>
                     <TouchableOpacity
                       onPress={() => setShowDeleteConfirm(false)}
-                      style={styles.cancelConfirmButton}
+                      style={dynamicStyles.cancelConfirmButton}
                     >
-                      <Text style={styles.cancelConfirmText}>Cancel</Text>
+                      <Text style={dynamicStyles.cancelConfirmText}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleDeleteConfirm}
-                      style={styles.confirmButton}
+                      style={dynamicStyles.confirmButton}
                     >
-                      <Text style={styles.confirmButtonText}>Delete</Text>
+                      <Text style={dynamicStyles.confirmButtonText}>Delete</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -492,15 +495,15 @@ const CommentItem: React.FC<CommentItemProps> = ({
             <>
               <TouchableOpacity
                 onPress={() => setIsCollapsed(!isCollapsed)}
-                style={styles.actionButton}
+                style={dynamicStyles.actionButton}
               >
-                <Text style={styles.actionText}>
+                <Text style={dynamicStyles.actionText}>
                   {isCollapsed
                     ? `Show ${comment.replyCount} repl${comment.replyCount !== 1 ? 'ies' : 'y'}`
                     : `Hide repl${comment.replyCount !== 1 ? 'ies' : 'y'}`}
                 </Text>
               </TouchableOpacity>
-              <Text style={styles.replyCount}>
+              <Text style={dynamicStyles.replyCount}>
                 {comment.replyCount} repl{comment.replyCount !== 1 ? 'ies' : 'y'}
               </Text>
             </>
@@ -509,23 +512,23 @@ const CommentItem: React.FC<CommentItemProps> = ({
 
         {/* Reply form */}
         {isReplying && currentUser && (
-          <View style={styles.replyForm}>
-            <View style={styles.replyHeader}>
-              <View style={styles.avatar}>
+          <View style={dynamicStyles.replyForm}>
+            <View style={dynamicStyles.replyHeader}>
+              <View style={dynamicStyles.avatar}>
                 {currentUser.profilePictureUrl ? (
                   <Image
                     source={{ uri: currentUser.profilePictureUrl }}
-                    style={styles.avatarImage}
+                    style={dynamicStyles.avatarImage}
                   />
                 ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Text style={styles.avatarText}>
+                  <View style={dynamicStyles.avatarPlaceholder}>
+                    <Text style={dynamicStyles.avatarText}>
                       {currentUser.name.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                 )}
               </View>
-              <View style={styles.replyEditor}>
+              <View style={dynamicStyles.replyEditor}>
                 <CommentEditor
                   chirpId={chirpId}
                   parentCommentId={comment.id}
@@ -544,7 +547,7 @@ const CommentItem: React.FC<CommentItemProps> = ({
 
       {/* Nested replies */}
       {hasReplies && !isCollapsed && (
-        <View style={styles.repliesContainer}>
+        <View style={dynamicStyles.repliesContainer}>
           {comment.replies.map((reply, index) => (
             <CommentItem
               key={`${reply.id}-${depth}-${index}`}
@@ -563,11 +566,13 @@ const CommentItem: React.FC<CommentItemProps> = ({
 
 // Main Comment Section Component
 const CommentSection: React.FC<CommentSectionProps> = ({ chirp, initialExpanded = false }) => {
+  const { colors } = useTheme();
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const getCommentTreeForChirp = useFeedStore((state) => state.getCommentTreeForChirp);
   const startCommentListener = useFeedStore((state) => state.startCommentListener);
   const commentTree = getCommentTreeForChirp(chirp.id);
   const listenerStartedRef = useRef<Set<string>>(new Set());
+  const dynamicStyles = getSectionStyles(colors);
 
   // Sync with initialExpanded prop changes
   useEffect(() => {
@@ -592,22 +597,22 @@ const CommentSection: React.FC<CommentSectionProps> = ({ chirp, initialExpanded 
   }, [chirp.id, chirp.commentCount, isExpanded]);
 
   return (
-    <View style={styles.container}>
+    <View style={dynamicStyles.container}>
       <TouchableOpacity
         onPress={() => setIsExpanded(!isExpanded)}
-        style={styles.toggleButton}
+        style={dynamicStyles.toggleButton}
       >
-        <Text style={styles.toggleText}>
+        <Text style={dynamicStyles.toggleText}>
           {isExpanded ? 'Hide comments' : 'Show comments'}
         </Text>
-        <Text style={styles.arrowText}>{isExpanded ? '↑' : '↓'}</Text>
+        <Text style={dynamicStyles.arrowText}>{isExpanded ? '↑' : '↓'}</Text>
       </TouchableOpacity>
 
       {isExpanded && (
-        <View style={styles.expandedContainer}>
+        <View style={dynamicStyles.expandedContainer}>
           {/* Comments tree */}
           {commentTree.length > 0 && (
-            <View style={styles.commentsList}>
+            <View style={dynamicStyles.commentsList}>
               {commentTree.map((comment, index) => (
                 <CommentItem
                   key={`${comment.id}-${index}`}
@@ -621,8 +626,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ chirp, initialExpanded 
           )}
 
           {commentTree.length === 0 && (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
+            <View style={dynamicStyles.emptyContainer}>
+              <Text style={dynamicStyles.emptyText}>
                 No comments yet. Be the first to comment!
               </Text>
             </View>
@@ -651,12 +656,12 @@ const markdownToHtml = (text: string): string => {
   return html;
 };
 
-const styles = StyleSheet.create({
+const getSectionStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   toggleButton: {
     flexDirection: 'row',
@@ -666,12 +671,12 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginRight: 4,
   },
   arrowText: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   expandedContainer: {
     marginTop: 16,
@@ -685,14 +690,17 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontStyle: 'italic',
   },
+});
+
+const getEditorStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   editorContainer: {
     padding: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   inputContainer: {
     position: 'relative',
@@ -700,24 +708,24 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 60,
     maxHeight: 150,
-    backgroundColor: '#fff',
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     padding: 12,
     fontSize: 14,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     textAlignVertical: 'top',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   mentionDropdown: {
     position: 'absolute',
     top: 60,
     left: 0,
     right: 0,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     maxHeight: 200,
     zIndex: 1000,
     shadowColor: '#000',
@@ -732,7 +740,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   mentionAvatar: {
     width: 28,
@@ -744,7 +752,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -752,7 +760,7 @@ const styles = StyleSheet.create({
   mentionAvatarText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   mentionInfo: {
     flex: 1,
@@ -761,12 +769,12 @@ const styles = StyleSheet.create({
   mentionName: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 2,
   },
   mentionHandle: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   editorActions: {
     flexDirection: 'row',
@@ -780,29 +788,32 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   cancelText: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
   },
   submitButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   submitButtonDisabled: {
-    backgroundColor: colors.light.border,
+    backgroundColor: colors.border,
   },
   submitText: {
     color: '#fff',
     fontWeight: '700',
     fontSize: 14,
   },
+});
+
+const getCommentStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   commentCard: {
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     padding: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     marginBottom: 8,
   },
   commentHeader: {
@@ -820,7 +831,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -834,7 +845,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -850,19 +861,19 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   authorHandle: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   commentTime: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   commentText: {
     fontSize: 14,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -882,26 +893,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    backgroundColor: colors.accent + '14',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(124, 58, 237, 0.2)',
+    borderColor: colors.accent + '33',
   },
   valueText: {
     fontSize: 11,
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
   },
   roleBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: colors.border + '33',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   roleText: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
@@ -916,27 +927,27 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
   },
   deleteText: {
     fontSize: 12,
-    color: '#ef4444',
+    color: colors.error,
     fontWeight: '600',
   },
   replyCount: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   confirmDialog: {
     position: 'absolute',
     top: '100%',
     right: 0,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 8,
     padding: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     minWidth: 200,
     zIndex: 1000,
     shadowColor: '#000',
@@ -947,7 +958,7 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: 14,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   confirmActions: {
@@ -961,13 +972,13 @@ const styles = StyleSheet.create({
   },
   cancelConfirmText: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
   },
   confirmButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#ef4444',
+    backgroundColor: colors.error,
     borderRadius: 6,
   },
   confirmButtonText: {
@@ -992,7 +1003,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 1,
-    backgroundColor: colors.light.border,
+    backgroundColor: colors.border,
   },
   repliesContainer: {
     marginTop: 8,

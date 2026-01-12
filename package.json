@@ -31,6 +31,7 @@
     "test:dynamic-buckets": "node scripts/test-dynamic-buckets-e2e.js",
     "test:platform": "node scripts/test-platform-comprehensive.js",
     "test:onboarding": "node scripts/test-onboarding-flow.js",
+    "test:review-requests": "node scripts/test-review-requests.js",
     "check:firebase": "node scripts/check-firebase-config.js",
     "fix:following": "node scripts/fix-main-user-following.js",
     "verify:posts": "node scripts/verify-user-posts.js",

@@ -27,7 +27,7 @@ import {
   TunedAudience,
   type Chirp,
 } from '../../types';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import { storageService } from '../../services/storageService';
 import { extractMentionHandles, linkifyMentions } from '../../utils/mentions';
 import { userService } from '../../services/userService';
@@ -212,29 +212,9 @@ const markdownToHtml = (text: string): string => {
   return html;
 };
 
-const TopicChip = ({
-  value,
-  selected,
-  onPress,
-}: {
-  value: string;
-  selected: boolean;
-  onPress: (topic: string) => void;
-}) => (
-  <TouchableOpacity
-    onPress={() => onPress(value)}
-    style={[
-      styles.chip,
-      selected ? styles.chipSelected : undefined,
-    ]}
-  >
-    <Text style={[styles.chipText, selected ? styles.chipTextSelected : undefined]}>
-      #{value}
-    </Text>
-  </TouchableOpacity>
-);
-
 const ComposerModal = () => {
+  const { colors } = useTheme();
+  const dynamicStyles = getStyles(colors);
   const { isOpen, close, quotedChirp, commentingChirp } = useComposer();
   const { user } = useAuthStore();
   const { addChirp, addComment } = useFeedStore();
@@ -880,69 +860,69 @@ const ComposerModal = () => {
     <>
     <Modal visible={isOpen} animationType="slide" transparent>
       <KeyboardAvoidingView
-        style={styles.backdrop}
+        style={dynamicStyles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>{isCommentMode ? 'Add Comment' : 'New Post'}</Text>
-            <TouchableOpacity onPress={close} style={styles.closeButton}>
-              <Text style={styles.closeText}>Close</Text>
+        <View style={dynamicStyles.container}>
+          <View style={dynamicStyles.header}>
+            <Text style={dynamicStyles.headerTitle}>{isCommentMode ? 'Add Comment' : 'New Post'}</Text>
+            <TouchableOpacity onPress={close} style={dynamicStyles.closeButton}>
+              <Text style={dynamicStyles.closeText}>Close</Text>
             </TouchableOpacity>
           </View>
 
           {/* Commenting Chirp Preview */}
           {isCommentMode && commentingChirp && (
-            <View style={styles.commentingChirpCard}>
-              <View style={styles.commentingChirpHeader}>
-                <View style={styles.commentingChirpAvatar}>
+            <View style={dynamicStyles.commentingChirpCard}>
+              <View style={dynamicStyles.commentingChirpHeader}>
+                <View style={dynamicStyles.commentingChirpAvatar}>
                   {commentingAuthor?.profilePictureUrl ? (
                     <Image
                       source={{ uri: commentingAuthor.profilePictureUrl }}
-                      style={styles.commentingChirpAvatarImage}
+                      style={dynamicStyles.commentingChirpAvatarImage}
                     />
                   ) : (
-                    <View style={styles.commentingChirpAvatarPlaceholder}>
-                      <Text style={styles.commentingChirpAvatarText}>
+                    <View style={dynamicStyles.commentingChirpAvatarPlaceholder}>
+                      <Text style={dynamicStyles.commentingChirpAvatarText}>
                         {getInitial(commentingAuthor?.name || commentingAuthor?.handle)}
                       </Text>
                     </View>
                   )}
                 </View>
-                <View style={styles.commentingChirpMeta}>
-                  <Text style={styles.commentingChirpAuthor}>
+                <View style={dynamicStyles.commentingChirpMeta}>
+                  <Text style={dynamicStyles.commentingChirpAuthor}>
                     {commentingAuthor?.name || 'Unknown User'}
                   </Text>
-                  <Text style={styles.commentingChirpHandle}>
+                  <Text style={dynamicStyles.commentingChirpHandle}>
                     @{commentingAuthor?.handle || commentingChirp.authorId.slice(0, 8)}
                     {commentingCreatedAt && ` · ${formatTimeAgo(commentingCreatedAt)}`}
                   </Text>
                 </View>
               </View>
               {commentingChirp.text && (
-                <View style={styles.commentingChirpContent}>
+                <View style={dynamicStyles.commentingChirpContent}>
                   {renderFormattedText(
                     commentingChirp.formattedText || commentingChirp.text,
-                    styles.commentingChirpText
+                    dynamicStyles.commentingChirpText
                   )}
                 </View>
               )}
               {commentingChirp.imageUrl && (
                 <Image
                   source={{ uri: commentingChirp.imageUrl }}
-                  style={styles.commentingChirpImage}
+                  style={dynamicStyles.commentingChirpImage}
                   resizeMode="cover"
                 />
               )}
             </View>
           )}
 
-          <View style={styles.inputArea}>
+          <View style={dynamicStyles.inputArea}>
             <TextInput
-              style={styles.input}
+              style={dynamicStyles.input}
               placeholder={isCommentMode ? "Add a comment..." : "Share something..."}
-              placeholderTextColor={colors.light.textMuted}
+              placeholderTextColor={colors.textMuted}
               multiline
               value={text}
               onChangeText={handleTextChange}
@@ -954,31 +934,31 @@ const ComposerModal = () => {
             
             {/* Mention Dropdown */}
             {mentionQuery !== null && mentionResults.length > 0 && (
-              <View style={styles.mentionDropdown}>
-                <ScrollView style={styles.mentionList} nestedScrollEnabled>
+              <View style={dynamicStyles.mentionDropdown}>
+                <ScrollView style={dynamicStyles.mentionList} nestedScrollEnabled>
                   {mentionResults.map((candidate) => (
                     <TouchableOpacity
                       key={candidate.id}
-                      style={styles.mentionItem}
+                      style={dynamicStyles.mentionItem}
                       onPress={() => handleMentionSelect(candidate)}
                     >
                       {candidate.profilePictureUrl ? (
                         <Image
                           source={{ uri: candidate.profilePictureUrl }}
-                          style={styles.mentionAvatar}
+                          style={dynamicStyles.mentionAvatar}
                         />
                       ) : (
-                        <View style={styles.mentionAvatarPlaceholder}>
-                          <Text style={styles.mentionAvatarText}>
+                        <View style={dynamicStyles.mentionAvatarPlaceholder}>
+                          <Text style={dynamicStyles.mentionAvatarText}>
                             {candidate.name.charAt(0).toUpperCase()}
                           </Text>
                         </View>
                       )}
-                      <View style={styles.mentionInfo}>
-                        <Text style={styles.mentionName} numberOfLines={1}>
+                      <View style={dynamicStyles.mentionInfo}>
+                        <Text style={dynamicStyles.mentionName} numberOfLines={1}>
                           {candidate.name}
                         </Text>
-                        <Text style={styles.mentionHandle} numberOfLines={1}>
+                        <Text style={dynamicStyles.mentionHandle} numberOfLines={1}>
                           @{candidate.handle}
                         </Text>
                       </View>
@@ -988,12 +968,12 @@ const ComposerModal = () => {
               </View>
             )}
 
-            <View style={styles.toolbar}>
-              <TouchableOpacity onPress={() => wrapSelection('**')} style={styles.toolButton}>
-                <Text style={styles.toolText}>B</Text>
+            <View style={dynamicStyles.toolbar}>
+              <TouchableOpacity onPress={() => wrapSelection('**')} style={dynamicStyles.toolButton}>
+                <Text style={dynamicStyles.toolText}>B</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => wrapSelection('_')} style={styles.toolButton}>
-                <Text style={styles.toolText}>I</Text>
+              <TouchableOpacity onPress={() => wrapSelection('_')} style={dynamicStyles.toolButton}>
+                <Text style={dynamicStyles.toolText}>I</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 onPress={() => {
@@ -1001,12 +981,12 @@ const ComposerModal = () => {
                   setShowSchedulePicker(false);
                   setShowEmojiPicker(!showEmojiPicker);
                 }} 
-                style={[styles.emojiTool, showEmojiPicker && styles.toolButtonActive]}
+                style={[dynamicStyles.emojiTool, showEmojiPicker && dynamicStyles.toolButtonActive]}
               >
-                <Text style={styles.emoji}>😀</Text>
+                <Text style={dynamicStyles.emoji}>😀</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handlePickImage} style={styles.toolButton}>
-                <Text style={styles.toolText}>Image</Text>
+              <TouchableOpacity onPress={handlePickImage} style={dynamicStyles.toolButton}>
+                <Text style={dynamicStyles.toolText}>Image</Text>
               </TouchableOpacity>
               {!isCommentMode && (
                 <>
@@ -1016,59 +996,59 @@ const ComposerModal = () => {
                       setShowSchedulePicker(false);
                       setShowTopicPicker(!showTopicPicker);
                     }} 
-                    style={[styles.toolButton, (selectedTopic || showTopicPicker) && styles.toolButtonActive]}
+                    style={[dynamicStyles.toolButton, (selectedTopic || showTopicPicker) && dynamicStyles.toolButtonActive]}
                   >
-                    <Text style={styles.toolText}>#</Text>
+                    <Text style={dynamicStyles.toolText}>#</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     onPress={handleOpenSchedulePicker} 
-                    style={[styles.toolButton, (scheduledAt || showSchedulePicker) && styles.toolButtonActive]}
+                    style={[dynamicStyles.toolButton, (scheduledAt || showSchedulePicker) && dynamicStyles.toolButtonActive]}
                   >
-                    <Text style={styles.toolText}>📅</Text>
+                    <Text style={dynamicStyles.toolText}>📅</Text>
                   </TouchableOpacity>
                 </>
               )}
             </View>
             {!isCommentMode && selectedTopic && (
-              <View style={styles.selectedTopicBadge}>
-                <Text style={styles.selectedTopicText}>#{selectedTopic}</Text>
+              <View style={dynamicStyles.selectedTopicBadge}>
+                <Text style={dynamicStyles.selectedTopicText}>#{selectedTopic}</Text>
                 <TouchableOpacity onPress={() => setSelectedTopic('')}>
-                  <Text style={styles.removeTopicText}>×</Text>
+                  <Text style={dynamicStyles.removeTopicText}>×</Text>
                 </TouchableOpacity>
               </View>
             )}
             {!isCommentMode && scheduledAt && scheduleLabel && (
-              <View style={styles.scheduledBadge}>
-                <Text style={styles.scheduledText}>📅 {scheduleLabel}</Text>
+              <View style={dynamicStyles.scheduledBadge}>
+                <Text style={dynamicStyles.scheduledText}>📅 {scheduleLabel}</Text>
                 <TouchableOpacity onPress={() => setScheduledAt(null)}>
-                  <Text style={styles.removeScheduleText}>×</Text>
+                  <Text style={dynamicStyles.removeScheduleText}>×</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             {/* Inline Emoji Picker */}
             {showEmojiPicker && (
-              <View style={styles.inlinePicker}>
-                <View style={styles.inlinePickerHeader}>
-                  <Text style={styles.inlinePickerTitle}>Emoji</Text>
+              <View style={dynamicStyles.inlinePicker}>
+                <View style={dynamicStyles.inlinePickerHeader}>
+                  <Text style={dynamicStyles.inlinePickerTitle}>Emoji</Text>
                   <TouchableOpacity onPress={() => setShowEmojiPicker(false)}>
-                    <Text style={styles.inlinePickerClose}>×</Text>
+                    <Text style={dynamicStyles.inlinePickerClose}>×</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiCategoryTabs}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={dynamicStyles.emojiCategoryTabs}>
                   {Object.keys(EMOJI_CATEGORIES).map((category) => (
                     <TouchableOpacity
                       key={category}
                       style={[
-                        styles.emojiCategoryTab,
-                        selectedEmojiCategory === category && styles.emojiCategoryTabActive,
+                        dynamicStyles.emojiCategoryTab,
+                        selectedEmojiCategory === category && dynamicStyles.emojiCategoryTabActive,
                       ]}
                       onPress={() => setSelectedEmojiCategory(category)}
                     >
                       <Text
                         style={[
-                          styles.emojiCategoryTabText,
-                          selectedEmojiCategory === category && styles.emojiCategoryTabTextActive,
+                          dynamicStyles.emojiCategoryTabText,
+                          selectedEmojiCategory === category && dynamicStyles.emojiCategoryTabTextActive,
                         ]}
                       >
                         {category}
@@ -1076,18 +1056,18 @@ const ComposerModal = () => {
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
-                <ScrollView style={styles.inlinePickerBody} nestedScrollEnabled>
-                  <View style={styles.emojiGrid}>
+                <ScrollView style={dynamicStyles.inlinePickerBody} nestedScrollEnabled>
+                  <View style={dynamicStyles.emojiGrid}>
                     {EMOJI_CATEGORIES[selectedEmojiCategory as keyof typeof EMOJI_CATEGORIES].map((emoji, index) => (
                       <TouchableOpacity
                         key={`${emoji}-${index}`}
-                        style={styles.emojiButton}
+                        style={dynamicStyles.emojiButton}
                         onPress={() => {
                           insertEmoji(emoji);
                           setShowEmojiPicker(false);
                         }}
                       >
-                        <Text style={styles.emojiLarge}>{emoji}</Text>
+                        <Text style={dynamicStyles.emojiLarge}>{emoji}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -1097,32 +1077,41 @@ const ComposerModal = () => {
 
             {/* Inline Topic Picker */}
             {showTopicPicker && (
-              <View style={styles.inlinePicker}>
-                <View style={styles.inlinePickerHeader}>
-                  <Text style={styles.inlinePickerTitle}>Topic</Text>
+              <View style={dynamicStyles.inlinePicker}>
+                <View style={dynamicStyles.inlinePickerHeader}>
+                  <Text style={dynamicStyles.inlinePickerTitle}>Topic</Text>
                   <TouchableOpacity onPress={() => setShowTopicPicker(false)}>
-                    <Text style={styles.inlinePickerClose}>×</Text>
+                    <Text style={dynamicStyles.inlinePickerClose}>×</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.inlinePickerBody} nestedScrollEnabled>
+                <ScrollView style={dynamicStyles.inlinePickerBody} nestedScrollEnabled>
                   {isGeneratingSuggestion && (
-                    <View style={styles.suggestionLoading}>
-                      <ActivityIndicator size="small" color={colors.light.accent} />
-                      <Text style={styles.suggestionLoadingText}>Analyzing content...</Text>
+                    <View style={dynamicStyles.suggestionLoading}>
+                      <ActivityIndicator size="small" color={colors.accent} />
+                      <Text style={dynamicStyles.suggestionLoadingText}>Analyzing content...</Text>
                     </View>
                   )}
-                  <View style={styles.topicGrid}>
-                    {ALL_TOPICS.map((topic) => (
-                      <TopicChip
+                  <View style={dynamicStyles.topicGrid}>
+                    {ALL_TOPICS.map((topic) => {
+                      const isSelected = topic === selectedTopic;
+                      return (
+                        <TouchableOpacity
                         key={topic}
-                        value={topic}
-                        selected={topic === selectedTopic}
-                        onPress={(value) => {
-                          setSelectedTopic(value);
+                          onPress={() => {
+                            setSelectedTopic(topic);
                           setShowTopicPicker(false);
                         }}
-                      />
-                    ))}
+                          style={[
+                            dynamicStyles.chip,
+                            isSelected ? dynamicStyles.chipSelected : undefined,
+                          ]}
+                        >
+                          <Text style={[dynamicStyles.chipText, isSelected ? dynamicStyles.chipTextSelected : undefined]}>
+                            #{topic}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 </ScrollView>
               </View>
@@ -1130,18 +1119,18 @@ const ComposerModal = () => {
 
             {/* Inline Schedule Picker */}
             {showSchedulePicker && (
-              <View style={styles.inlinePicker}>
-                <View style={styles.inlinePickerHeader}>
-                  <Text style={styles.inlinePickerTitle}>Schedule</Text>
+              <View style={dynamicStyles.inlinePicker}>
+                <View style={dynamicStyles.inlinePickerHeader}>
+                  <Text style={dynamicStyles.inlinePickerTitle}>Schedule</Text>
                   <TouchableOpacity onPress={() => setShowSchedulePicker(false)}>
-                    <Text style={styles.inlinePickerClose}>×</Text>
+                    <Text style={dynamicStyles.inlinePickerClose}>×</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.inlinePickerBody} nestedScrollEnabled>
-                  <View style={styles.schedulePickerContent}>
-                    <Text style={styles.smallLabel}>Date</Text>
+                <ScrollView style={dynamicStyles.inlinePickerBody} nestedScrollEnabled>
+                  <View style={dynamicStyles.schedulePickerContent}>
+                    <Text style={dynamicStyles.smallLabel}>Date</Text>
                     <TextInput
-                      style={styles.scheduleInput}
+                      style={dynamicStyles.scheduleInput}
                       placeholder="YYYY-MM-DD"
                       value={tempScheduleDate ? tempScheduleDate.toISOString().split('T')[0] : ''}
                       onChangeText={(text) => {
@@ -1151,9 +1140,9 @@ const ComposerModal = () => {
                         }
                       }}
                     />
-                    <Text style={[styles.smallLabel, { marginTop: 16 }]}>Time</Text>
+                    <Text style={[dynamicStyles.smallLabel, { marginTop: 16 }]}>Time</Text>
                     <TextInput
-                      style={styles.scheduleInput}
+                      style={dynamicStyles.scheduleInput}
                       placeholder="HH:MM (24h format)"
                       value={tempScheduleTime}
                       onChangeText={setTempScheduleTime}
@@ -1164,8 +1153,8 @@ const ComposerModal = () => {
                       scheduled.setHours(hours, minutes, 0, 0);
                       const isValid = scheduled > new Date();
                       return (
-                        <View style={styles.schedulePreview}>
-                          <Text style={styles.schedulePreviewText}>
+                        <View style={dynamicStyles.schedulePreview}>
+                          <Text style={dynamicStyles.schedulePreviewText}>
                             {isValid 
                               ? `Will post on ${scheduled.toLocaleString()}`
                               : 'Please select a future date and time'}
@@ -1175,18 +1164,18 @@ const ComposerModal = () => {
                     })()}
                   </View>
                 </ScrollView>
-                <View style={styles.inlinePickerFooter}>
+                <View style={dynamicStyles.inlinePickerFooter}>
                   <TouchableOpacity 
-                    style={styles.modalButtonSecondary}
+                    style={dynamicStyles.modalButtonSecondary}
                     onPress={handleClearSchedule}
                   >
-                    <Text style={styles.modalButtonSecondaryText}>Clear</Text>
+                    <Text style={dynamicStyles.modalButtonSecondaryText}>Clear</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.modalButtonPrimary}
+                    style={dynamicStyles.modalButtonPrimary}
                     onPress={handleConfirmSchedule}
                   >
-                    <Text style={styles.modalButtonPrimaryText}>Confirm</Text>
+                    <Text style={dynamicStyles.modalButtonPrimaryText}>Confirm</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1194,20 +1183,20 @@ const ComposerModal = () => {
           </View>
 
           {!isCommentMode && (
-            <View style={styles.reachRow}>
+            <View style={dynamicStyles.reachRow}>
               {(['forAll', 'tuned'] as ReachMode[]).map((mode) => (
                 <TouchableOpacity
                   key={mode}
                   style={[
-                    styles.reachButton,
-                    reachMode === mode && styles.reachButtonActive,
+                    dynamicStyles.reachButton,
+                    reachMode === mode && dynamicStyles.reachButtonActive,
                   ]}
                   onPress={() => setReachMode(mode)}
                 >
                   <Text
                     style={[
-                      styles.reachLabel,
-                      reachMode === mode && styles.reachLabelActive,
+                      dynamicStyles.reachLabel,
+                      reachMode === mode && dynamicStyles.reachLabelActive,
                     ]}
                   >
                     {mode === 'tuned' ? 'Tuned' : 'For all'}
@@ -1218,9 +1207,9 @@ const ComposerModal = () => {
           )}
 
           {!isCommentMode && reachMode === 'tuned' && (
-            <View style={styles.audienceRow}>
-              <Text style={styles.smallLabel}>Audience</Text>
-              <View style={styles.toggleRow}>
+            <View style={dynamicStyles.audienceRow}>
+              <Text style={dynamicStyles.smallLabel}>Audience</Text>
+              <View style={dynamicStyles.toggleRow}>
                 {[
                   { label: 'Followers', key: 'allowFollowers' },
                   { label: 'Non-followers', key: 'allowNonFollowers' },
@@ -1228,8 +1217,8 @@ const ComposerModal = () => {
                   <TouchableOpacity
                     key={option.key}
                     style={[
-                      styles.toggle,
-                      tunedAudience[option.key as keyof TunedAudience] && styles.toggleActive,
+                      dynamicStyles.toggle,
+                      tunedAudience[option.key as keyof TunedAudience] && dynamicStyles.toggleActive,
                     ]}
                     onPress={() =>
                       setTunedAudience((prev) => ({
@@ -1240,8 +1229,8 @@ const ComposerModal = () => {
                   >
                     <Text
                       style={[
-                        styles.toggleText,
-                        tunedAudience[option.key as keyof TunedAudience] && styles.toggleTextActive,
+                        dynamicStyles.toggleText,
+                        tunedAudience[option.key as keyof TunedAudience] && dynamicStyles.toggleTextActive,
                       ]}
                     >
                       {option.label}
@@ -1253,19 +1242,19 @@ const ComposerModal = () => {
           )}
 
 
-          <View style={styles.footer}>
-            <Text style={[styles.counter, remaining < 0 ? styles.counterOver : undefined]}>
+          <View style={dynamicStyles.footer}>
+            <Text style={[dynamicStyles.counter, remaining < 0 ? dynamicStyles.counterOver : undefined]}>
               {remaining}
             </Text>
             <TouchableOpacity
-              style={[styles.postButton, !canPost && styles.postButtonDisabled]}
+              style={[dynamicStyles.postButton, !canPost && dynamicStyles.postButtonDisabled]}
               onPress={handlePost}
               disabled={!canPost}
             >
               {isPosting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.postText}>{isCommentMode ? 'Comment' : 'Post'}</Text>
+                <Text style={dynamicStyles.postText}>{isCommentMode ? 'Comment' : 'Post'}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1275,19 +1264,19 @@ const ComposerModal = () => {
 
       {/* Analysis modal */}
       <Modal visible={analysisVisible} animationType="fade" transparent>
-        <View style={styles.analysisBackdrop}>
-          <View style={styles.analysisCard}>
-            <Text style={styles.analysisTitle}>Post analysis</Text>
-            <Text style={styles.analysisStatus}>{analysisStatus}</Text>
+        <View style={dynamicStyles.analysisBackdrop}>
+          <View style={dynamicStyles.analysisCard}>
+            <Text style={dynamicStyles.analysisTitle}>Post analysis</Text>
+            <Text style={dynamicStyles.analysisStatus}>{analysisStatus}</Text>
             {!analysisDecision && (
-              <ActivityIndicator style={{ marginTop: 12 }} color={colors.light.accent} />
+              <ActivityIndicator style={{ marginTop: 12 }} color={colors.accent} />
             )}
             {analysisDecision && (
-              <Text style={styles.analysisDecision}>{analysisDecision}</Text>
+              <Text style={dynamicStyles.analysisDecision}>{analysisDecision}</Text>
             )}
             {analysisDecision && (
               <TouchableOpacity
-                style={styles.analysisButton}
+                style={dynamicStyles.analysisButton}
                 onPress={() => {
                   setAnalysisVisible(false);
                   setAnalysisStatus('Analyzing your post...');
@@ -1296,7 +1285,7 @@ const ComposerModal = () => {
                   close();
                 }}
               >
-                <Text style={styles.analysisButtonText}>OK</Text>
+                <Text style={dynamicStyles.analysisButtonText}>OK</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1306,14 +1295,14 @@ const ComposerModal = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.backgroundElevated,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 24,
@@ -1326,20 +1315,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   subtitle: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
   },
   closeButton: {
@@ -1347,7 +1336,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   closeText: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
   },
   analysisBackdrop: {
@@ -1358,7 +1347,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   analysisCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 16,
     padding: 20,
     width: '100%',
@@ -1368,23 +1357,23 @@ const styles = StyleSheet.create({
   analysisTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   analysisStatus: {
     fontSize: 14,
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   analysisDecision: {
     marginTop: 12,
     fontSize: 14,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   analysisButton: {
     marginTop: 16,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 10,
@@ -1397,12 +1386,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 12,
     padding: 14,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.accent + '40',
+    borderColor: colors.accent + '40',
     borderLeftWidth: 3,
-    borderLeftColor: colors.light.accent,
+    borderLeftColor: colors.accent,
   },
   commentingChirpHeader: {
     flexDirection: 'row',
@@ -1413,7 +1402,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1427,7 +1416,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1442,11 +1431,11 @@ const styles = StyleSheet.create({
   commentingChirpAuthor: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   commentingChirpHandle: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
   },
   commentingChirpContent: {
@@ -1454,7 +1443,7 @@ const styles = StyleSheet.create({
   },
   commentingChirpText: {
     fontSize: 14,
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   commentingChirpImage: {
@@ -1462,17 +1451,17 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 12,
     marginTop: 12,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: colors.border,
   },
   inputArea: {
     marginTop: 12,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.border + '80',
     borderRadius: 16,
     padding: 12,
   },
   input: {
     minHeight: 120,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
     textAlignVertical: 'top',
   },
@@ -1486,14 +1475,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   toolButtonActive: {
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   toolText: {
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   selectedTopicBadge: {
     flexDirection: 'row',
@@ -1502,17 +1491,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   selectedTopicText: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '700',
     fontSize: 14,
   },
   removeTopicText: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -1523,17 +1512,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   scheduledText: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
     fontSize: 14,
   },
   removeScheduleText: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -1541,7 +1530,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   emoji: {
     fontSize: 18,
@@ -1550,14 +1539,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     marginRight: 8,
   },
   chipSelected: {
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   chipText: {
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     fontWeight: '600',
   },
   chipTextSelected: {
@@ -1575,11 +1564,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
-    backgroundColor: '#fff',
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundElevated,
   },
   clearTopicText: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontSize: 12,
   },
   reachRow: {
@@ -1592,16 +1581,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     alignItems: 'center',
   },
   reachButtonActive: {
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     borderColor: 'transparent',
   },
   reachLabel: {
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   reachLabelActive: {
     color: '#fff',
@@ -1612,7 +1601,7 @@ const styles = StyleSheet.create({
   smallLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 8,
   },
   toggleRow: {
@@ -1623,13 +1612,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   toggleActive: {
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   toggleText: {
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     fontWeight: '600',
   },
   toggleTextActive: {
@@ -1645,20 +1634,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   scheduleChipActive: {
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   scheduleText: {
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     fontWeight: '600',
   },
   scheduleTextActive: {
     color: '#fff',
   },
   scheduleLabel: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 6,
   },
   footer: {
@@ -1667,11 +1656,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
     paddingTop: 12,
   },
   counter: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '700',
   },
   counterOver: {
@@ -1681,10 +1670,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   postButtonDisabled: {
-    backgroundColor: colors.light.border,
+    backgroundColor: colors.border,
   },
   postText: {
     color: '#fff',
@@ -1697,7 +1686,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 20,
     width: '90%',
     maxHeight: '80%',
@@ -1709,16 +1698,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   modalClose: {
     fontSize: 28,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '300',
   },
   modalBody: {
@@ -1731,13 +1720,13 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   modalButtonPrimary: {
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   modalButtonPrimaryText: {
     color: '#fff',
@@ -1747,10 +1736,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   modalButtonSecondaryText: {
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     fontWeight: '600',
   },
   topicGrid: {
@@ -1761,7 +1750,7 @@ const styles = StyleSheet.create({
   emojiCategoryTabs: {
     flexDirection: 'row',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
     paddingHorizontal: 4,
     paddingVertical: 4,
   },
@@ -1773,15 +1762,15 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   emojiCategoryTabActive: {
-    borderBottomColor: colors.light.accent,
+    borderBottomColor: colors.accent,
   },
   emojiCategoryTabText: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   emojiCategoryTabTextActive: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '700',
   },
   emojiGrid: {
@@ -1795,7 +1784,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.backgroundElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1807,21 +1796,21 @@ const styles = StyleSheet.create({
   },
   scheduleInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 12,
     fontSize: 16,
-    color: colors.light.textPrimary,
-    backgroundColor: colors.light.backgroundElevated,
+    color: colors.textPrimary,
+    backgroundColor: colors.backgroundElevated,
   },
   schedulePreview: {
     marginTop: 12,
     padding: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
   },
   schedulePreviewText: {
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
   },
   suggestionLoading: {
@@ -1831,15 +1820,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   suggestionLoadingText: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontSize: 12,
   },
   inlinePicker: {
     marginTop: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     maxHeight: 300,
     overflow: 'hidden',
   },
@@ -1850,16 +1839,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   inlinePickerTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   inlinePickerClose: {
     fontSize: 20,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '300',
   },
   inlinePickerBody: {
@@ -1872,14 +1861,14 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   mentionDropdown: {
     marginTop: 8,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     maxHeight: 200,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -1897,7 +1886,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   mentionAvatar: {
     width: 32,
@@ -1909,7 +1898,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1917,7 +1906,7 @@ const styles = StyleSheet.create({
   mentionAvatarText: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   mentionInfo: {
     flex: 1,
@@ -1926,12 +1915,12 @@ const styles = StyleSheet.create({
   mentionName: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 2,
   },
   mentionHandle: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
 });
 

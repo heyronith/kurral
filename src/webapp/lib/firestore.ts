@@ -349,6 +349,8 @@ const chirpFromFirestore = (doc: any): Chirp => {
     rechirpOfId: data.rechirpOfId,
     quotedChirpId: data.quotedChirpId,
     commentCount: data.commentCount || 0,
+    bookmarkCount: data.bookmarkCount || 0,
+    rechirpCount: data.rechirpCount || 0,
     countryCode: data.countryCode,
     imageUrl: data.imageUrl,
     scheduledAt: data.scheduledAt ? toDate(data.scheduledAt) : undefined,
@@ -363,6 +365,26 @@ const chirpFromFirestore = (doc: any): Chirp => {
     valueScore: normalizeValueScore(data.valueScore, createdAt),
     valueExplanation: data.valueExplanation,
     discussionQuality: normalizeDiscussionQuality(data.discussionQuality),
+    qualityWeightedBookmarkScore: data.qualityWeightedBookmarkScore,
+    qualityWeightedRechirpScore: data.qualityWeightedRechirpScore,
+    qualityWeightedCommentScore: data.qualityWeightedCommentScore,
+    qualityScoresLastUpdated: data.qualityScoresLastUpdated ? toDate(data.qualityScoresLastUpdated) : undefined,
+    predictedEngagement: data.predictedEngagement
+      ? {
+          expectedViews7d: data.predictedEngagement.expectedViews7d ?? 0,
+          expectedBookmarks7d: data.predictedEngagement.expectedBookmarks7d ?? 0,
+          expectedRechirps7d: data.predictedEngagement.expectedRechirps7d ?? 0,
+          expectedComments7d: data.predictedEngagement.expectedComments7d ?? 0,
+          predictedAt: toDate(data.predictedEngagement.predictedAt),
+        }
+      : undefined,
+    predictionValidation: data.predictionValidation
+      ? {
+          flaggedForReview: data.predictionValidation.flaggedForReview ?? false,
+          overallError: data.predictionValidation.overallError ?? 0,
+          validatedAt: toDate(data.predictionValidation.validatedAt),
+        }
+      : undefined,
   };
 };
 
@@ -832,6 +854,10 @@ export const chirpService = {
               }
             });
           }
+          // Increment rechirp count on original chirp (non-blocking)
+          chirpService.updateRechirpCount(chirp.rechirpOfId, 1).catch((error: any) => {
+            console.error('Error incrementing rechirp count:', error);
+          });
         } catch (notifError: any) {
           // Don't let notification errors break rechirp creation
           if (!notifError.message?.includes('disabled') && !notifError.message?.includes('muted')) {
@@ -844,6 +870,30 @@ export const chirpService = {
     } catch (error) {
       console.error('Error creating chirp:', error);
       throw error;
+    }
+  },
+
+  async updateBookmarkCount(chirpId: string, delta: number): Promise<void> {
+    try {
+      const chirpRef = doc(db, 'chirps', chirpId);
+      await updateDoc(chirpRef, {
+        bookmarkCount: increment(delta),
+      });
+    } catch (error) {
+      console.error(`Error updating bookmark count for chirp ${chirpId}:`, error);
+      // Don't throw - this is a non-critical update
+    }
+  },
+
+  async updateRechirpCount(chirpId: string, delta: number): Promise<void> {
+    try {
+      const chirpRef = doc(db, 'chirps', chirpId);
+      await updateDoc(chirpRef, {
+        rechirpCount: increment(delta),
+      });
+    } catch (error) {
+      console.error(`Error updating rechirp count for chirp ${chirpId}:`, error);
+      // Don't throw - this is a non-critical update
     }
   },
 

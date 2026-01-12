@@ -25,7 +25,7 @@ import { filterChirpsForViewer } from '../../utils/chirpVisibility';
 import ChirpCard from '../../components/ChirpCard';
 import FollowersFollowingModal from '../../components/FollowersFollowingModal';
 import EditProfileModal from '../../components/EditProfileModal';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import type { User, Chirp } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<ProfileStackParamList> & NativeStackNavigationProp<HomeStackParamList>;
@@ -85,6 +85,7 @@ const ProfileScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const { user: currentUser } = useAuthStore();
   const { getUser, loadUser, followUser, unfollowUser, isFollowing, addUser } = useUserStore();
+  const { colors } = useTheme();
 
   const userId = route.params?.userId || currentUser?.id;
   const isOwnProfile = currentUser?.id === userId;
@@ -310,12 +311,14 @@ const ProfileScreen = () => {
   };
 
 
+  const dynamicStyles = getStyles(colors);
+
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.light.accent} />
-          <Text style={styles.loadingText}>Loading...</Text>
+      <SafeAreaView style={dynamicStyles.container}>
+        <View style={dynamicStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={dynamicStyles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
@@ -323,11 +326,11 @@ const ProfileScreen = () => {
 
   if (!profileUser) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>User not found</Text>
+      <SafeAreaView style={dynamicStyles.container}>
+        <View style={dynamicStyles.errorContainer}>
+          <Text style={dynamicStyles.errorTitle}>User not found</Text>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.errorLink}>Go back</Text>
+            <Text style={dynamicStyles.errorLink}>Go back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -352,11 +355,11 @@ const ProfileScreen = () => {
     .slice(0, 2);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+      <ScrollView style={dynamicStyles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Cover Photo */}
         <TouchableOpacity
-          style={styles.coverContainer}
+          style={dynamicStyles.coverContainer}
           onPress={isOwnProfile ? handleCoverPhotoChange : undefined}
           onPressIn={() => isOwnProfile && setShowCoverOverlay(true)}
           onPressOut={() => setShowCoverOverlay(false)}
@@ -366,27 +369,27 @@ const ProfileScreen = () => {
           {profileUser.coverPhotoUrl ? (
             <Image
               source={{ uri: profileUser.coverPhotoUrl }}
-              style={styles.coverImage}
+              style={dynamicStyles.coverImage}
               resizeMode="cover"
             />
           ) : (
-            <View style={styles.coverPlaceholder} />
+            <View style={dynamicStyles.coverPlaceholder} />
           )}
           {isOwnProfile && (showCoverOverlay || uploadingCoverPhoto) && (
-            <View style={styles.coverOverlay}>
+            <View style={dynamicStyles.coverOverlay}>
               {uploadingCoverPhoto ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.coverOverlayText}>Change Cover</Text>
+                <Text style={dynamicStyles.coverOverlayText}>Change Cover</Text>
               )}
             </View>
           )}
           {/* Kurral Score Bar */}
           {kurralScoreValue !== null && (
-            <View style={styles.scoreBarContainer}>
+            <View style={dynamicStyles.scoreBarContainer}>
               <View
                 style={[
-                  styles.scoreBar,
+                  dynamicStyles.scoreBar,
                   { width: `${Math.max(5, kurralScoreValue)}%`, backgroundColor: getScoreColor(kurralScoreValue) },
                 ]}
               />
@@ -394,22 +397,22 @@ const ProfileScreen = () => {
           )}
         </TouchableOpacity>
 
-        {/* Edit Profile Button (Gear Icon) - Only for own profile */}
+        {/* Settings Button (Gear Icon) - Only for own profile */}
         {isOwnProfile && (
-          <View style={styles.gearButtonContainer}>
+          <View style={dynamicStyles.gearButtonContainer}>
             <TouchableOpacity
-              style={styles.gearButton}
-              onPress={() => setIsEditModalOpen(true)}
+              style={dynamicStyles.gearButton}
+              onPress={() => navigation.navigate('Settings' as never)}
               activeOpacity={0.7}
             >
-              <Ionicons name="settings-outline" size={24} color={colors.light.textPrimary} />
+              <Ionicons name="settings-outline" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
         )}
 
         {/* Profile Header */}
-      <View style={styles.header}>
-          <View style={styles.avatarContainer}>
+      <View style={dynamicStyles.header}>
+          <View style={dynamicStyles.avatarContainer}>
             <TouchableOpacity
               onPress={isOwnProfile ? handleProfilePictureChange : undefined}
               onPressIn={() => isOwnProfile && setShowAvatarOverlay(true)}
@@ -417,97 +420,97 @@ const ProfileScreen = () => {
               disabled={!isOwnProfile || uploadingProfilePicture}
               activeOpacity={1}
             >
-              <View style={styles.avatarWrapper}>
+              <View style={dynamicStyles.avatarWrapper}>
                 {profileUser.profilePictureUrl ? (
                   <Image
                     source={{ uri: profileUser.profilePictureUrl }}
-                    style={styles.avatar}
+                    style={[dynamicStyles.avatar, { borderColor: colors.background }]}
                   />
                 ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <Text style={styles.avatarText}>{initials}</Text>
+                  <View style={[dynamicStyles.avatar, dynamicStyles.avatarPlaceholder, { borderColor: colors.background }]}>
+                    <Text style={dynamicStyles.avatarText}>{initials}</Text>
                   </View>
                 )}
                 {isOwnProfile && (showAvatarOverlay || uploadingProfilePicture) && (
-                  <View style={styles.avatarOverlay}>
+                  <View style={dynamicStyles.avatarOverlay}>
                     {uploadingProfilePicture ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={styles.avatarOverlayText}>Change Photo</Text>
+                      <Text style={dynamicStyles.avatarOverlayText}>Change Photo</Text>
                     )}
                   </View>
                 )}
               </View>
             </TouchableOpacity>
             {isMonetizationEligible && (
-              <View style={styles.verifiedBadge}>
-                <View style={styles.verifiedDot} />
+              <View style={dynamicStyles.verifiedBadge}>
+                <View style={dynamicStyles.verifiedDot} />
               </View>
             )}
       </View>
 
           {/* Name & Handle */}
-          <View style={styles.nameContainer}>
-            <Text style={styles.name}>{displayName}</Text>
-            <Text style={styles.handle}>@{userHandle}</Text>
+          <View style={dynamicStyles.nameContainer}>
+            <Text style={dynamicStyles.name}>{displayName}</Text>
+            <Text style={dynamicStyles.handle}>@{userHandle}</Text>
       </View>
 
           {/* Bio */}
           {profileUser.bio && (
-            <Text style={styles.bio}>{profileUser.bio}</Text>
+            <Text style={dynamicStyles.bio}>{profileUser.bio}</Text>
           )}
 
           {/* Context Pills */}
-          <View style={styles.pillsContainer}>
+          <View style={dynamicStyles.pillsContainer}>
             {profileUser.location && (
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>{profileUser.location}</Text>
+              <View style={dynamicStyles.pill}>
+                <Text style={dynamicStyles.pillText}>{profileUser.location}</Text>
               </View>
             )}
             {profileUser.url && (
-              <TouchableOpacity style={styles.pill}>
-                <Text style={styles.pillText}>{profileUser.url.replace(/^https?:\/\//, '')}</Text>
+              <TouchableOpacity style={dynamicStyles.pill}>
+                <Text style={dynamicStyles.pillText}>{profileUser.url.replace(/^https?:\/\//, '')}</Text>
               </TouchableOpacity>
             )}
-            <View style={styles.pill}>
-              <Text style={styles.pillText}>
+            <View style={dynamicStyles.pill}>
+              <Text style={dynamicStyles.pillText}>
                 Joined {new Date(profileUser.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
         </Text>
             </View>
           </View>
 
           {/* Stats */}
-          <View style={styles.statsContainer}>
+          <View style={dynamicStyles.statsContainer}>
             <TouchableOpacity
-              style={styles.statItem}
+              style={dynamicStyles.statItem}
               onPress={() => setFollowingModalOpen(true)}
             >
-              <Text style={styles.statNumber}>{profileUser.following?.length || 0}</Text>
-              <Text style={styles.statLabel}>Following</Text>
+              <Text style={dynamicStyles.statNumber}>{profileUser.following?.length || 0}</Text>
+              <Text style={dynamicStyles.statLabel}>Following</Text>
             </TouchableOpacity>
-            <View style={styles.statDivider} />
+            <View style={dynamicStyles.statDivider} />
             <TouchableOpacity
-              style={styles.statItem}
+              style={dynamicStyles.statItem}
               onPress={() => setFollowersModalOpen(true)}
             >
-              <Text style={styles.statNumber}>{followersCount}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
+              <Text style={dynamicStyles.statNumber}>{followersCount}</Text>
+              <Text style={dynamicStyles.statLabel}>Followers</Text>
             </TouchableOpacity>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{userChirps.length}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
+            <View style={dynamicStyles.statDivider} />
+            <View style={dynamicStyles.statItem}>
+              <Text style={dynamicStyles.statNumber}>{userChirps.length}</Text>
+              <Text style={dynamicStyles.statLabel}>Posts</Text>
             </View>
       </View>
 
           {/* Actions */}
-          <View style={styles.actionsContainer}>
+          <View style={dynamicStyles.actionsContainer}>
             {!isOwnProfile && currentUser ? (
               <TouchableOpacity
-                style={[styles.followButton, following && styles.followButtonActive]}
+                style={[dynamicStyles.followButton, following && dynamicStyles.followButtonActive]}
                 onPress={handleFollow}
               >
-                <Text style={[styles.followButtonText, following && styles.followButtonTextActive]}>
+                <Text style={[dynamicStyles.followButtonText, following && dynamicStyles.followButtonTextActive]}>
                   {following ? 'Following' : 'Follow'}
                 </Text>
       </TouchableOpacity>
@@ -516,30 +519,30 @@ const ProfileScreen = () => {
             {/* Kurral Score Indicator - Clickable for own profile */}
             {kurralScoreValue !== null && isOwnProfile && (
               <TouchableOpacity
-                style={styles.scoreIndicator}
+                style={dynamicStyles.scoreIndicator}
                 onPress={() => navigation.navigate('Dashboard' as never)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.scoreDot, { backgroundColor: getScoreColor(kurralScoreValue) }]} />
-                <Text style={styles.scoreText}>{getKurralTier(kurralScoreValue)}</Text>
+                <View style={[dynamicStyles.scoreDot, { backgroundColor: getScoreColor(kurralScoreValue) }]} />
+                <Text style={dynamicStyles.scoreText}>{getKurralTier(kurralScoreValue)}</Text>
               </TouchableOpacity>
             )}
             {kurralScoreValue !== null && !isOwnProfile && (
-              <View style={styles.scoreIndicator}>
-                <View style={[styles.scoreDot, { backgroundColor: getScoreColor(kurralScoreValue) }]} />
-                <Text style={styles.scoreText}>{getKurralTier(kurralScoreValue)}</Text>
+              <View style={dynamicStyles.scoreIndicator}>
+                <View style={[dynamicStyles.scoreDot, { backgroundColor: getScoreColor(kurralScoreValue) }]} />
+                <Text style={dynamicStyles.scoreText}>{getKurralTier(kurralScoreValue)}</Text>
               </View>
             )}
           </View>
 
           {/* Interests */}
           {profileUser.interests && profileUser.interests.length > 0 && (
-            <View style={styles.interestsContainer}>
-              <Text style={styles.interestsTitle}>Interest Signals</Text>
-              <View style={styles.interestsList}>
+            <View style={dynamicStyles.interestsContainer}>
+              <Text style={dynamicStyles.interestsTitle}>Interest Signals</Text>
+              <View style={dynamicStyles.interestsList}>
                 {profileUser.interests.map((interest) => (
-                  <View key={interest} style={styles.interestTag}>
-                    <Text style={styles.interestText}>#{interest}</Text>
+                  <View key={interest} style={dynamicStyles.interestTag}>
+                    <Text style={dynamicStyles.interestText}>#{interest}</Text>
                   </View>
                 ))}
               </View>
@@ -548,22 +551,22 @@ const ProfileScreen = () => {
         </View>
 
         {/* Posts Feed */}
-        <View style={styles.postsContainer}>
-          <Text style={styles.postsTitle}>Recent Posts</Text>
+        <View style={dynamicStyles.postsContainer}>
+          <Text style={dynamicStyles.postsTitle}>Recent Posts</Text>
           
           {isLoadingContent ? (
-            <View style={styles.loadingContentContainer}>
-              <ActivityIndicator size="small" color={colors.light.accent} />
+            <View style={dynamicStyles.loadingContentContainer}>
+              <ActivityIndicator size="small" color={colors.accent} />
             </View>
           ) : userChirps.length > 0 ? (
-            <View style={styles.chirpsList}>
+            <View style={dynamicStyles.chirpsList}>
               {userChirps.map((chirp) => (
                 <ChirpCard key={chirp.id} chirp={chirp} />
               ))}
             </View>
           ) : (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No posts yet</Text>
+            <View style={dynamicStyles.emptyContainer}>
+              <Text style={dynamicStyles.emptyText}>No posts yet</Text>
             </View>
           )}
     </View>
@@ -596,10 +599,10 @@ const ProfileScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -611,7 +614,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   errorContainer: {
     flex: 1,
@@ -622,17 +625,17 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   errorLink: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontSize: 14,
   },
   coverContainer: {
     width: '100%',
     height: 200,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     position: 'relative',
   },
   coverImage: {
@@ -642,7 +645,7 @@ const styles = StyleSheet.create({
   coverPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   coverOverlay: {
     position: 'absolute',
@@ -671,9 +674,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -705,17 +708,17 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 4,
-    borderColor: colors.light.background,
+    borderColor: colors.background,
   },
   avatarPlaceholder: {
-    backgroundColor: colors.light.accent + '20',
+    backgroundColor: colors.accent + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     fontSize: 36,
     fontWeight: '800',
-    color: colors.light.accent,
+    color: colors.accent,
   },
   avatarOverlay: {
     position: 'absolute',
@@ -742,7 +745,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -752,7 +755,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#10B981',
     borderWidth: 2,
-    borderColor: colors.light.background,
+    borderColor: colors.background,
   },
   nameContainer: {
     marginBottom: 8,
@@ -760,16 +763,16 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 28,
     fontWeight: '800',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   handle: {
     fontSize: 16,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   bio: {
     fontSize: 15,
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
     lineHeight: 22,
     marginBottom: 12,
   },
@@ -783,11 +786,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   pillText: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -801,7 +804,7 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 2,
   },
   statLabel: {
@@ -809,12 +812,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   statDivider: {
     width: 1,
     height: 32,
-    backgroundColor: colors.light.border,
+    backgroundColor: colors.border,
     marginRight: 24,
   },
   actionsContainer: {
@@ -827,12 +830,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
   },
   followButtonActive: {
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   followButtonText: {
     color: '#fff',
@@ -840,7 +843,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   followButtonTextActive: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   scoreIndicator: {
     flexDirection: 'row',
@@ -849,7 +852,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   scoreDot: {
     width: 8,
@@ -859,20 +862,20 @@ const styles = StyleSheet.create({
   scoreText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   interestsContainer: {
     marginTop: 8,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   interestsTitle: {
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 8,
   },
   interestsList: {
@@ -884,12 +887,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   interestText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   postsContainer: {
     padding: 16,
@@ -898,7 +901,7 @@ const styles = StyleSheet.create({
   postsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 16,
   },
   loadingContentContainer: {
@@ -913,13 +916,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     borderStyle: 'dashed',
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   emptyText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
 });
 

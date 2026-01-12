@@ -13,17 +13,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import type { NotificationPreferences } from '../../types';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
 const NotificationPreferencesScreen = () => {
+  const { colors } = useTheme();
   const navigation = useNavigation();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
+  const dynamicStyles = getStyles(colors);
 
   useEffect(() => {
     loadPreferences();
@@ -108,35 +110,35 @@ const NotificationPreferencesScreen = () => {
     value: boolean;
     onValueChange: (value: boolean) => void;
   }) => (
-    <View style={styles.preferenceRow}>
-      <View style={styles.preferenceContent}>
-        <Text style={styles.preferenceLabel}>{label}</Text>
-        {description && <Text style={styles.preferenceDescription}>{description}</Text>}
+    <View style={dynamicStyles.preferenceRow}>
+      <View style={dynamicStyles.preferenceContent}>
+        <Text style={dynamicStyles.preferenceLabel}>{label}</Text>
+        {description && <Text style={dynamicStyles.preferenceDescription}>{description}</Text>}
       </View>
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: colors.light.border, true: `${colors.light.accent}80` }}
-        thumbColor={value ? colors.light.accent : colors.light.textMuted}
+        trackColor={{ false: colors.border, true: `${colors.accent}80` }}
+        thumbColor={value ? colors.accent : colors.textMuted}
       />
     </View>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
+      <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+        <View style={dynamicStyles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={dynamicStyles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.light.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notification Preferences</Text>
-          <View style={styles.placeholder} />
+          <Text style={dynamicStyles.headerTitle}>Notification Preferences</Text>
+          <View style={dynamicStyles.placeholder} />
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.light.accent} />
+        <View style={dynamicStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -144,45 +146,45 @@ const NotificationPreferencesScreen = () => {
 
   if (!preferences) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
+      <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+        <View style={dynamicStyles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={dynamicStyles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.light.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notification Preferences</Text>
-          <View style={styles.placeholder} />
+          <Text style={dynamicStyles.headerTitle}>Notification Preferences</Text>
+          <View style={dynamicStyles.placeholder} />
         </View>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Failed to load preferences</Text>
+        <View style={dynamicStyles.errorContainer}>
+          <Text style={dynamicStyles.errorText}>Failed to load preferences</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+      <View style={dynamicStyles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={dynamicStyles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.light.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notification Preferences</Text>
-        <View style={styles.placeholder} />
+        <Text style={dynamicStyles.headerTitle}>Notification Preferences</Text>
+        <View style={dynamicStyles.placeholder} />
       </View>
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        style={dynamicStyles.scrollView}
+        contentContainerStyle={dynamicStyles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notification Types</Text>
-          <Text style={styles.sectionDescription}>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Notification Types</Text>
+          <Text style={dynamicStyles.sectionDescription}>
             Choose which types of notifications you want to receive
           </Text>
 
@@ -223,9 +225,9 @@ const NotificationPreferencesScreen = () => {
         </View>
 
         {saving && (
-          <View style={styles.savingIndicator}>
-            <ActivityIndicator size="small" color={colors.light.accent} />
-            <Text style={styles.savingText}>Saving...</Text>
+          <View style={dynamicStyles.savingIndicator}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text style={dynamicStyles.savingText}>Saving...</Text>
           </View>
         )}
       </ScrollView>
@@ -233,10 +235,10 @@ const NotificationPreferencesScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -245,8 +247,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
-    backgroundColor: colors.light.backgroundElevated,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.backgroundElevated,
   },
   backButton: {
     padding: 4,
@@ -254,7 +256,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   placeholder: {
     width: 32,
@@ -272,7 +274,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 15,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
   },
   scrollView: {
@@ -288,12 +290,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   sectionDescription: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 16,
     lineHeight: 20,
   },
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 12,
     marginBottom: 8,
   },
@@ -314,12 +316,12 @@ const styles = StyleSheet.create({
   preferenceLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   preferenceDescription: {
     fontSize: 13,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     lineHeight: 18,
   },
   savingIndicator: {
@@ -331,7 +333,7 @@ const styles = StyleSheet.create({
   },
   savingText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
 });
 

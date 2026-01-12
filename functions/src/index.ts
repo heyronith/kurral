@@ -6,6 +6,7 @@ import Parser from 'rss-parser';
 import type { Chirp, Comment } from './types';
 import { processChirp, processComment } from './services/pipeline';
 import { chirpService } from './services/firestoreService';
+import { validateEngagementPredictions } from './services/validationService';
 
 // Firebase Admin is initialized in firestoreService.ts
 // No need to initialize here to avoid duplicate initialization
@@ -1479,6 +1480,25 @@ export const pollRSSFeedsCron = functions.scheduler.onSchedule(
   }
 );
 
+// Scheduled Cloud Function: Validate engagement predictions daily at 2 AM UTC
+export const validatePredictionsCron = functions.scheduler.onSchedule(
+  {
+    schedule: '0 2 * * *', // Daily at 2 AM UTC
+    timeZone: 'Etc/UTC',
+    maxInstances: 1,
+  },
+  async () => {
+    console.log('[ValidatePredictionsCron] Starting prediction validation job...');
+    try {
+      await validateEngagementPredictions();
+      console.log('[ValidatePredictionsCron] Validation job completed successfully');
+    } catch (error: any) {
+      console.error('[ValidatePredictionsCron] Validation job failed:', error);
+      // Don't throw - let the function complete, errors are logged
+    }
+  }
+);
+
 // Manual trigger function (for testing)
 export const pollRSSFeedsManual = functions.https.onCall(
   { cors: true, maxInstances: 1, memory: '512MiB' },
@@ -1579,26 +1599,43 @@ export const processChirpValue = functions.https.onCall(
     secrets: ['OPENAI_API_KEY']
   },
   async (request) => {
+    console.log('\n' + '='.repeat(80));
+    console.log('📞 [CLOUD FUNCTION] processChirpValue called');
+    console.log('='.repeat(80));
+    console.log(`👤 User: ${request.auth?.uid || 'unauthenticated'}`);
+    
     if (!request.auth) {
+      console.log('❌ Unauthenticated request - rejecting');
       throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
     }
 
     const { chirpId, chirp: chirpPayload, options } = request.data || {};
+    console.log(`📝 Input: chirpId=${chirpId || 'none'}, hasPayload=${!!chirpPayload}`);
+    
     let chirp: Chirp | null = null;
 
     if (chirpId) {
+      console.log(`🔍 Fetching chirp from Firestore: ${chirpId}`);
       chirp = await chirpService.getChirp(chirpId);
+      if (chirp) {
+        console.log(`✅ Chirp found: "${chirp.text?.substring(0, 50)}..."`);
+      } else {
+        console.log(`⚠️  Chirp not found in Firestore`);
+      }
     }
 
     if (!chirp && chirpPayload) {
+      console.log(`📦 Using provided chirp payload`);
       chirp = normalizeChirpPayload(chirpPayload);
     }
 
     if (!chirp) {
+      console.log('❌ No chirp available - rejecting');
       throw new functions.https.HttpsError('invalid-argument', 'chirp or chirpId is required');
     }
 
     try {
+      console.log(`🚀 Starting pipeline processing...`);
       // Use the new simplified pipeline
       const result = await processChirp({ 
         chirp, 
@@ -1624,8 +1661,16 @@ export const processChirpValue = functions.https.onCall(
         factCheckingStartedAt: undefined,
       };
 
+      console.log(`\n✅ Cloud Function completed - Returning enriched chirp`);
+      console.log(`   Final Status: ${result.factCheckStatus.toUpperCase()}`);
+      console.log('='.repeat(80) + '\n');
+
       return enrichedChirp;
     } catch (error: any) {
+      console.log('\n❌ Cloud Function error');
+      console.log(`   Error: ${error.message}`);
+      console.log('='.repeat(80) + '\n');
+      
       console.error('[processChirpValue] Failed', error);
       
       // Still throw the error so client knows processing failed
@@ -1647,6 +1692,15 @@ export const onChirpCreate = functionsV1.firestore
     const chirpData = snapshot.data();
     const chirpId = context.params.chirpId;
 
+    console.log('\n' + '='.repeat(80));
+    console.log('🔥 [FIRESTORE TRIGGER] onChirpCreate');
+    console.log('='.repeat(80));
+    console.log(`📝 Chirp ID: ${chirpId}`);
+    console.log(`👤 Author ID: ${chirpData.authorId}`);
+    console.log(`📄 Text: "${(chirpData.text || '').substring(0, 100)}${chirpData.text && chirpData.text.length > 100 ? '...' : ''}"`);
+    console.log(`📊 Current Status: ${chirpData.factCheckStatus || 'none'}`);
+    console.log(`⏳ Processing Status: ${chirpData.factCheckingStatus || 'none'}`);
+
     // Skip if already processed or if it's a rechirp (for now)
     if (
       chirpData.factCheckStatus === 'clean' ||
@@ -1654,17 +1708,19 @@ export const onChirpCreate = functionsV1.firestore
       chirpData.factCheckStatus === 'needs_review' ||
       chirpData.rechirpOfId
     ) {
-      console.log(`[onChirpCreate] Skipping chirp ${chirpId} - already processed or rechirp`);
+      console.log(`⏭️  Skipping - already processed (status: ${chirpData.factCheckStatus}) or rechirp`);
+      console.log('='.repeat(80) + '\n');
       return;
     }
 
     // Skip if processing already started (client-side call succeeded)
     if (chirpData.factCheckingStatus === 'completed') {
-      console.log(`[onChirpCreate] Skipping chirp ${chirpId} - already completed`);
+      console.log(`⏭️  Skipping - already completed by client-side call`);
+      console.log('='.repeat(80) + '\n');
       return;
     }
 
-    console.log(`[onChirpCreate] Processing new chirp ${chirpId}`);
+    console.log(`🚀 Triggering pipeline processing...`);
 
     try {
       const chirp: Chirp = normalizeChirpPayload({
@@ -1676,26 +1732,34 @@ export const onChirpCreate = functionsV1.firestore
       const result = await processChirp({ chirp });
 
       if (!result.success) {
-        console.error(`[onChirpCreate] Pipeline failed for chirp ${chirpId}:`, result.error);
+        console.log('\n❌ Pipeline failed in trigger');
+        console.log(`   Error: ${result.error?.message}`);
+        console.log(`   Step: ${result.error?.step}`);
         // Mark as needs_review on failure
         await chirpService.updateChirpInsights(chirpId, {
           factCheckStatus: 'needs_review',
           factCheckingStatus: 'failed',
         });
+        console.log('💾 Marked as needs_review due to failure');
+        console.log('='.repeat(80) + '\n');
         return;
       }
 
       // Pipeline already saved the result atomically, so we're done
-      console.log(`[onChirpCreate] Successfully processed chirp ${chirpId} - status: ${result.factCheckStatus}`);
+      console.log(`\n✅ Trigger processing complete - Final Status: ${result.factCheckStatus.toUpperCase()}`);
+      console.log('='.repeat(80) + '\n');
     } catch (error: any) {
-      console.error(`[onChirpCreate] Error processing chirp ${chirpId}:`, error);
+      console.log('\n❌ Trigger error processing chirp');
+      console.log(`   Error: ${error.message}`);
       // Mark as needs_review on error
       await chirpService.updateChirpInsights(chirpId, {
         factCheckStatus: 'needs_review',
         factCheckingStatus: 'failed',
       }).catch((saveError) => {
-        console.error(`[onChirpCreate] Failed to save error status for chirp ${chirpId}:`, saveError);
+        console.error(`   Failed to save error status: ${saveError.message}`);
       });
+      console.log('💾 Marked as needs_review due to error');
+      console.log('='.repeat(80) + '\n');
     }
   });
 

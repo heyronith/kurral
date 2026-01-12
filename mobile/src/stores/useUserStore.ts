@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User } from '../types';
+import type { User, BookmarkFolder } from '../types';
 import { userService } from '../services/userService';
 import { useAuthStore } from './useAuthStore';
 
@@ -14,9 +14,12 @@ interface UserState {
   followUser: (userId: string) => Promise<void>;
   unfollowUser: (userId: string) => Promise<void>;
   isFollowing: (userId: string) => boolean;
-  bookmarkChirp: (chirpId: string) => Promise<void>;
+  bookmarkChirp: (chirpId: string, folderId?: string) => Promise<void>;
   unbookmarkChirp: (chirpId: string) => Promise<void>;
   isBookmarked: (chirpId: string) => boolean;
+  createBookmarkFolder: (folderName: string) => Promise<string>;
+  getBookmarkFolders: () => BookmarkFolder[];
+  addBookmarkToFolder: (chirpId: string, folderId: string) => Promise<void>;
   updateInterests: (interests: string[]) => Promise<void>;
 }
 
@@ -161,10 +164,56 @@ export const useUserStore = create<UserState>((set, get) => ({
     return currentUser?.following.includes(userId) ?? false;
   },
 
-  bookmarkChirp: async (chirpId: string) => {
+  bookmarkChirp: async (chirpId: string, folderId?: string) => {
     const currentUser = useAuthStore.getState().user;
     if (!currentUser) return;
 
+    // If folderId is provided, use folder system
+    if (folderId) {
+      const folders = currentUser.bookmarkFolders || [];
+      const folderIndex = folders.findIndex((f) => f.id === folderId);
+      
+      if (folderIndex >= 0) {
+        const folder = folders[folderIndex];
+        if (!folder.chirpIds.includes(chirpId)) {
+          const updatedFolders = [...folders];
+          updatedFolders[folderIndex] = {
+            ...folder,
+            chirpIds: [...folder.chirpIds, chirpId],
+          };
+          const updatedUser = { ...currentUser, bookmarkFolders: updatedFolders };
+
+          // Optimistic update
+          useAuthStore.getState().setUser(updatedUser);
+          set((state) => ({
+            users: {
+              ...state.users,
+              [currentUser.id]: updatedUser,
+            },
+            userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+          }));
+
+          // Persist to Firestore
+          try {
+            await userService.updateBookmarkFolders(currentUser.id, updatedFolders);
+          } catch (error) {
+            console.error('[useUserStore] Error bookmarking chirp to folder:', error);
+            // Revert on error
+            useAuthStore.getState().setUser(currentUser);
+            set((state) => ({
+              users: {
+                ...state.users,
+                [currentUser.id]: currentUser,
+              },
+              userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+            }));
+          }
+        }
+      }
+      return;
+    }
+
+    // Legacy: fallback to old bookmarks array (for backward compatibility)
     const bookmarks = currentUser.bookmarks || [];
     if (!bookmarks.includes(chirpId)) {
       const newBookmarks = [...bookmarks, chirpId];
@@ -202,9 +251,22 @@ export const useUserStore = create<UserState>((set, get) => ({
     const currentUser = useAuthStore.getState().user;
     if (!currentUser) return;
 
+    // Remove from folders first
+    const folders = currentUser.bookmarkFolders || [];
+    let updatedFolders = folders.map((folder) => ({
+      ...folder,
+      chirpIds: folder.chirpIds.filter((id) => id !== chirpId),
+    }));
+
+    // Also remove from legacy bookmarks array
     const bookmarks = currentUser.bookmarks || [];
     const newBookmarks = bookmarks.filter((id) => id !== chirpId);
-    const updatedUser = { ...currentUser, bookmarks: newBookmarks };
+
+    const updatedUser = {
+      ...currentUser,
+      bookmarkFolders: updatedFolders,
+      bookmarks: newBookmarks,
+    };
 
     // Optimistic update
     useAuthStore.getState().setUser(updatedUser);
@@ -218,7 +280,10 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     // Persist to Firestore
     try {
-      await userService.updateBookmarks(currentUser.id, newBookmarks);
+      await userService.updateBookmarkFolders(currentUser.id, updatedFolders);
+      if (newBookmarks.length !== bookmarks.length) {
+        await userService.updateBookmarks(currentUser.id, newBookmarks);
+      }
     } catch (error) {
       console.error('[useUserStore] Error unbookmarking chirp:', error);
       // Revert on error
@@ -235,7 +300,110 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   isBookmarked: (chirpId: string) => {
     const currentUser = useAuthStore.getState().user;
-    return currentUser?.bookmarks?.includes(chirpId) ?? false;
+    if (!currentUser) return false;
+    
+    // Check in folders first
+    const folders = currentUser.bookmarkFolders || [];
+    const inFolder = folders.some((folder) => folder.chirpIds.includes(chirpId));
+    if (inFolder) return true;
+    
+    // Fallback to legacy bookmarks array
+    return currentUser.bookmarks?.includes(chirpId) ?? false;
+  },
+
+  createBookmarkFolder: async (folderName: string) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) throw new Error('User not logged in');
+
+    const folders = currentUser.bookmarkFolders || [];
+    const newFolder: BookmarkFolder = {
+      id: `folder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: folderName,
+      chirpIds: [],
+      createdAt: new Date(),
+    };
+
+    const updatedFolders = [...folders, newFolder];
+    const updatedUser = { ...currentUser, bookmarkFolders: updatedFolders };
+
+    // Optimistic update
+    useAuthStore.getState().setUser(updatedUser);
+    set((state) => ({
+      users: {
+        ...state.users,
+        [currentUser.id]: updatedUser,
+      },
+      userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+    }));
+
+    // Persist to Firestore
+    try {
+      await userService.updateBookmarkFolders(currentUser.id, updatedFolders);
+      return newFolder.id;
+    } catch (error) {
+      console.error('[useUserStore] Error creating bookmark folder:', error);
+      // Revert on error
+      useAuthStore.getState().setUser(currentUser);
+      set((state) => ({
+        users: {
+          ...state.users,
+          [currentUser.id]: currentUser,
+        },
+        userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+      }));
+      throw error;
+    }
+  },
+
+  getBookmarkFolders: () => {
+    const currentUser = useAuthStore.getState().user;
+    return currentUser?.bookmarkFolders || [];
+  },
+
+  addBookmarkToFolder: async (chirpId: string, folderId: string) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) return;
+
+    const folders = currentUser.bookmarkFolders || [];
+    const folderIndex = folders.findIndex((f) => f.id === folderId);
+    
+    if (folderIndex >= 0) {
+      const folder = folders[folderIndex];
+      if (!folder.chirpIds.includes(chirpId)) {
+        const updatedFolders = [...folders];
+        updatedFolders[folderIndex] = {
+          ...folder,
+          chirpIds: [...folder.chirpIds, chirpId],
+        };
+        const updatedUser = { ...currentUser, bookmarkFolders: updatedFolders };
+
+        // Optimistic update
+        useAuthStore.getState().setUser(updatedUser);
+        set((state) => ({
+          users: {
+            ...state.users,
+            [currentUser.id]: updatedUser,
+          },
+          userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+        }));
+
+        // Persist to Firestore
+        try {
+          await userService.updateBookmarkFolders(currentUser.id, updatedFolders);
+        } catch (error) {
+          console.error('[useUserStore] Error adding bookmark to folder:', error);
+          // Revert on error
+          useAuthStore.getState().setUser(currentUser);
+          set((state) => ({
+            users: {
+              ...state.users,
+              [currentUser.id]: currentUser,
+            },
+            userFetchTimestamps: { ...state.userFetchTimestamps, [currentUser.id]: Date.now() },
+          }));
+        }
+      }
+    }
   },
 
   updateInterests: async (interests: string[]) => {

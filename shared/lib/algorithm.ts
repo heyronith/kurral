@@ -282,13 +282,55 @@ export const scoreChirpForViewer = (
     score -= 100; // Heavy penalty, but should be filtered out by eligibility anyway
   }
 
-  // Active conversations boost
-  if (config.boostActiveConversations && chirp.commentCount > 0) {
-    // Boost based on comment count (logarithmic scale)
-    const commentBoost = Math.min(20, Math.log10(chirp.commentCount + 1) * 5);
-    score += commentBoost;
-    if (commentBoost > 5) {
-      reasons.push('active conversation');
+  // Bookmark boost (community validation signal)
+  if (chirp.bookmarkCount && chirp.bookmarkCount > 0) {
+    const bookmarkBoost = Math.min(25, chirp.bookmarkCount * 3);
+    score += bookmarkBoost;
+    if (bookmarkBoost > 10) {
+      reasons.push('highly bookmarked');
+    }
+  }
+
+  // Quality-weighted bookmark boost (if available)
+  if (chirp.qualityWeightedBookmarkScore && chirp.qualityWeightedBookmarkScore > 0) {
+    const qualityBookmarkBoost = chirp.qualityWeightedBookmarkScore * 20;
+    score += qualityBookmarkBoost;
+    if (qualityBookmarkBoost > 8) {
+      reasons.push('quality bookmarked');
+    }
+  }
+
+  // Rechirp boost (community validation signal)
+  if (chirp.rechirpCount && chirp.rechirpCount > 0) {
+    const rechirpBoost = Math.min(20, Math.log10(chirp.rechirpCount + 1) * 8);
+    score += rechirpBoost;
+    if (rechirpBoost > 5) {
+      reasons.push('frequently shared');
+    }
+  }
+
+  // Quality-weighted rechirp boost (if available)
+  if (chirp.qualityWeightedRechirpScore && chirp.qualityWeightedRechirpScore > 0) {
+    const qualityRechirpBoost = chirp.qualityWeightedRechirpScore * 15;
+    score += qualityRechirpBoost;
+    if (qualityRechirpBoost > 6) {
+      reasons.push('quality shared');
+    }
+  }
+
+  // Active conversations boost (use quality-weighted if available)
+  if (config.boostActiveConversations) {
+    const commentMetric = chirp.qualityWeightedCommentScore
+      ? chirp.qualityWeightedCommentScore * 100 // Normalize to similar scale
+      : chirp.commentCount;
+    
+    if (commentMetric > 0) {
+      // Boost based on comment metric (logarithmic scale)
+      const commentBoost = Math.min(20, Math.log10(commentMetric + 1) * 5);
+      score += commentBoost;
+      if (commentBoost > 5) {
+        reasons.push('active conversation');
+      }
     }
   }
 
@@ -320,6 +362,12 @@ export const scoreChirpForViewer = (
   } else if (chirp.factCheckStatus === 'needs_review') {
     score -= 20;
     reasons.push('fact-check needs review');
+  }
+
+  // Prediction validation penalty (if post was flagged for gaming)
+  if (chirp.predictionValidation?.flaggedForReview) {
+    score -= 15;
+    reasons.push('prediction mismatch (possible gaming)');
   }
 
   // Generate explanation

@@ -27,3 +27,18 @@ export const colors = {
 
 export type ThemeMode = 'light' | 'dark';
 
+/**
+ * Get colors for a specific theme mode
+ */
+export const getColors = (theme: ThemeMode) => colors[theme];
+
+/**
+ * Hook to get current theme colors
+ * This will be used by components that need theme-aware colors
+ */
+export const useColors = () => {
+  // This will be implemented with the theme store
+  // For now, return light as default
+  return colors.light;
+};
+

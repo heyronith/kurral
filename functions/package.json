@@ -8,7 +8,8 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test:agents": "npm run build && node lib/scripts/test-all-agents.js",
-    "test:agents:watch": "tsc --watch --project tsconfig.json"
+    "test:agents:watch": "tsc --watch --project tsconfig.json",
+    "test:value-scoring": "npm run build && node lib/scripts/test-value-scoring-e2e.js"
   },
   "engines": {
     "node": "20"

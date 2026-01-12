@@ -4,21 +4,40 @@ const SYSTEM_INSTRUCTION = `You are an interests extractor. Given a natural lang
 
 export async function extractInterestsFromStatement(statement: string): Promise<string[]> {
   if (!statement.trim()) {
+    console.log('[ProfileInterestAgent] Empty statement provided');
     return [];
   }
 
+  const trimmedStatement = statement.trim();
+  console.log('[ProfileInterestAgent] Attempting to extract interests from:', trimmedStatement);
+
   if (!BaseAgent.isAvailable()) {
-    console.warn('[ProfileInterestAgent] BaseAgent unavailable, skipping interest extraction');
+    console.warn('[ProfileInterestAgent] BaseAgent unavailable - proxy URL not configured. Check EXPO_PUBLIC_OPENAI_PROXY_URL.');
+    return [];
+  }
+
+  // Check if user is authenticated (BaseAgent will check this, but let's log it)
+  try {
+    const { auth } = await import('../config/firebase');
+    if (!auth.currentUser) {
+      console.warn('[ProfileInterestAgent] User not authenticated, cannot call AI proxy');
+      return [];
+    }
+    console.log('[ProfileInterestAgent] User authenticated:', auth.currentUser.uid);
+  } catch (authError) {
+    console.error('[ProfileInterestAgent] Failed to check auth:', authError);
     return [];
   }
 
   try {
     const agent = new BaseAgent();
-    const prompt = `Extract interest keywords from this statement: "${statement.trim()}"\n\nYou must return a JSON array of strings. Each string is a keyword (1-3 words).\n\nExample: ["ai research", "sports", "technology"]\n\nReturn ONLY the JSON array, nothing else.`;
+    const prompt = `Extract interest keywords from this statement: "${trimmedStatement}"\n\nYou must return a JSON array of strings. Each string is a keyword (1-3 words).\n\nExample: ["ai research", "sports", "technology"]\n\nReturn ONLY the JSON array, nothing else.`;
 
+    console.log('[ProfileInterestAgent] Calling AI with prompt...');
     // Use generate() instead of generateJSON() to get raw text, then parse manually
     // This avoids the json_object response_format issue
     const rawResponse = await agent.generate(prompt, SYSTEM_INSTRUCTION);
+    console.log('[ProfileInterestAgent] Received AI response:', rawResponse.substring(0, 200));
     
     // Extract JSON array from response
     let jsonText = rawResponse.trim();
@@ -80,9 +99,15 @@ export async function extractInterestsFromStatement(statement: string): Promise<
       .slice(0, 10);
 
     const unique = Array.from(new Set(normalized));
+    console.log('[ProfileInterestAgent] Successfully extracted interests:', unique);
     return unique;
   } catch (error: any) {
     console.error('[ProfileInterestAgent] Failed to extract interests:', error);
+    console.error('[ProfileInterestAgent] Error details:', {
+      message: error?.message,
+      status: (error as any)?.status,
+      errorData: (error as any)?.errorData,
+    });
     return [];
   }
 }

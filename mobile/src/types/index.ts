@@ -106,6 +106,13 @@ export type DiscussionQuality = {
   summary: string;
 };
 
+export type BookmarkFolder = {
+  id: string;
+  name: string;
+  chirpIds: string[];
+  createdAt: Date;
+};
+
 export type User = {
   id: string;
   name: string;
@@ -114,7 +121,8 @@ export type User = {
   interests?: string[];
   createdAt: Date;
   following: string[]; // User IDs
-  bookmarks?: string[]; // Chirp IDs that user has bookmarked
+  bookmarks?: string[]; // Chirp IDs that user has bookmarked (legacy - for backward compatibility)
+  bookmarkFolders?: BookmarkFolder[]; // Organized bookmark folders
   // Onboarding fields
   displayName?: string;
   userId?: string; // Unique user ID (handle alternative)
@@ -173,6 +181,8 @@ export type Chirp = {
   quotedChirpId?: string; // If this is a quote repost, reference original
   quotedChirp?: Chirp; // Hydrated quoted chirp (client-side only, not in Firestore)
   commentCount: number;
+  bookmarkCount?: number;
+  rechirpCount?: number;
   countryCode?: string; // ISO 3166-1 alpha-2 country code where post was made
   imageUrl?: string; // Optional image URL
   scheduledAt?: Date; // Optional scheduled post time
@@ -186,6 +196,22 @@ export type Chirp = {
   valueScore?: ValueScore;
   valueExplanation?: string;
   discussionQuality?: DiscussionQuality;
+  qualityWeightedBookmarkScore?: number;
+  qualityWeightedRechirpScore?: number;
+  qualityWeightedCommentScore?: number;
+  qualityScoresLastUpdated?: Date;
+  predictedEngagement?: {
+    expectedViews7d: number;
+    expectedBookmarks7d: number;
+    expectedRechirps7d: number;
+    expectedComments7d: number;
+    predictedAt: Date;
+  };
+  predictionValidation?: {
+    flaggedForReview: boolean;
+    overallError: number;
+    validatedAt: Date;
+  };
 };
 
 export type Comment = {

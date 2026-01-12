@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import ChirpCard from '../../components/ChirpCard';
 import type { Chirp, User, ForYouConfig } from '../../types';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import { generateForYouFeed } from '../../lib/algorithm';
 import { useUserStore } from '../../stores/useUserStore';
 
@@ -21,6 +21,7 @@ type Props = {
 };
 
 const ForYouFeed: React.FC<Props> = ({ chirps, loading, onRefresh, currentUser, forYouConfig }) => {
+  const { colors } = useTheme();
   const { getUser, loadUser } = useUserStore();
 
   // Get author function for algorithm
@@ -61,10 +62,11 @@ const ForYouFeed: React.FC<Props> = ({ chirps, loading, onRefresh, currentUser, 
       }
       renderItem={({ item }) => <ChirpCard chirp={item} />}
       contentContainerStyle={styles.content}
+      style={{ backgroundColor: colors.background }}
       ListEmptyComponent={
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No recommendations yet</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No recommendations yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
             Follow topics and people to see personalized chirps here.
           </Text>
         </View>
@@ -86,12 +88,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
     marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: colors.light.textMuted,
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 16,

@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import ChirpCard from '../../components/ChirpCard';
 import type { Chirp } from '../../types';
-import { colors } from '../../theme/colors';
+import { useTheme } from '../../hooks/useTheme';
 import { useUserStore } from '../../stores/useUserStore';
 
 type Props = {
@@ -18,6 +18,7 @@ type Props = {
 };
 
 const LatestFeed: React.FC<Props> = ({ chirps, loading, onRefresh }) => {
+  const { colors } = useTheme();
   const { loadUser, getUser } = useUserStore();
 
   // Preload authors for visible chirps
@@ -44,10 +45,11 @@ const LatestFeed: React.FC<Props> = ({ chirps, loading, onRefresh }) => {
       }
       renderItem={({ item }) => <ChirpCard chirp={item} />}
       contentContainerStyle={styles.content}
+      style={{ backgroundColor: colors.background }}
       ListEmptyComponent={
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No posts yet</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No posts yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
             Follow some users to see their posts here.
           </Text>
         </View>
@@ -69,12 +71,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.light.textPrimary,
     marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: colors.light.textMuted,
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 16,

@@ -13,8 +13,9 @@ import TopicDetailScreen from '../screens/Topic/TopicDetailScreen';
 import NewsDetailScreen from '../screens/News/NewsDetailScreen';
 import ForYouControlsScreen from '../screens/Settings/ForYouControlsScreen';
 import NotificationPreferencesScreen from '../screens/Settings/NotificationPreferencesScreen';
+import SettingsScreen from '../screens/Settings/SettingsScreen';
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
-import { colors } from '../theme/colors';
+import { useTheme } from '../hooks/useTheme';
 
 // Stack param lists for each tab
 export type HomeStackParamList = {
@@ -24,6 +25,7 @@ export type HomeStackParamList = {
   TopicDetail: { topicName: string };
   NewsDetail: { newsId: string };
   ForYouControls: undefined;
+  Settings: undefined;
   Profile: { userId?: string } | undefined;
   Bookmarks: undefined;
   Dashboard: undefined;
@@ -32,6 +34,7 @@ export type HomeStackParamList = {
 export type NotificationsStackParamList = {
   NotificationsMain: undefined;
   NotificationPreferences: undefined;
+  PostDetail: { postId: string };
 };
 
 export type BookmarksStackParamList = {
@@ -40,6 +43,10 @@ export type BookmarksStackParamList = {
 
 export type SearchStackParamList = {
   SearchMain: undefined;
+  PostDetail: { postId: string };
+  TopicDetail: { topicName: string };
+  NewsDetail: { newsId: string };
+  Profile: { userId?: string } | undefined;
 };
 
 export type ProfileStackParamList = {
@@ -73,6 +80,7 @@ const HomeStackNavigator = () => (
     <HomeStack.Screen name="TopicDetail" component={TopicDetailScreen} />
     <HomeStack.Screen name="NewsDetail" component={NewsDetailScreen} />
     <HomeStack.Screen name="ForYouControls" component={ForYouControlsScreen} />
+    <HomeStack.Screen name="Settings" component={SettingsScreen} />
     <HomeStack.Screen name="Profile" component={ProfileScreen} />
     <HomeStack.Screen name="Bookmarks" component={BookmarksScreen} />
     <HomeStack.Screen name="Dashboard" component={DashboardScreen} />
@@ -88,6 +96,7 @@ const NotificationsStackNavigator = () => (
   >
     <NotificationsStack.Screen name="NotificationsMain" component={NotificationsScreen} />
     <NotificationsStack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} />
+    <NotificationsStack.Screen name="PostDetail" component={PostDetailScreen} />
   </NotificationsStack.Navigator>
 );
 
@@ -110,6 +119,10 @@ const SearchStackNavigator = () => (
     }}
   >
     <SearchStack.Screen name="SearchMain" component={SearchScreen} />
+    <SearchStack.Screen name="PostDetail" component={PostDetailScreen} />
+    <SearchStack.Screen name="TopicDetail" component={TopicDetailScreen} />
+    <SearchStack.Screen name="NewsDetail" component={NewsDetailScreen} />
+    <SearchStack.Screen name="Profile" component={ProfileScreen} />
   </SearchStack.Navigator>
 );
 
@@ -126,15 +139,18 @@ const ProfileStackNavigator = () => (
 );
 
 // Main Tab Navigator
-const MainTabs = () => (
+const MainTabs = () => {
+  const { colors } = useTheme();
+  
+  return (
   <Tab.Navigator
     screenOptions={({ route }) => ({
       headerShown: false,
-      tabBarActiveTintColor: colors.light.accent,
-      tabBarInactiveTintColor: colors.light.textMuted,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
       tabBarShowLabel: false,
       tabBarStyle: {
-        backgroundColor: colors.light.backgroundElevated,
+          backgroundColor: colors.backgroundElevated,
         borderTopWidth: 0,
         elevation: 0,
         shadowOpacity: 0,
@@ -175,6 +191,7 @@ const MainTabs = () => (
     <Tab.Screen name="SearchStack" component={SearchStackNavigator} />
   </Tab.Navigator>
 );
+};
 
 const AppNavigator = () => <MainTabs />;
 

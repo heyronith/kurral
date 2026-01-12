@@ -57,6 +57,11 @@ export const userService = {
     await updateDoc(ref, { bookmarks: bookmarkIds });
   },
 
+  async updateBookmarkFolders(userId: string, folders: any[]): Promise<void> {
+    const ref = doc(db, USERS_COLLECTION, userId);
+    await updateDoc(ref, { bookmarkFolders: folders });
+  },
+
   async getUserByHandle(handle: string): Promise<User | null> {
     const normalized = handle.trim().toLowerCase();
     if (!normalized) return null;
@@ -650,6 +655,130 @@ export const userService = {
     } catch (error) {
       console.error('[userService] Error getting users with similar interests:', error);
       return [];
+    }
+  },
+
+  async getPopularAccounts(limitCount: number = 5): Promise<User[]> {
+    try {
+      // Get recent chirps to determine popular accounts
+      const recentChirpsQuery = query(
+        collection(db, 'chirps'),
+        orderBy('createdAt', 'desc'),
+        limit(150)
+      );
+      const chirpsSnapshot = await getDocs(recentChirpsQuery);
+      
+      const authorStats = new Map<string, { count: number; lastPosted: Date }>();
+      
+      chirpsSnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const authorId = data.authorId;
+        if (!authorId) return;
+        
+        const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+        const existing = authorStats.get(authorId);
+        
+        if (!existing) {
+          authorStats.set(authorId, { count: 1, lastPosted: createdAt });
+        } else {
+          existing.count += 1;
+          if (createdAt > existing.lastPosted) {
+            existing.lastPosted = createdAt;
+          }
+        }
+      });
+      
+      const sortedAuthorIds = Array.from(authorStats.entries())
+        .sort(([, a], [, b]) => {
+          if (b.count !== a.count) {
+            return b.count - a.count;
+          }
+          return b.lastPosted.getTime() - a.lastPosted.getTime();
+        })
+        .map(([authorId]) => authorId)
+        .slice(0, limitCount);
+      
+      if (sortedAuthorIds.length === 0) {
+        return [];
+      }
+      
+      const userSnapshots = await Promise.all(
+        sortedAuthorIds.map((authorId) => getDoc(doc(db, USERS_COLLECTION, authorId)))
+      );
+      
+      return userSnapshots
+        .filter((snap) => snap.exists())
+        .map((snap) => {
+          const data = snap.data() as any;
+          return {
+            ...data,
+            id: snap.id,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+          } as User;
+        });
+    } catch (error) {
+      console.error('[userService] Error fetching popular accounts:', error);
+      return [];
+    }
+  },
+
+  async autoFollowAccounts(userId: string, accountIds: string[]): Promise<User | null> {
+    if (accountIds.length === 0) {
+      return this.getUser(userId);
+    }
+    
+    try {
+      const userSnap = await getDoc(doc(db, USERS_COLLECTION, userId));
+      if (!userSnap.exists()) {
+        return null;
+      }
+      
+      const currentUserData = userSnap.data() as any;
+      const currentFollowing = currentUserData.following || [];
+      const currentAutoFollowed = currentUserData.autoFollowedAccounts || [];
+      
+      const toFollow = Array.from(
+        new Set(
+          accountIds.filter(
+            (id) => id !== userId && !currentFollowing.includes(id)
+          )
+        )
+      );
+      
+      if (toFollow.length === 0) {
+        return {
+          ...currentUserData,
+          id: userSnap.id,
+          createdAt: currentUserData.createdAt?.toDate ? currentUserData.createdAt.toDate() : new Date(),
+        } as User;
+      }
+      
+      const newFollowing = Array.from(new Set([...currentFollowing, ...toFollow]));
+      const newAutoFollowed = Array.from(new Set([...currentAutoFollowed, ...toFollow]));
+      
+      await updateDoc(doc(db, USERS_COLLECTION, userId), {
+        following: newFollowing,
+        autoFollowedAccounts: newAutoFollowed,
+      });
+      
+      const refreshed = await getDoc(doc(db, USERS_COLLECTION, userId));
+      if (!refreshed.exists()) {
+        return {
+          ...currentUserData,
+          id: userSnap.id,
+          createdAt: currentUserData.createdAt?.toDate ? currentUserData.createdAt.toDate() : new Date(),
+        } as User;
+      }
+      
+      const refreshedData = refreshed.data() as any;
+      return {
+        ...refreshedData,
+        id: refreshed.id,
+        createdAt: refreshedData.createdAt?.toDate ? refreshedData.createdAt.toDate() : new Date(),
+      } as User;
+    } catch (error) {
+      console.error('[userService] Error auto-following accounts:', error);
+      return null;
     }
   },
 };

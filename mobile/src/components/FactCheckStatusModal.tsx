@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import type { Chirp, Claim, FactCheck, PostReviewContext } from '../types';
-import { colors } from '../theme/colors';
+import { useTheme } from '../hooks/useTheme';
 import ReviewContextModal from './ReviewContextModal';
 import { reviewContextService } from '../services/reviewContextService';
 import { useUserStore } from '../stores/useUserStore';
@@ -26,13 +26,39 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
   onClose,
   chirp,
 }) => {
+  const { colors } = useTheme();
   const [reviewContexts, setReviewContexts] = useState<PostReviewContext[]>([]);
   const [loadingContexts, setLoadingContexts] = useState(false);
   const [showReviewContextModal, setShowReviewContextModal] = useState(false);
   const { currentUser } = useUserStore();
+  const dynamicStyles = getStyles(colors);
 
   useEffect(() => {
     if (visible && chirp) {
+      // Debug: Log chirp data to help diagnose missing evidence
+      console.log('[FactCheckStatusModal] Chirp data:', {
+        id: chirp.id,
+        factCheckStatus: chirp.factCheckStatus,
+        factCheckingStatus: chirp.factCheckingStatus,
+        claimsCount: chirp.claims?.length || 0,
+        factChecksCount: chirp.factChecks?.length || 0,
+        hasClaims: !!chirp.claims,
+        hasFactChecks: !!chirp.factChecks,
+        claims: chirp.claims,
+        factChecks: chirp.factChecks,
+        claimsIsArray: Array.isArray(chirp.claims),
+        factChecksIsArray: Array.isArray(chirp.factChecks),
+      });
+      if (chirp.claims && chirp.claims.length > 0) {
+        console.log('[FactCheckStatusModal] First claim:', chirp.claims[0]);
+        const firstClaim = chirp.claims[0];
+        const matchingFactCheck = chirp.factChecks?.find(fc => fc.claimId === firstClaim.id);
+        console.log('[FactCheckStatusModal] Matching factCheck for first claim:', matchingFactCheck);
+        if (matchingFactCheck) {
+          console.log('[FactCheckStatusModal] FactCheck evidence:', matchingFactCheck.evidence);
+          console.log('[FactCheckStatusModal] Evidence count:', matchingFactCheck.evidence?.length || 0);
+        }
+      }
       loadReviewContexts();
     }
   }, [visible, chirp]);
@@ -101,80 +127,172 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
-        <View style={styles.container}>
+      <View style={dynamicStyles.backdrop}>
+        <View style={dynamicStyles.container}>
           {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
+          <View style={dynamicStyles.header}>
+            <View style={dynamicStyles.headerLeft}>
               <View
                 style={[
-                  styles.statusIcon,
+                  dynamicStyles.statusIcon,
                   { backgroundColor: statusInfo.bgColor, borderColor: statusInfo.borderColor },
                 ]}
               >
-                <Text style={[styles.statusIconText, { color: statusInfo.color }]}>
+                <Text style={[dynamicStyles.statusIconText, { color: statusInfo.color }]}>
                   {statusInfo.icon}
                 </Text>
               </View>
               <View>
-                <Text style={styles.headerTitle}>Fact-Check Status</Text>
-                <Text style={[styles.headerSubtitle, { color: statusInfo.color }]}>
+                <Text style={dynamicStyles.headerTitle}>Fact-Check Status</Text>
+                <Text style={[dynamicStyles.headerSubtitle, { color: statusInfo.color }]}>
                   {statusInfo.label}
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeText}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={dynamicStyles.closeButton}>
+              <Text style={dynamicStyles.closeText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Claims & Fact Checks */}
-            {chirp.claims && chirp.claims.length > 0 ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Claims & Verification</Text>
-                {chirp.claims.map((claim) => {
-                  const factCheck = chirp.factChecks?.find((fc) => fc.claimId === claim.id);
-                  return (
-                    <View key={claim.id} style={styles.claimCard}>
-                      <Text style={styles.claimText}>{claim.text}</Text>
-                      <View style={styles.claimMeta}>
-                        <View style={styles.claimBadge}>
-                          <Text style={styles.claimBadgeText}>{claim.type}</Text>
+          <ScrollView 
+            style={dynamicStyles.content} 
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={{ paddingBottom: 40 }}
+          >
+            {/* Decision Summary - Prominent Section */}
+            {chirp.factCheckStatus && (
+              <View style={[
+                dynamicStyles.decisionSummary,
+                {
+                  backgroundColor: chirp.factCheckStatus === 'blocked' 
+                    ? 'rgba(239, 68, 68, 0.1)' 
+                    : chirp.factCheckStatus === 'needs_review'
+                    ? 'rgba(245, 158, 11, 0.1)'
+                    : 'rgba(16, 185, 129, 0.1)',
+                  borderColor: chirp.factCheckStatus === 'blocked'
+                    ? 'rgba(239, 68, 68, 0.3)'
+                    : chirp.factCheckStatus === 'needs_review'
+                    ? 'rgba(245, 158, 11, 0.3)'
+                    : 'rgba(16, 185, 129, 0.3)',
+                }
+              ]}>
+                <Text style={dynamicStyles.decisionSummaryTitle}>Why {statusInfo.label}?</Text>
+                {chirp.factChecks && chirp.factChecks.length > 0 ? (
+                  <View style={dynamicStyles.decisionSummaryContent}>
+                    {chirp.factChecks.map((fc, idx) => {
+                      const claim = chirp.claims?.find(c => c.id === fc.claimId);
+                      return (
+                        <View key={idx} style={dynamicStyles.decisionSummaryItem}>
+                          <Text style={dynamicStyles.decisionSummaryClaim}>
+                            Claim: "{claim?.text || 'Unknown claim'}"
+                          </Text>
+                          <Text style={dynamicStyles.decisionSummaryVerdict}>
+                            Verdict: <Text style={dynamicStyles.decisionSummaryVerdictBold}>{fc.verdict.toUpperCase()}</Text>
+                            {' '}({(fc.confidence * 100).toFixed(0)}% confidence)
+                            {fc.evidence && fc.evidence.length > 0 && (
+                              <Text style={dynamicStyles.decisionSummarySources}>
+                                {' '}• {fc.evidence.length} source{fc.evidence.length !== 1 ? 's' : ''} cited
+                              </Text>
+                            )}
+                          </Text>
                         </View>
-                        <View style={styles.claimBadge}>
-                          <Text style={styles.claimBadgeText}>{claim.domain}</Text>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={dynamicStyles.decisionSummaryText}>
+                    {chirp.factCheckStatus === 'blocked' 
+                      ? 'This post contains false or misleading claims that were verified as incorrect.'
+                      : chirp.factCheckStatus === 'needs_review'
+                      ? 'This post requires additional review by human experts.'
+                      : 'This post has been verified and contains accurate information.'}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Claims & Fact Checks - Detailed View */}
+            {(() => {
+              const hasClaims = chirp.claims && Array.isArray(chirp.claims) && chirp.claims.length > 0;
+              console.log('[FactCheckStatusModal] Rendering claims section:', {
+                hasClaims,
+                claimsLength: chirp.claims?.length,
+                isArray: Array.isArray(chirp.claims),
+                claims: chirp.claims,
+              });
+              
+              if (!hasClaims) {
+                return null;
+              }
+              
+              return (
+                <View style={dynamicStyles.section}>
+                  <Text style={dynamicStyles.sectionTitle}>Detailed Evidence</Text>
+                  {chirp.claims.map((claim, claimIdx) => {
+                    if (!claim || !claim.id) {
+                      console.warn('[FactCheckStatusModal] Invalid claim at index', claimIdx, claim);
+                      return null;
+                    }
+                    const factCheck = chirp.factChecks?.find((fc) => fc && fc.claimId === claim.id);
+                    console.log('[FactCheckStatusModal] Rendering claim:', {
+                      claimId: claim.id,
+                      claimText: claim.text,
+                      hasFactCheck: !!factCheck,
+                      factCheckId: factCheck?.id,
+                      factCheckVerdict: factCheck?.verdict,
+                      evidenceCount: factCheck?.evidence?.length || 0,
+                    });
+                    if (!factCheck) {
+                      console.warn('[FactCheckStatusModal] No factCheck found for claim', claim.id, 'Available factChecks:', chirp.factChecks?.map(fc => ({ id: fc?.id, claimId: fc?.claimId })));
+                    }
+                    return (
+                      <View key={claim.id || claimIdx} style={dynamicStyles.claimCard}>
+                      {/* Claim Header */}
+                      <View style={dynamicStyles.claimHeader}>
+                        <Text style={dynamicStyles.claimTextBold}>"{claim.text}"</Text>
+                        <View style={dynamicStyles.claimMeta}>
+                          <View style={dynamicStyles.claimBadge}>
+                            <Text style={dynamicStyles.claimBadgeText}>{claim.type}</Text>
+                          </View>
+                          <View style={dynamicStyles.claimBadge}>
+                            <Text style={dynamicStyles.claimBadgeText}>{claim.domain}</Text>
+                          </View>
+                          <View style={dynamicStyles.claimBadge}>
+                            <Text style={dynamicStyles.claimBadgeText}>Risk: {claim.riskLevel}</Text>
+                          </View>
                         </View>
                       </View>
-                      {factCheck && (
-                        <View style={styles.factCheckSection}>
-                          <View style={styles.verdictRow}>
+
+                      {/* Fact Check Result */}
+                      {factCheck ? (
+                        <View style={dynamicStyles.factCheckSection}>
+                          <View style={dynamicStyles.verdictRow}>
                             <View
                               style={[
-                                styles.verdictBadge,
+                                dynamicStyles.verdictBadgeLarge,
                                 {
                                   backgroundColor:
-                                    factCheck.verdict === 'true'
-                                      ? 'rgba(16, 185, 129, 0.1)'
-                                      : factCheck.verdict === 'false'
-                                      ? 'rgba(239, 68, 68, 0.1)'
-                                      : factCheck.verdict === 'mixed'
-                                      ? 'rgba(245, 158, 11, 0.1)'
-                                      : 'rgba(107, 114, 128, 0.1)',
-                                  borderColor:
                                     factCheck.verdict === 'true'
                                       ? 'rgba(16, 185, 129, 0.2)'
                                       : factCheck.verdict === 'false'
                                       ? 'rgba(239, 68, 68, 0.2)'
                                       : factCheck.verdict === 'mixed'
                                       ? 'rgba(245, 158, 11, 0.2)'
+                                      : 'rgba(107, 114, 128, 0.1)',
+                                  borderColor:
+                                    factCheck.verdict === 'true'
+                                      ? 'rgba(16, 185, 129, 0.4)'
+                                      : factCheck.verdict === 'false'
+                                      ? 'rgba(239, 68, 68, 0.4)'
+                                      : factCheck.verdict === 'mixed'
+                                      ? 'rgba(245, 158, 11, 0.4)'
                                       : 'rgba(107, 114, 128, 0.2)',
                                 },
                               ]}
                             >
                               <Text
                                 style={[
-                                  styles.verdictText,
+                                  dynamicStyles.verdictTextLarge,
                                   {
                                     color:
                                       factCheck.verdict === 'true'
@@ -183,104 +301,162 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                                         ? '#EF4444'
                                         : factCheck.verdict === 'mixed'
                                         ? '#F59E0B'
-                                        : colors.light.textMuted,
+                                        : colors.textMuted,
                                   },
                                 ]}
                               >
                                 {factCheck.verdict.toUpperCase()}
                               </Text>
                             </View>
-                            <Text style={styles.confidenceText}>
-                              {(factCheck.confidence * 100).toFixed(0)}% confidence
-                            </Text>
+                            <View style={dynamicStyles.confidenceInfo}>
+                              <Text style={dynamicStyles.confidenceLabel}>Confidence</Text>
+                              <Text style={dynamicStyles.confidenceValue}>
+                                {(factCheck.confidence * 100).toFixed(0)}%
+                              </Text>
+                              {factCheck.checkedAt && (
+                                <Text style={dynamicStyles.checkedDate}>
+                                  Checked {new Date(factCheck.checkedAt).toLocaleDateString()}
+                                </Text>
+                              )}
+                            </View>
                           </View>
-                          {factCheck.evidence && factCheck.evidence.length > 0 && (
-                            <View style={styles.evidenceSection}>
-                              <Text style={styles.evidenceTitle}>Evidence:</Text>
+
+                          {/* Evidence Section - Prominent */}
+                          {factCheck.evidence && factCheck.evidence.length > 0 ? (
+                            <View style={dynamicStyles.evidenceSection}>
+                              <View style={dynamicStyles.evidenceHeader}>
+                                <Text style={dynamicStyles.evidenceIcon}>📚</Text>
+                                <Text style={dynamicStyles.evidenceTitle}>
+                                  Evidence Sources ({factCheck.evidence.length})
+                                </Text>
+                              </View>
                               {factCheck.evidence.map((evidence, idx) => (
-                                <View key={idx} style={styles.evidenceCard}>
-                                  <Text style={styles.evidenceSource}>{evidence.source}</Text>
-                                  <Text style={styles.evidenceSnippet}>{evidence.snippet}</Text>
+                                <View key={idx} style={dynamicStyles.evidenceCardProminent}>
+                                  <View style={dynamicStyles.evidenceCardHeader}>
+                                    <Text style={dynamicStyles.evidenceSourceBold}>{evidence.source}</Text>
+                                    {evidence.quality && (
+                                      <Text style={dynamicStyles.evidenceQuality}>
+                                        Quality: {(evidence.quality * 100).toFixed(0)}%
+                                      </Text>
+                                    )}
+                                  </View>
+                                  <Text style={dynamicStyles.evidenceSnippetBold}>"{evidence.snippet}"</Text>
                                   {evidence.url && (
                                     <TouchableOpacity
                                       onPress={() => handleOpenURL(evidence.url!)}
-                                      style={styles.evidenceLink}
+                                      style={dynamicStyles.evidenceLinkProminent}
+                                      activeOpacity={0.7}
                                     >
-                                      <Text style={styles.evidenceLinkText}>View source →</Text>
+                                      <Text style={dynamicStyles.evidenceLinkIcon}>🔗</Text>
+                                      <Text style={dynamicStyles.evidenceLinkTextBold}>View Full Source</Text>
                                     </TouchableOpacity>
                                   )}
                                 </View>
                               ))}
                             </View>
-                          )}
-                          {factCheck.caveats && factCheck.caveats.length > 0 && (
-                            <View style={styles.caveatsCard}>
-                              <Text style={styles.caveatsText}>
-                                <Text style={styles.caveatsBold}>Note:</Text>{' '}
-                                {factCheck.caveats.join(' ')}
+                          ) : (
+                            <View style={dynamicStyles.noEvidenceCard}>
+                              <Text style={dynamicStyles.noEvidenceText}>
+                                No evidence sources were found for this claim.
                               </Text>
                             </View>
                           )}
+
+                          {/* Caveats */}
+                          {factCheck.caveats && factCheck.caveats.length > 0 && (
+                            <View style={dynamicStyles.caveatsCard}>
+                              <Text style={dynamicStyles.caveatsTitle}>⚠️ Important Notes:</Text>
+                              {factCheck.caveats.map((caveat, idx) => (
+                                <Text key={idx} style={dynamicStyles.caveatsText}>
+                                  • {caveat}
+                                </Text>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      ) : (
+                        <View style={dynamicStyles.noFactCheckCard}>
+                          <Text style={dynamicStyles.noFactCheckText}>
+                            This claim has not been fact-checked yet.
+                          </Text>
                         </View>
                       )}
                     </View>
                   );
-                })}
-              </View>
-            ) : (
-              <View style={styles.emptySection}>
-                <Text style={styles.emptyText}>
-                  No claims have been extracted from this post yet.
-                </Text>
-              </View>
+                  })}
+                </View>
+              );
+            })()}
+            {(!chirp.claims || !Array.isArray(chirp.claims) || chirp.claims.length === 0) && (
+              chirp.factCheckStatus ? (
+                <View style={dynamicStyles.section}>
+                  <Text style={dynamicStyles.sectionTitle}>Evidence</Text>
+                  <View style={dynamicStyles.emptySection}>
+                    <Text style={dynamicStyles.emptyText}>
+                      {chirp.factCheckingStatus === 'in_progress' || chirp.factCheckingStatus === 'pending'
+                        ? 'Fact-checking is still in progress. Evidence will appear here once processing is complete.'
+                        : 'Evidence details are not available yet. This post has been marked as ' +
+                          (chirp.factCheckStatus === 'blocked' ? 'blocked' : 
+                           chirp.factCheckStatus === 'needs_review' ? 'needing review' : 'verified') +
+                          ' but the detailed claims and evidence have not been loaded.'}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={dynamicStyles.emptySection}>
+                  <Text style={dynamicStyles.emptyText}>
+                    No claims have been extracted from this post yet.
+                  </Text>
+                </View>
+              )
             )}
 
             {/* Value Score Section */}
             {chirp.valueScore && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Value Score</Text>
-                <View style={styles.valueScoreCard}>
-                  <View style={styles.valueScoreHeader}>
-                    <Text style={styles.valueScoreIcon}>⭐</Text>
-                    <View style={styles.valueScoreMain}>
-                      <Text style={styles.valueScoreTotal}>
+              <View style={dynamicStyles.section}>
+                <Text style={dynamicStyles.sectionTitle}>Value Score</Text>
+                <View style={dynamicStyles.valueScoreCard}>
+                  <View style={dynamicStyles.valueScoreHeader}>
+                    <Text style={dynamicStyles.valueScoreIcon}>⭐</Text>
+                    <View style={dynamicStyles.valueScoreMain}>
+                      <Text style={dynamicStyles.valueScoreTotal}>
                         {(chirp.valueScore.total * 100).toFixed(0)}
                       </Text>
-                      <Text style={styles.valueScoreLabel}>Overall Value Score</Text>
+                      <Text style={dynamicStyles.valueScoreLabel}>Overall Value Score</Text>
                     </View>
                     {chirp.valueScore.confidence && (
-                      <View style={styles.valueScoreConfidence}>
-                        <Text style={styles.valueScoreConfidenceValue}>
+                      <View style={dynamicStyles.valueScoreConfidence}>
+                        <Text style={dynamicStyles.valueScoreConfidenceValue}>
                           {(chirp.valueScore.confidence * 100).toFixed(0)}%
                         </Text>
-                        <Text style={styles.valueScoreConfidenceLabel}>Confidence</Text>
+                        <Text style={dynamicStyles.valueScoreConfidenceLabel}>Confidence</Text>
                       </View>
                     )}
                   </View>
 
                   {/* Value Score Breakdown */}
-                  <View style={styles.valueScoreBreakdown}>
-                    <View style={styles.valueScoreMetric}>
-                      <Text style={styles.valueScoreMetricLabel}>Epistemic</Text>
-                      <Text style={styles.valueScoreMetricValue}>
+                  <View style={dynamicStyles.valueScoreBreakdown}>
+                    <View style={dynamicStyles.valueScoreMetric}>
+                      <Text style={dynamicStyles.valueScoreMetricLabel}>Epistemic</Text>
+                      <Text style={dynamicStyles.valueScoreMetricValue}>
                         {(chirp.valueScore.epistemic * 100).toFixed(0)}
                       </Text>
                     </View>
-                    <View style={styles.valueScoreMetric}>
-                      <Text style={styles.valueScoreMetricLabel}>Insight</Text>
-                      <Text style={styles.valueScoreMetricValue}>
+                    <View style={dynamicStyles.valueScoreMetric}>
+                      <Text style={dynamicStyles.valueScoreMetricLabel}>Insight</Text>
+                      <Text style={dynamicStyles.valueScoreMetricValue}>
                         {(chirp.valueScore.insight * 100).toFixed(0)}
                       </Text>
                     </View>
-                    <View style={styles.valueScoreMetric}>
-                      <Text style={styles.valueScoreMetricLabel}>Practical</Text>
-                      <Text style={styles.valueScoreMetricValue}>
+                    <View style={dynamicStyles.valueScoreMetric}>
+                      <Text style={dynamicStyles.valueScoreMetricLabel}>Practical</Text>
+                      <Text style={dynamicStyles.valueScoreMetricValue}>
                         {(chirp.valueScore.practical * 100).toFixed(0)}
                       </Text>
                     </View>
-                    <View style={styles.valueScoreMetric}>
-                      <Text style={styles.valueScoreMetricLabel}>Relational</Text>
-                      <Text style={styles.valueScoreMetricValue}>
+                    <View style={dynamicStyles.valueScoreMetric}>
+                      <Text style={dynamicStyles.valueScoreMetricLabel}>Relational</Text>
+                      <Text style={dynamicStyles.valueScoreMetricValue}>
                         {(chirp.valueScore.relational * 100).toFixed(0)}
                       </Text>
                     </View>
@@ -288,9 +464,9 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
 
                   {/* Value Explanation */}
                   {chirp.valueExplanation && (
-                    <View style={styles.valueExplanationSection}>
-                      <Text style={styles.valueExplanationTitle}>Explanation</Text>
-                      <Text style={styles.valueExplanationText}>{chirp.valueExplanation}</Text>
+                    <View style={dynamicStyles.valueExplanationSection}>
+                      <Text style={dynamicStyles.valueExplanationTitle}>Explanation</Text>
+                      <Text style={dynamicStyles.valueExplanationText}>{chirp.valueExplanation}</Text>
                     </View>
                   )}
                 </View>
@@ -299,39 +475,39 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
 
             {/* Discussion Quality Section */}
             {chirp.discussionQuality && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Discussion Quality</Text>
-                <View style={styles.discussionQualityCard}>
-                  <View style={styles.discussionQualityGrid}>
-                    <View style={styles.discussionQualityMetric}>
-                      <Text style={styles.discussionQualityLabel}>Informativeness</Text>
-                      <Text style={styles.discussionQualityValue}>
+              <View style={dynamicStyles.section}>
+                <Text style={dynamicStyles.sectionTitle}>Discussion Quality</Text>
+                <View style={dynamicStyles.discussionQualityCard}>
+                  <View style={dynamicStyles.discussionQualityGrid}>
+                    <View style={dynamicStyles.discussionQualityMetric}>
+                      <Text style={dynamicStyles.discussionQualityLabel}>Informativeness</Text>
+                      <Text style={dynamicStyles.discussionQualityValue}>
                         {(chirp.discussionQuality.informativeness * 100).toFixed(0)}%
                       </Text>
                     </View>
-                    <View style={styles.discussionQualityMetric}>
-                      <Text style={styles.discussionQualityLabel}>Civility</Text>
-                      <Text style={styles.discussionQualityValue}>
+                    <View style={dynamicStyles.discussionQualityMetric}>
+                      <Text style={dynamicStyles.discussionQualityLabel}>Civility</Text>
+                      <Text style={dynamicStyles.discussionQualityValue}>
                         {(chirp.discussionQuality.civility * 100).toFixed(0)}%
                       </Text>
                     </View>
-                    <View style={styles.discussionQualityMetric}>
-                      <Text style={styles.discussionQualityLabel}>Reasoning Depth</Text>
-                      <Text style={styles.discussionQualityValue}>
+                    <View style={dynamicStyles.discussionQualityMetric}>
+                      <Text style={dynamicStyles.discussionQualityLabel}>Reasoning Depth</Text>
+                      <Text style={dynamicStyles.discussionQualityValue}>
                         {(chirp.discussionQuality.reasoningDepth * 100).toFixed(0)}%
                       </Text>
                     </View>
-                    <View style={styles.discussionQualityMetric}>
-                      <Text style={styles.discussionQualityLabel}>Cross-Perspective</Text>
-                      <Text style={styles.discussionQualityValue}>
+                    <View style={dynamicStyles.discussionQualityMetric}>
+                      <Text style={dynamicStyles.discussionQualityLabel}>Cross-Perspective</Text>
+                      <Text style={dynamicStyles.discussionQualityValue}>
                         {(chirp.discussionQuality.crossPerspective * 100).toFixed(0)}%
                       </Text>
                     </View>
                   </View>
                   {chirp.discussionQuality.summary && (
-                    <View style={styles.discussionQualitySummary}>
-                      <Text style={styles.discussionQualitySummaryTitle}>Summary</Text>
-                      <Text style={styles.discussionQualitySummaryText}>
+                    <View style={dynamicStyles.discussionQualitySummary}>
+                      <Text style={dynamicStyles.discussionQualitySummaryTitle}>Summary</Text>
+                      <Text style={dynamicStyles.discussionQualitySummaryText}>
                         {chirp.discussionQuality.summary}
                       </Text>
                     </View>
@@ -342,63 +518,63 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
 
             {/* Add Context Button - for needs_review posts */}
             {chirp.factCheckStatus === 'needs_review' && currentUser && currentUser.id !== chirp.authorId && (
-              <View style={styles.section}>
+              <View style={dynamicStyles.section}>
                 <TouchableOpacity
                   onPress={() => {
                     setShowReviewContextModal(true);
                   }}
-                  style={styles.addContextButton}
+                  style={dynamicStyles.addContextButton}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.addContextButtonText}>Add Context for Review</Text>
+                  <Text style={dynamicStyles.addContextButtonText}>Add Context for Review</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             {/* Review Contexts */}
             {loadingContexts ? (
-              <View style={styles.loadingSection}>
-                <ActivityIndicator size="small" color={colors.light.accent} />
-                <Text style={styles.loadingText}>Loading review contexts...</Text>
+              <View style={dynamicStyles.loadingSection}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={dynamicStyles.loadingText}>Loading review contexts...</Text>
               </View>
             ) : reviewContexts.length > 0 ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>User Reviews</Text>
+              <View style={dynamicStyles.section}>
+                <Text style={dynamicStyles.sectionTitle}>User Reviews</Text>
                 {reviewContexts.map((review) => (
                   <View
                     key={review.id}
                     style={[
-                      styles.reviewCard,
-                      review.action === 'validate' ? styles.validateReviewCard : styles.invalidateReviewCard
+                      dynamicStyles.reviewCard,
+                      review.action === 'validate' ? dynamicStyles.validateReviewCard : dynamicStyles.invalidateReviewCard
                     ]}
                   >
-                    <View style={styles.reviewHeader}>
+                    <View style={dynamicStyles.reviewHeader}>
                       <Text style={[
-                        styles.reviewActionIcon,
-                        review.action === 'validate' ? styles.validateIcon : styles.invalidateIcon
+                        dynamicStyles.reviewActionIcon,
+                        review.action === 'validate' ? dynamicStyles.validateIcon : dynamicStyles.invalidateIcon
                       ]}>
                         {review.action === 'validate' ? '✓' : '✗'}
                       </Text>
                       <Text style={[
-                        styles.reviewActionText,
-                        review.action === 'validate' ? styles.validateText : styles.invalidateText
+                        dynamicStyles.reviewActionText,
+                        review.action === 'validate' ? dynamicStyles.validateText : dynamicStyles.invalidateText
                       ]}>
                         {review.action === 'validate' ? 'Validated' : 'Invalidated'}
                       </Text>
-                      <Text style={styles.reviewDate}>
+                      <Text style={dynamicStyles.reviewDate}>
                         {new Date(review.createdAt).toLocaleDateString()}
                       </Text>
                     </View>
                     {review.sources && review.sources.length > 0 && (
-                      <View style={styles.sourcesSection}>
-                        <Text style={styles.sourcesTitle}>Sources:</Text>
+                      <View style={dynamicStyles.sourcesSection}>
+                        <Text style={dynamicStyles.sourcesTitle}>Sources:</Text>
                         {review.sources.map((source, idx) => (
                           <TouchableOpacity
                             key={idx}
                             onPress={() => handleOpenURL(source)}
                             activeOpacity={0.7}
                           >
-                            <Text style={styles.sourceLink}>
+                            <Text style={dynamicStyles.sourceLink}>
                               {source}
                             </Text>
                           </TouchableOpacity>
@@ -406,9 +582,9 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                       </View>
                     )}
                     {review.context && (
-                      <View style={styles.contextSection}>
-                        <Text style={styles.contextTitle}>Context:</Text>
-                        <Text style={styles.contextText}>{review.context}</Text>
+                      <View style={dynamicStyles.contextSection}>
+                        <Text style={dynamicStyles.contextTitle}>Context:</Text>
+                        <Text style={dynamicStyles.contextText}>{review.context}</Text>
                       </View>
                     )}
                   </View>
@@ -433,17 +609,18 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
+    minHeight: '50%',
   },
   header: {
     flexDirection: 'row',
@@ -451,7 +628,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.border,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -474,7 +651,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -489,11 +666,12 @@ const styles = StyleSheet.create({
   },
   closeText: {
     fontSize: 24,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '300',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     padding: 20,
   },
   section: {
@@ -502,20 +680,71 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 16,
   },
   claimCard: {
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     marginBottom: 12,
+  },
+  decisionSummary: {
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  decisionSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
+  decisionSummaryContent: {
+    gap: 12,
+  },
+  decisionSummaryItem: {
+    marginBottom: 8,
+  },
+  decisionSummaryClaim: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  decisionSummaryVerdict: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  decisionSummaryVerdictBold: {
+    fontWeight: '700',
+  },
+  decisionSummarySources: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  decisionSummaryText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  claimHeader: {
+    marginBottom: 12,
+  },
+  claimTextBold: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    lineHeight: 20,
+    marginBottom: 8,
   },
   claimText: {
     fontSize: 14,
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -528,20 +757,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: colors.border + '33',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   claimBadgeText: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
   },
   factCheckSection: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   verdictRow: {
     flexDirection: 'row',
@@ -555,63 +784,178 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
   },
+  verdictBadgeLarge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
   verdictText: {
     fontSize: 11,
     fontWeight: '700',
   },
+  verdictTextLarge: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  confidenceInfo: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  confidenceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  confidenceValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  checkedDate: {
+    fontSize: 10,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
   confidenceText: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   evidenceSection: {
-    marginTop: 12,
+    marginTop: 16,
+  },
+  evidenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  evidenceIcon: {
+    fontSize: 18,
   },
   evidenceTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    color: colors.light.textPrimary,
-    marginBottom: 8,
+    color: colors.textPrimary,
   },
   evidenceCard: {
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    backgroundColor: colors.background,
     borderRadius: 8,
     padding: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
+    marginBottom: 8,
+  },
+  evidenceCardProminent: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+  },
+  evidenceCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
   evidenceSource: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 4,
+  },
+  evidenceSourceBold: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  evidenceQuality: {
+    fontSize: 11,
+    color: colors.textMuted,
   },
   evidenceSnippet: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 6,
     lineHeight: 16,
+  },
+  evidenceSnippetBold: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 10,
+    lineHeight: 18,
+    fontStyle: 'italic',
   },
   evidenceLink: {
     marginTop: 4,
   },
+  evidenceLinkProminent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 8,
+  },
   evidenceLinkText: {
     fontSize: 12,
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
   },
+  evidenceLinkTextBold: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  evidenceLinkIcon: {
+    fontSize: 16,
+  },
+  noEvidenceCard: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  noEvidenceText: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  noFactCheckCard: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  noFactCheckText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+  },
   caveatsCard: {
-    marginTop: 8,
+    marginTop: 12,
     padding: 12,
     borderRadius: 8,
     backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.2)',
   },
+  caveatsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 6,
+  },
   caveatsText: {
     fontSize: 12,
     color: '#92400E',
-    lineHeight: 16,
+    lineHeight: 18,
+    marginBottom: 4,
   },
   caveatsBold: {
     fontWeight: '700',
@@ -622,15 +966,15 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
   },
   valueScoreCard: {
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   valueScoreHeader: {
     flexDirection: 'row',
@@ -647,11 +991,11 @@ const styles = StyleSheet.create({
   valueScoreTotal: {
     fontSize: 28,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   valueScoreLabel: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
   },
   valueScoreConfidence: {
@@ -660,11 +1004,11 @@ const styles = StyleSheet.create({
   valueScoreConfidenceValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   valueScoreConfidenceLabel: {
     fontSize: 11,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
   },
   valueScoreBreakdown: {
@@ -673,7 +1017,7 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   valueScoreMetric: {
     flex: 1,
@@ -681,37 +1025,37 @@ const styles = StyleSheet.create({
   },
   valueScoreMetricLabel: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 4,
   },
   valueScoreMetricValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   valueExplanationSection: {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   valueExplanationTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   valueExplanationText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     lineHeight: 20,
   },
   discussionQualityCard: {
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
   },
   discussionQualityGrid: {
     flexDirection: 'row',
@@ -724,29 +1068,29 @@ const styles = StyleSheet.create({
   },
   discussionQualityLabel: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginBottom: 4,
   },
   discussionQualityValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   discussionQualitySummary: {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   discussionQualitySummaryTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   discussionQualitySummaryText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     lineHeight: 20,
   },
   addContextButton: {
@@ -770,7 +1114,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   reviewCard: {
     padding: 16,
@@ -815,7 +1159,7 @@ const styles = StyleSheet.create({
   },
   reviewDate: {
     fontSize: 12,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
   },
   sourcesSection: {
     marginTop: 8,
@@ -823,12 +1167,12 @@ const styles = StyleSheet.create({
   sourcesTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   sourceLink: {
     fontSize: 12,
-    color: colors.light.accent,
+    color: colors.accent,
     textDecorationLine: 'underline',
     marginBottom: 2,
   },
@@ -836,17 +1180,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.border,
   },
   contextTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   contextText: {
     fontSize: 13,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     lineHeight: 18,
   },
 });

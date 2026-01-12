@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Share, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import type { HomeStackParamList } from '../navigation/AppNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { Chirp, User } from '../types';
-import { colors } from '../theme/colors';
+import { useTheme } from '../hooks/useTheme';
 import { useUserStore } from '../stores/useUserStore';
+import { useAuthStore } from '../stores/useAuthStore';
+import { useFeedStore } from '../stores/useFeedStore';
+import { useComposer } from '../context/ComposerContext';
 import FactCheckStatusModal from './FactCheckStatusModal';
+import RepostModal from './RepostModal';
+import ActionModal from './ActionModal';
+import BookmarkFolderModal from './BookmarkFolderModal';
 import { renderFormattedText } from '../utils/formattedText';
 
 type NavigationProp = NativeStackNavigationProp<HomeStackParamList>;
@@ -38,8 +45,28 @@ type Props = {
 
 const ChirpCard: React.FC<Props> = ({ chirp }) => {
   const navigation = useNavigation<NavigationProp>();
+  const { colors } = useTheme();
   const loadUser = useUserStore((state) => state.loadUser);
+  const {
+    bookmarkChirp,
+    unbookmarkChirp,
+    isBookmarked,
+    createBookmarkFolder,
+    getBookmarkFolders,
+    addBookmarkToFolder,
+  } = useUserStore();
+  const { user: currentUser } = useAuthStore();
+  const { addChirp } = useFeedStore();
+  const { openWithQuote, openForComment } = useComposer();
   const [showFactCheckModal, setShowFactCheckModal] = useState(false);
+  const [showRepostModal, setShowRepostModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showBookmarkFolderModal, setShowBookmarkFolderModal] = useState(false);
+  const [actionModalConfig, setActionModalConfig] = useState<{
+    title: string;
+    message: string;
+    type?: 'info' | 'success' | 'error' | 'warning';
+  } | null>(null);
   
   // Subscribe to user from store (will update reactively)
   const author = useUserStore((state) => state.users[chirp.authorId]);
@@ -72,14 +99,16 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
   const displayHandle = author?.handle || chirp.authorId?.slice(0, 8) || 'unknown';
   const avatarLetter = getInitial(author?.name || author?.handle || chirp.authorId);
 
+  const dynamicStyles = getStyles(colors);
+
   const renderFormattedTextContent = () => {
     const source = chirp.formattedText || chirp.text;
     // If no formattedText, return plain text
     if (!chirp.formattedText) {
-      return <Text style={styles.body}>{source}</Text>;
+      return <Text style={dynamicStyles.body}>{source}</Text>;
     }
     // Use the formatted text renderer
-    return renderFormattedText(source, styles.body);
+    return renderFormattedText(source, dynamicStyles.body);
   };
 
   const handleCardPress = () => {
@@ -89,6 +118,120 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
   const handleFactCheckPress = () => {
     setShowFactCheckModal(true);
   };
+
+  const handleCommentClick = () => {
+    // Open composer for comment
+    openForComment(chirp);
+  };
+
+  const handleRepostClick = () => {
+    if (!currentUser) return;
+    setShowRepostModal(true);
+  };
+
+  const handleJustRepost = async () => {
+    if (!currentUser) return;
+    try {
+      await addChirp({
+        authorId: currentUser.id,
+        text: chirp.text,
+        topic: chirp.topic,
+        reachMode: 'forAll',
+        rechirpOfId: chirp.id,
+        semanticTopics: chirp.semanticTopics?.length ? chirp.semanticTopics : undefined,
+      });
+      setActionModalConfig({
+        title: 'Success',
+        message: 'Post reposted successfully!',
+        type: 'success',
+      });
+      setShowActionModal(true);
+    } catch (error) {
+      console.error('Error reposting:', error);
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to repost. Please try again.',
+        type: 'error',
+      });
+      setShowActionModal(true);
+    }
+  };
+
+  const handleAddThoughts = () => {
+    openWithQuote(chirp);
+  };
+
+  const handleBookmark = async () => {
+    if (!currentUser || chirp.authorId === currentUser.id) return;
+
+    if (isBookmarked(chirp.id)) {
+      await unbookmarkChirp(chirp.id);
+    } else {
+      // Show folder selection modal
+      setShowBookmarkFolderModal(true);
+    }
+  };
+
+  const handleSelectFolder = async (folderId: string) => {
+    try {
+      await addBookmarkToFolder(chirp.id, folderId);
+      setActionModalConfig({
+        title: 'Success',
+        message: 'Post saved to folder!',
+        type: 'success',
+      });
+      setShowActionModal(true);
+    } catch (error) {
+      console.error('Error adding bookmark to folder:', error);
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to save bookmark. Please try again.',
+        type: 'error',
+      });
+      setShowActionModal(true);
+    }
+  };
+
+  const handleCreateFolder = async (folderName: string) => {
+    try {
+      const folderId = await createBookmarkFolder(folderName);
+      await addBookmarkToFolder(chirp.id, folderId);
+      setActionModalConfig({
+        title: 'Success',
+        message: 'Folder created and post saved!',
+        type: 'success',
+      });
+      setShowActionModal(true);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to create folder. Please try again.',
+        type: 'error',
+      });
+      setShowActionModal(true);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const message = `Check out this post by @${author?.handle || 'unknown'}: "${chirp.text}"`;
+      await Share.share({
+        message,
+      });
+    } catch (error) {
+      console.error('Error sharing post:', error);
+      setActionModalConfig({
+        title: 'Error',
+        message: 'Failed to share post',
+        type: 'error',
+      });
+      setShowActionModal(true);
+    }
+  };
+
+  const bookmarked = isBookmarked(chirp.id);
+  const isCurrentUser = currentUser?.id === chirp.authorId;
 
   const getFactCheckStyle = () => {
     if (!chirp.factCheckStatus) return null;
@@ -119,34 +262,34 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
   const factCheckStyle = getFactCheckStyle();
 
   return (
-    <TouchableOpacity style={styles.card} onPress={handleCardPress} activeOpacity={0.7}>
+    <TouchableOpacity style={dynamicStyles.card} onPress={handleCardPress} activeOpacity={0.7}>
       {/* Fact-check status badge - top right */}
       {chirp.factCheckStatus && factCheckStyle && (
         <TouchableOpacity
-          style={[styles.factCheckBadge, { backgroundColor: factCheckStyle.backgroundColor }]}
+          style={[dynamicStyles.factCheckBadge, { backgroundColor: factCheckStyle.backgroundColor }]}
           onPress={handleFactCheckPress}
           activeOpacity={0.8}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={[styles.factCheckIcon, { color: factCheckStyle.iconColor }]}>
+          <Text style={[dynamicStyles.factCheckIcon, { color: factCheckStyle.iconColor }]}>
             {factCheckStyle.icon}
           </Text>
         </TouchableOpacity>
       )}
-      <View style={styles.header}>
-        <View style={styles.avatar}>
+      <View style={dynamicStyles.header}>
+        <View style={dynamicStyles.avatar}>
           {author?.profilePictureUrl ? (
             <Image
               source={{ uri: author.profilePictureUrl }}
-              style={styles.avatarImage}
+              style={dynamicStyles.avatarImage}
             />
           ) : (
-            <Text style={styles.avatarText}>{avatarLetter}</Text>
+            <Text style={dynamicStyles.avatarText}>{avatarLetter}</Text>
           )}
         </View>
-        <View style={styles.meta}>
-          <Text style={styles.author}>{displayName}</Text>
-          <Text style={styles.handle}>
+        <View style={dynamicStyles.meta}>
+          <Text style={dynamicStyles.author}>{displayName}</Text>
+          <Text style={dynamicStyles.handle}>
             @{displayHandle} · {formatTimeAgo(createdAt)}
           </Text>
         </View>
@@ -157,24 +300,64 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
       {chirp.imageUrl ? (
         <Image
           source={{ uri: chirp.imageUrl }}
-          style={styles.image}
+          style={dynamicStyles.image}
           resizeMode="cover"
         />
       ) : null}
 
-      <View style={styles.footer}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>#{topicLabel}</Text>
+      <View style={dynamicStyles.footer}>
+        <View style={dynamicStyles.badge}>
+          <Text style={dynamicStyles.badgeText}>#{topicLabel}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {chirp.scheduledAt && chirp.scheduledAt > new Date() && (
-            <Text style={styles.metaText}>Scheduled</Text>
+            <Text style={dynamicStyles.metaText}>Scheduled</Text>
           )}
-        <Text style={styles.metaText}>
-            {chirp.commentCount ?? 0}{' '}
-            {(chirp.commentCount ?? 0) === 1 ? 'comment' : 'comments'}
-        </Text>
         </View>
+      </View>
+
+      {/* Interaction Actions */}
+      <View style={dynamicStyles.actions}>
+        <TouchableOpacity
+          onPress={handleCommentClick}
+          style={dynamicStyles.actionButton}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="chatbubble-outline" size={20} color={colors.textMuted} />
+          {(chirp.commentCount ?? 0) > 0 && (
+            <Text style={dynamicStyles.actionCount}>{chirp.commentCount}</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleRepostClick}
+          style={dynamicStyles.actionButton}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="repeat-outline" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        {!isCurrentUser && (
+          <TouchableOpacity
+            onPress={handleBookmark}
+            style={dynamicStyles.actionButton}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={bookmarked ? "bookmark" : "bookmark-outline"}
+              size={20}
+              color={bookmarked ? colors.accent : colors.textMuted}
+            />
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          onPress={handleShare}
+          style={dynamicStyles.actionButton}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="share-outline" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
       </View>
       
       {/* Fact-check status modal */}
@@ -183,17 +366,48 @@ const ChirpCard: React.FC<Props> = ({ chirp }) => {
         onClose={() => setShowFactCheckModal(false)}
         chirp={chirp}
       />
+
+      {/* Repost modal */}
+      <RepostModal
+        visible={showRepostModal}
+        onClose={() => setShowRepostModal(false)}
+        onJustRepost={handleJustRepost}
+        onAddThoughts={handleAddThoughts}
+      />
+
+      {/* Action modal for success/error messages */}
+      {actionModalConfig && (
+        <ActionModal
+          visible={showActionModal}
+          onClose={() => {
+            setShowActionModal(false);
+            setActionModalConfig(null);
+          }}
+          title={actionModalConfig.title}
+          message={actionModalConfig.message}
+          type={actionModalConfig.type}
+        />
+      )}
+
+      {/* Bookmark folder modal */}
+      <BookmarkFolderModal
+        visible={showBookmarkFolderModal}
+        onClose={() => setShowBookmarkFolderModal(false)}
+        folders={getBookmarkFolders()}
+        onSelectFolder={handleSelectFolder}
+        onCreateFolder={handleCreateFolder}
+      />
     </TouchableOpacity>
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   card: {
-    backgroundColor: colors.light.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 14,
     padding: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.light.border,
+    borderColor: colors.border,
     marginBottom: 12,
     position: 'relative',
   },
@@ -221,7 +435,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.light.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -242,16 +456,16 @@ const styles = StyleSheet.create({
   author: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.light.textPrimary,
+    color: colors.textPrimary,
   },
   handle: {
     fontSize: 13,
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
   },
   body: {
     fontSize: 15,
-    color: colors.light.textSecondary,
+    color: colors.textSecondary,
     lineHeight: 22,
   },
   image: {
@@ -259,7 +473,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginTop: 12,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: colors.border,
   },
   footer: {
     marginTop: 14,
@@ -271,16 +485,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    backgroundColor: colors.accent + '14',
   },
   badgeText: {
-    color: colors.light.accent,
+    color: colors.accent,
     fontWeight: '600',
     fontSize: 13,
   },
   metaText: {
-    color: colors.light.textMuted,
+    color: colors.textMuted,
     fontSize: 13,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    gap: 20,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  actionCount: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '600',
+    marginLeft: 2,
   },
 });
 

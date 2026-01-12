@@ -22,6 +22,7 @@ import { generateAndSaveProfileSummary } from '../services/profileSummaryAgent';
 import { deleteField } from 'firebase/firestore';
 import type { User } from '../types';
 import { colors } from '../theme/colors';
+import { useTheme } from '../hooks/useTheme';
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -38,6 +39,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
 }) => {
   const { updateInterests } = useUserStore();
   const { setUser } = useAuthStore();
+  const { isDark } = useTheme();
   const [displayName, setDisplayName] = useState(user.displayName || user.name || '');
   const [userId, setUserId] = useState(user.userId || user.handle || '');
   const [semanticInterests, setSemanticInterests] = useState<string[]>(user.interests || []);
@@ -288,6 +290,17 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      setUser(null);
+      onClose();
+    } catch (err: any) {
+      console.error('Error logging out:', err);
+      Alert.alert('Error', 'Failed to log out. Please try again.');
+    }
+  };
+
   if (!visible) return null;
 
   return (
@@ -460,6 +473,18 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
               {/* Account Settings Section */}
               <View style={styles.formSection}>
                 <Text style={styles.sectionTitle}>Account Settings</Text>
+                
+                {/* Logout Button - Only visible in dark mode */}
+                {isDark && (
+                  <View style={styles.logoutContainer}>
+                    <TouchableOpacity
+                      style={styles.logoutButton}
+                      onPress={handleLogout}
+                    >
+                      <Text style={styles.logoutButtonText}>Log Out</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 
                 <View style={styles.deleteAccountContainer}>
                   <Text style={styles.deleteAccountTitle}>Delete Account</Text>
@@ -777,6 +802,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.light.textPrimary,
     marginBottom: 12,
+  },
+  logoutContainer: {
+    marginBottom: 20,
+  },
+  logoutButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: colors.light.backgroundElevated,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
   },
   deleteAccountContainer: {
     padding: 16,

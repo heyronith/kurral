@@ -63,6 +63,8 @@ const deserializeChirp = (id: string, data: any): Chirp => ({
   rechirpOfId: data.rechirpOfId,
   quotedChirpId: data.quotedChirpId,
   commentCount: data.commentCount ?? 0,
+  bookmarkCount: data.bookmarkCount ?? 0,
+  rechirpCount: data.rechirpCount ?? 0,
   countryCode: data.countryCode,
   imageUrl: data.imageUrl,
   scheduledAt: data.scheduledAt ? toDate(data.scheduledAt) : undefined,
@@ -78,6 +80,26 @@ const deserializeChirp = (id: string, data: any): Chirp => ({
     : undefined,
   valueExplanation: data.valueExplanation,
   discussionQuality: data.discussionQuality,
+  qualityWeightedBookmarkScore: data.qualityWeightedBookmarkScore,
+  qualityWeightedRechirpScore: data.qualityWeightedRechirpScore,
+  qualityWeightedCommentScore: data.qualityWeightedCommentScore,
+  qualityScoresLastUpdated: data.qualityScoresLastUpdated ? toDate(data.qualityScoresLastUpdated) : undefined,
+  predictedEngagement: data.predictedEngagement
+    ? {
+        expectedViews7d: data.predictedEngagement.expectedViews7d ?? 0,
+        expectedBookmarks7d: data.predictedEngagement.expectedBookmarks7d ?? 0,
+        expectedRechirps7d: data.predictedEngagement.expectedRechirps7d ?? 0,
+        expectedComments7d: data.predictedEngagement.expectedComments7d ?? 0,
+        predictedAt: toDate(data.predictedEngagement.predictedAt),
+      }
+    : undefined,
+  predictionValidation: data.predictionValidation
+    ? {
+        flaggedForReview: data.predictionValidation.flaggedForReview ?? false,
+        overallError: data.predictionValidation.overallError ?? 0,
+        validatedAt: toDate(data.predictionValidation.validatedAt),
+      }
+    : undefined,
 });
 
 const deserializeComment = (id: string, data: any): Comment => ({
@@ -208,6 +230,18 @@ export const chirpService = {
       discussionQuality?: DiscussionQuality;
       factCheckingStatus?: 'pending' | 'in_progress' | 'completed' | 'failed' | null;
       factCheckingStartedAt?: Date | null;
+      predictedEngagement?: {
+        expectedViews7d: number;
+        expectedBookmarks7d: number;
+        expectedRechirps7d: number;
+        expectedComments7d: number;
+        predictedAt: Date;
+      };
+      predictionValidation?: {
+        flaggedForReview: boolean;
+        overallError: number;
+        validatedAt: Date;
+      };
     }
   ): Promise<void> {
     const updates: Record<string, any> = {};
@@ -239,6 +273,22 @@ export const chirpService = {
     }
     if (insights.discussionQuality !== undefined && insights.discussionQuality !== null) {
       updates.discussionQuality = serializeDiscussionQuality(insights.discussionQuality);
+    }
+    if (insights.predictedEngagement !== undefined && insights.predictedEngagement !== null) {
+      updates.predictedEngagement = {
+        expectedViews7d: insights.predictedEngagement.expectedViews7d,
+        expectedBookmarks7d: insights.predictedEngagement.expectedBookmarks7d,
+        expectedRechirps7d: insights.predictedEngagement.expectedRechirps7d,
+        expectedComments7d: insights.predictedEngagement.expectedComments7d,
+        predictedAt: Timestamp.fromDate(toDate(insights.predictedEngagement.predictedAt)),
+      };
+    }
+    if (insights.predictionValidation !== undefined && insights.predictionValidation !== null) {
+      updates.predictionValidation = {
+        flaggedForReview: insights.predictionValidation.flaggedForReview,
+        overallError: insights.predictionValidation.overallError,
+        validatedAt: Timestamp.fromDate(toDate(insights.predictionValidation.validatedAt)),
+      };
     }
 
     const cleanedUpdates = cleanUndefined(updates);
