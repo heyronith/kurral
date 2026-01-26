@@ -145,7 +145,7 @@ const BetaSignupModal = ({ open, onClose }: BetaSignupModalProps) => {
                     </div>
                     <div>
                       <p className="font-medium text-white">Early Access Launch</p>
-                      <p className="text-sm text-white/60">You'll get an invite when we open on <span className="text-accentLight font-semibold">Jan 5, 2026</span>.</p>
+                      <p className="text-sm text-white/60">You'll get an invite when we open.</p>
                     </div>
                   </div>
 
