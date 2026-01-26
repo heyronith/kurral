@@ -11,21 +11,21 @@ const AudienceTargetingDemo = () => {
   const [showCursor, setShowCursor] = useState(true);
   const [showClickCursor, setShowClickCursor] = useState(false);
   const [showNodes, setShowNodes] = useState(false);
-  
+
   const fullText = 'Latest policy analysis: The new healthcare bill addresses key gaps in coverage. Here\'s what it means for small businesses...';
   const typingSpeed = 30;
-  
+
   const audiences = [
     { id: 'followers', label: 'Followers' },
     { id: 'politics', label: 'Politics' },
     { id: 'policy', label: 'Policy' },
     { id: 'news', label: 'News' },
   ];
-  
+
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
     let currentIndex = 0;
-    
+
     const cycle = () => {
       // Stage 1: Typing the post
       setStage('typing');
@@ -35,7 +35,7 @@ const AudienceTargetingDemo = () => {
       setShowClickCursor(false);
       setShowNodes(false);
       currentIndex = 0;
-      
+
       const typeText = () => {
         if (currentIndex < fullText.length) {
           setDisplayedText(fullText.slice(0, currentIndex + 1));
@@ -47,21 +47,21 @@ const AudienceTargetingDemo = () => {
             setShowCursor(false);
             setStage('selecting');
             setShowClickCursor(true);
-            
+
             // After click animation, show post button
             setTimeout(() => {
               setShowClickCursor(false);
               setStage('posting');
-              
+
               // After posting, analyze
               setTimeout(() => {
                 setStage('analyzing');
-                
+
                 // Start analyzing
                 setTimeout(() => {
                   setStage('targeting');
                   setShowNodes(true);
-                  
+
                   // Activate audiences one by one
                   const activateAudiences = () => {
                     setActiveAudiences(['followers']);
@@ -70,7 +70,7 @@ const AudienceTargetingDemo = () => {
                     setTimeout(() => {
                       setActiveAudiences(['followers', 'politics', 'policy', 'news']);
                       setStage('complete');
-                      
+
                       // Reset after showing complete
                       setTimeout(() => {
                         cycle();
@@ -84,24 +84,23 @@ const AudienceTargetingDemo = () => {
           }, 1000);
         }
       };
-      
+
       typeText();
     };
-    
+
     cycle();
-    
+
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [fullText]);
-  
+
   return (
     <div className="relative w-full flex items-center justify-center py-4">
       <div className="relative w-full max-w-sm space-y-2">
         {/* Compact post card - moves up when nodes appear */}
-        <div className={`rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 space-y-2 transition-all duration-700 ease-out ${
-          showNodes ? '-translate-y-6' : ''
-        }`}>
+        <div className={`rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 space-y-2 transition-all duration-700 ease-out ${showNodes ? '-translate-y-6' : ''
+          }`}>
           {/* Post header */}
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-accent/20 border border-accent flex items-center justify-center text-[10px] font-semibold text-accent">
@@ -119,7 +118,7 @@ const AudienceTargetingDemo = () => {
               <span className="text-[9px] font-medium text-red-400">#politics</span>
             </div>
           </div>
-          
+
           {/* Post content with typing */}
           <div className="text-[11px] text-textPrimary leading-relaxed min-h-[2rem]">
             {displayedText}
@@ -127,24 +126,22 @@ const AudienceTargetingDemo = () => {
               <span className="inline-block w-0.5 h-3 bg-accent ml-1 animate-pulse" />
             )}
           </div>
-          
+
           {/* Reach selector and Post button - always visible */}
           <div className="flex items-center justify-between pt-1.5 border-t border-white/10 transition-all duration-300">
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] text-textMuted">Reach:</span>
               <div className="flex gap-1">
-                <button className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${
-                  stage === 'selecting' || stage === 'posting' || stage === 'analyzing' || stage === 'targeting' || stage === 'complete'
-                    ? 'bg-white/5 text-textMuted border border-white/10'
-                    : 'bg-accent/10 text-accent border border-accent/30'
-                }`}>
+                <button className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${stage === 'selecting' || stage === 'posting' || stage === 'analyzing' || stage === 'targeting' || stage === 'complete'
+                  ? 'bg-white/5 text-textMuted border border-white/10'
+                  : 'bg-accent/10 text-accent border border-accent/30'
+                  }`}>
                   For All
                 </button>
-                <button className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all relative ${
-                  stage === 'selecting' || stage === 'posting' || stage === 'analyzing' || stage === 'targeting' || stage === 'complete'
-                    ? 'bg-accent/20 text-accent border-2 border-accent shadow-md shadow-accent/20 scale-105'
-                    : 'bg-white/5 text-textMuted border border-white/10'
-                }`}>
+                <button className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all relative ${stage === 'selecting' || stage === 'posting' || stage === 'analyzing' || stage === 'targeting' || stage === 'complete'
+                  ? 'bg-accent/20 text-accent border-2 border-accent shadow-md shadow-accent/20 scale-105'
+                  : 'bg-white/5 text-textMuted border border-white/10'
+                  }`}>
                   Tuned
                   {/* Click cursor animation */}
                   {showClickCursor && (
@@ -153,19 +150,18 @@ const AudienceTargetingDemo = () => {
                 </button>
               </div>
             </div>
-            
+
             {/* Post button - always visible */}
-            <button className={`px-3 py-1 rounded-lg text-[10px] font-semibold transition-all duration-300 ${
-              stage === 'posting'
-                ? 'bg-accent text-white shadow-lg shadow-accent/30 scale-105'
-                : showNodes
+            <button className={`px-3 py-1 rounded-lg text-[10px] font-semibold transition-all duration-300 ${stage === 'posting'
+              ? 'bg-accent text-white shadow-lg shadow-accent/30 scale-105'
+              : showNodes
                 ? 'bg-accent/20 text-accent border border-accent/30'
                 : 'bg-white/5 text-textMuted border border-white/10'
-            }`}>
+              }`}>
               {showNodes ? 'Posted' : 'Post'}
             </button>
           </div>
-          
+
           {/* Analysis indicator */}
           {stage === 'analyzing' && (
             <div className="flex items-center gap-1.5 pt-1.5 border-t border-white/10 animate-fadeIn">
@@ -177,7 +173,7 @@ const AudienceTargetingDemo = () => {
               <span className="text-[9px] text-textMuted">Analyzing content...</span>
             </div>
           )}
-          
+
           {/* Complete indicator */}
           {stage === 'complete' && (
             <div className="flex items-center gap-1.5 pt-1.5 border-t border-white/10 animate-fadeIn">
@@ -188,49 +184,45 @@ const AudienceTargetingDemo = () => {
             </div>
           )}
         </div>
-        
+
         {/* Compact audience nodes - only show after analysis */}
         {showNodes && (
           <div className="relative animate-fadeIn">
             {/* Connection line */}
             <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-4 bg-gradient-to-b from-accent/30 to-transparent" />
-            
+
             {/* Audience grid - 2x2 */}
             <div className="grid grid-cols-2 gap-2 pt-3">
               {audiences.map((audience, index) => {
                 const isActive = activeAudiences.includes(audience.id);
                 const delay = index * 150;
-                
+
                 return (
                   <div
                     key={audience.id}
-                    className={`flex flex-col items-center gap-1 transition-all duration-600 ease-out ${
-                      isActive ? 'opacity-100 scale-100' : 'opacity-20 scale-90'
-                    }`}
-                    style={{ 
+                    className={`flex flex-col items-center gap-1 transition-all duration-600 ease-out ${isActive ? 'opacity-100 scale-100' : 'opacity-20 scale-90'
+                      }`}
+                    style={{
                       transitionDelay: isActive ? `${delay}ms` : '0ms',
                       transform: isActive ? 'translateY(0)' : 'translateY(8px)'
                     }}
                   >
                     {/* Connection line */}
-                    <div className={`w-0.5 h-4 transition-all duration-600 ${
-                      isActive 
-                        ? 'bg-gradient-to-b from-accent to-accent/50' 
-                        : 'bg-gradient-to-b from-white/10 to-transparent'
-                    }`} />
-                    
+                    <div className={`w-0.5 h-4 transition-all duration-600 ${isActive
+                      ? 'bg-gradient-to-b from-accent to-accent/50'
+                      : 'bg-gradient-to-b from-white/10 to-transparent'
+                      }`} />
+
                     {/* Audience node */}
-                    <div className={`relative w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center transition-all duration-600 ease-out ${
-                      isActive
-                        ? 'bg-accent/20 border-accent shadow-md shadow-accent/20 scale-105'
-                        : 'bg-white/5 border-white/10'
-                    }`}>
-                      <span className={`text-[9px] font-medium text-center transition-colors duration-500 ${
-                        isActive ? 'text-accent' : 'text-textMuted'
+                    <div className={`relative w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center transition-all duration-600 ease-out ${isActive
+                      ? 'bg-accent/20 border-accent shadow-md shadow-accent/20 scale-105'
+                      : 'bg-white/5 border-white/10'
                       }`}>
+                      <span className={`text-[9px] font-medium text-center transition-colors duration-500 ${isActive ? 'text-accent' : 'text-textMuted'
+                        }`}>
                         {audience.label}
                       </span>
-                      
+
                       {/* Active indicator */}
                       {isActive && (
                         <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-black flex items-center justify-center animate-scaleIn">
@@ -251,147 +243,122 @@ const AudienceTargetingDemo = () => {
   );
 };
 
-// Value-Based Monetization Dashboard Demo - Clean & Compact
-const ValueBasedMonetizationDemo = () => {
-  const [kurralScore, setKurralScore] = useState(0);
-  const [totalPosts, setTotalPosts] = useState(0);
-  const [avgPostValue, setAvgPostValue] = useState(0);
-  const [totalComments, setTotalComments] = useState(0);
-  const [avgDiscussionQuality, setAvgDiscussionQuality] = useState(0);
+// 5-Dimensional Value Vector Demo
+const ValueDimensionsDemo = () => {
+  const [dimensions, setDimensions] = useState({
+    epistemic: { score: 0, label: 'Epistemic Rigor', color: 'bg-blue-500' },
+    insight: { score: 0, label: 'Insight', color: 'bg-purple-500' },
+    practical: { score: 0, label: 'Practicality', color: 'bg-emerald-500' },
+    relational: { score: 0, label: 'Relational', color: 'bg-rose-500' },
+    effort: { score: 0, label: 'Effort', color: 'bg-amber-500' },
+  });
+  const [isScanning, setIsScanning] = useState(true);
+  const [totalScore, setTotalScore] = useState(0);
 
   useEffect(() => {
-    let scoreInterval: ReturnType<typeof setInterval>;
-    let metricsInterval: ReturnType<typeof setInterval>;
-    let timeoutIds: ReturnType<typeof setTimeout>[] = [];
+    let interval: ReturnType<typeof setInterval>;
 
-    const cycle = () => {
-      // Reset all values
-      setKurralScore(0);
-      setTotalPosts(0);
-      setAvgPostValue(0);
-      setTotalComments(0);
-      setAvgDiscussionQuality(0);
+    const animate = () => {
+      setIsScanning(true);
+      setDimensions(prev => ({
+        epistemic: { ...prev.epistemic, score: 0 },
+        insight: { ...prev.insight, score: 0 },
+        practical: { ...prev.practical, score: 0 },
+        relational: { ...prev.relational, score: 0 },
+        effort: { ...prev.effort, score: 0 },
+      }));
+      setTotalScore(0);
 
-      // Animate Kurral Score (0 to 82)
-      let currentScore = 0;
-      scoreInterval = setInterval(() => {
-        currentScore += 2.5;
-        if (currentScore >= 82) {
-          clearInterval(scoreInterval);
-          setKurralScore(82);
-          
-          // After score completes, animate KPIs
-          const timeout1 = setTimeout(() => {
-            let currentPosts = 0;
-            let currentAvgValue = 0;
-            let currentComments = 0;
-            let currentQuality = 0;
+      // Scanning phase
+      setTimeout(() => {
+        setIsScanning(false);
 
-            metricsInterval = setInterval(() => {
-              currentPosts += 1.2;
-              currentAvgValue += 0.8;
-              currentComments += 0.6;
-              currentQuality += 0.5;
+        // Animate bars filling up
+        const targets = {
+          epistemic: 92,
+          insight: 88,
+          practical: 75,
+          relational: 95,
+          effort: 85
+        };
 
-              if (currentPosts >= 47) {
-                clearInterval(metricsInterval);
-                setTotalPosts(47);
-                setAvgPostValue(72);
-                setTotalComments(23);
-                setAvgDiscussionQuality(68);
-                
-                // Reset after showing complete metrics
-                const timeout2 = setTimeout(() => {
-                  cycle();
-                }, 3000);
-                timeoutIds.push(timeout2);
-              } else {
-                setTotalPosts(Math.round(currentPosts));
-                setAvgPostValue(Math.round(currentAvgValue));
-                setTotalComments(Math.round(currentComments));
-                setAvgDiscussionQuality(Math.round(currentQuality));
-              }
-            }, 30);
-          }, 800);
-          timeoutIds.push(timeout1);
-        } else {
-          setKurralScore(currentScore);
-        }
-      }, 20);
+        let progress = 0;
+        interval = setInterval(() => {
+          progress += 2;
+          const factor = progress / 100;
+
+          if (progress <= 100) {
+            setDimensions(prev => ({
+              epistemic: { ...prev.epistemic, score: targets.epistemic * factor },
+              insight: { ...prev.insight, score: targets.insight * factor },
+              practical: { ...prev.practical, score: targets.practical * factor },
+              relational: { ...prev.relational, score: targets.relational * factor },
+              effort: { ...prev.effort, score: targets.effort * factor },
+            }));
+
+            // Weighted average for total
+            setTotalScore(
+              (targets.epistemic * 0.3 +
+                targets.insight * 0.25 +
+                targets.practical * 0.2 +
+                targets.relational * 0.15 +
+                targets.effort * 0.1) * factor
+            );
+          } else {
+            clearInterval(interval);
+            setTimeout(animate, 3000);
+          }
+        }, 20);
+      }, 1000);
     };
 
-    cycle();
-
-    return () => {
-      if (scoreInterval) clearInterval(scoreInterval);
-      if (metricsInterval) clearInterval(metricsInterval);
-      timeoutIds.forEach(id => clearTimeout(id));
-    };
+    animate();
+    return () => clearInterval(interval);
   }, []);
-
-  const getScoreColor = (score: number) => {
-    if (score >= 88) return 'bg-green-500';
-    if (score >= 77) return 'bg-blue-500';
-    if (score >= 65) return 'bg-yellow-500';
-    if (score >= 53) return 'bg-orange-500';
-    return 'bg-red-500';
-  };
 
   return (
     <div className="relative w-full flex items-center justify-center py-4">
-      <div className="relative w-full max-w-sm space-y-4">
-        {/* Kurral Score - Dotted Format */}
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${getScoreColor(kurralScore)} transition-colors duration-300`}></div>
-            <span className="text-[10px] font-medium text-textMuted uppercase tracking-wide">Kural Score</span>
-          </div>
-          
-          {/* Dotted Score Display */}
+      <div className="relative w-full max-w-sm">
+        <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5 space-y-5">
+          {/* Header */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              {[1, 2, 3, 4, 5].map((level) => {
-                const threshold = level * 20;
-                const isActive = kurralScore >= threshold - 20;
-                return (
-                  <div
-                    key={level}
-                    className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                      isActive
-                        ? `${getScoreColor(kurralScore)} shadow-sm`
-                        : 'bg-white/10'
-                    }`}
-                  />
-                );
-              })}
-            </div>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-accent">{Math.round(kurralScore)}</span>
-              {kurralScore >= 77 && (
-                <div className="flex items-center gap-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                  <div className="w-1 h-1 rounded-full bg-green-400"></div>
-                </div>
-              )}
+              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+              <span className="text-xs font-medium text-accent uppercase tracking-wider">Value Analysis</span>
+            </div>
+            <div className="text-2xl font-bold text-white">
+              {Math.round(totalScore)}<span className="text-sm text-textMuted font-normal">/100</span>
             </div>
           </div>
-        </div>
 
-        {/* Compact KPIs Grid */}
-        {kurralScore > 0 && (
-          <div className="grid grid-cols-2 gap-3 animate-fadeIn">
-            <div className="space-y-0.5">
-              <div className="text-[9px] text-textMuted">Posts</div>
-              <div className="text-xl font-bold text-textPrimary">{totalPosts}</div>
-              <div className="text-[9px] text-accent/80">Avg: {avgPostValue}</div>
-            </div>
-            <div className="space-y-0.5">
-              <div className="text-[9px] text-textMuted">Comments</div>
-              <div className="text-xl font-bold text-textPrimary">{totalComments}</div>
-              <div className="text-[9px] text-accent/80">Quality: {avgDiscussionQuality}%</div>
-            </div>
+          {/* Dimensions Grid */}
+          <div className="space-y-3">
+            {Object.entries(dimensions).map(([key, data]) => (
+              <div key={key} className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] uppercase tracking-wide font-medium">
+                  <span className="text-textMuted">{data.label}</span>
+                  <span className="text-textPrimary">{Math.round(data.score)}%</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${data.color}`}
+                    style={{ width: `${data.score}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+
+          {/* Scanning Overlay */}
+          {isScanning && (
+            <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm rounded-xl flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-medium text-accent animate-pulse">Analyzing Content...</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -403,16 +370,16 @@ const TypingAnimation = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isTyping, setIsTyping] = useState(true);
   const [showProcessing, setShowProcessing] = useState(false);
-  
-  const fullText = 'Show more posts about AI and startups';
+
+  const fullText = 'Prioritize high insight & verified facts about AI';
   const typingSpeed = 40; // milliseconds per character
-  
+
   useEffect(() => {
     if (!isTyping || showSuccess) return;
-    
+
     let timeoutId: ReturnType<typeof setTimeout>;
     let currentIndex = 0;
-    
+
     const typeText = () => {
       if (currentIndex < fullText.length) {
         setDisplayedText(fullText.slice(0, currentIndex + 1));
@@ -437,14 +404,14 @@ const TypingAnimation = () => {
         }, 800);
       }
     };
-    
+
     typeText();
-    
+
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [isTyping, showSuccess, fullText]);
-  
+
   return (
     <div className="relative w-full flex items-center justify-center py-4">
       <div className="relative w-full max-w-sm space-y-2.5">
@@ -452,7 +419,7 @@ const TypingAnimation = () => {
         <div className="rounded-xl border border-accent/40 bg-gradient-to-br from-accent/10 via-accent/5 to-transparent backdrop-blur-xl p-4 space-y-3 shadow-lg shadow-accent/10 relative overflow-hidden">
           {/* Animated background gradient */}
           <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-accent/10 opacity-50 animate-pulse" />
-          
+
           {/* Header with icon */}
           <div className="flex items-center gap-2 relative z-10">
             <div className="p-1.5 rounded-lg bg-accent/20 border border-accent/30">
@@ -464,14 +431,13 @@ const TypingAnimation = () => {
               <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">Experience Control</span>
             </div>
           </div>
-          
+
           {/* Input field with modern styling */}
           <div className="relative z-10">
-            <div className={`w-full rounded-lg bg-white/5 border-2 transition-all duration-300 px-3 py-2.5 pr-10 text-xs text-textPrimary min-h-[40px] flex items-center ${
-              showProcessing
-                ? 'border-accent/50 bg-accent/10 shadow-lg shadow-accent/20'
-                : 'border-accent/30 hover:border-accent/50'
-            }`}>
+            <div className={`w-full rounded-lg bg-white/5 border-2 transition-all duration-300 px-3 py-2.5 pr-10 text-xs text-textPrimary min-h-[40px] flex items-center ${showProcessing
+              ? 'border-accent/50 bg-accent/10 shadow-lg shadow-accent/20'
+              : 'border-accent/30 hover:border-accent/50'
+              }`}>
               {showProcessing ? (
                 <div className="flex items-center gap-2 w-full">
                   <div className="flex gap-1">
@@ -499,7 +465,7 @@ const TypingAnimation = () => {
               )}
             </div>
           </div>
-          
+
           {/* Success notification - appears below input */}
           {showSuccess && (
             <div className="relative z-20 animate-slideUp">
@@ -511,13 +477,13 @@ const TypingAnimation = () => {
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-green-400">Your custom experience is ready</div>
+                  <div className="text-xs font-semibold text-green-400">Value Filter Updated</div>
                   <div className="text-[10px] text-green-500/70 mt-0.5">Experience updated • Algorithm adjusted</div>
                 </div>
               </div>
             </div>
           )}
-          
+
           {/* Example commands with hover effects */}
           <div className="space-y-1.5 pt-2 border-t border-white/10 relative z-10">
             <div className="text-[10px] text-textMuted mb-2 font-medium">Try these commands:</div>
@@ -543,7 +509,7 @@ const TypingAnimation = () => {
 // Transparent by Design Demo - Shows why posts appear
 const TransparencyDemo = () => {
   const [activePost, setActivePost] = useState(0);
-  
+
   const posts = [
     {
       author: 'Sarah Chen',
@@ -567,16 +533,16 @@ const TransparencyDemo = () => {
       icon: '💬',
     },
   ];
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       setActivePost((prev) => (prev + 1) % posts.length);
     }, 3000);
     return () => clearInterval(interval);
   }, [posts.length]);
-  
+
   const currentPost = posts[activePost];
-  
+
   return (
     <div className="relative w-full flex items-center justify-center py-4">
       <div className="relative w-full max-w-sm space-y-3">
@@ -594,13 +560,13 @@ const TransparencyDemo = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Post content */}
           <div className="text-[11px] text-textPrimary leading-relaxed">
             {currentPost.text}
           </div>
         </div>
-        
+
         {/* Transparency explanation */}
         <div className="animate-fadeIn">
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-accent/10 border border-accent/30">
@@ -613,7 +579,7 @@ const TransparencyDemo = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Data ownership badge */}
         <div className="flex items-center justify-center gap-4 pt-2">
           <div className="flex items-center gap-1.5">
@@ -649,16 +615,16 @@ const TruthIntelligenceDemo = () => {
       const timeout1 = setTimeout(() => {
         setStage('checking');
         setShowSourceCheck(true);
-        
+
         const timeout2 = setTimeout(() => {
           setShowClaimCheck(true);
-          
+
           const timeout3 = setTimeout(() => {
             setShowContextCheck(true);
-            
+
             const timeout4 = setTimeout(() => {
               setStage('blocked');
-              
+
               // Reset after showing blocked
               const timeout5 = setTimeout(() => {
                 cycle();
@@ -686,11 +652,10 @@ const TruthIntelligenceDemo = () => {
       <div className="relative w-full max-w-sm">
         <div className="space-y-4">
           {/* Post being verified */}
-          <div className={`relative p-3 rounded-xl border backdrop-blur-sm transition-all duration-300 ${
-            stage === 'blocked' 
-              ? 'border-red-500/50 bg-red-500/10' 
-              : 'border-white/10 bg-white/5'
-          }`}>
+          <div className={`relative p-3 rounded-xl border backdrop-blur-sm transition-all duration-300 ${stage === 'blocked'
+            ? 'border-red-500/50 bg-red-500/10'
+            : 'border-white/10 bg-white/5'
+            }`}>
             <div className="flex items-start justify-between mb-2">
               <div className="text-[10px] text-textMuted">New post</div>
               <div className="flex items-center gap-1.5">
@@ -768,7 +733,7 @@ const TruthIntelligenceDemo = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Blocked badge */}
           {stage === 'blocked' && (
             <div className="flex items-center justify-center animate-fadeIn">
@@ -788,62 +753,62 @@ const TruthIntelligenceDemo = () => {
 
 const pillars = [
   {
+    id: 'value',
+    title: 'The Value Standard',
+    tagline: 'Measure what matters',
+    description: 'We don\'t just "like" content. We measure it. Our open-source Value Vector scores every post on 5 dimensions: Epistemic Rigor, Insight, Practicality, Relational Quality, and Effort. You see the score before you read. The result? A feed filled with deep insights, not shallow clickbait.',
+    visual: <ValueDimensionsDemo />,
+    demo: true,
+  },
+  {
     id: 'control',
     title: 'Your Experience, Your Control',
     tagline: 'Stop fighting the feed',
-    description: 'Other platforms decide what you see. You don\'t. On Kural, talk to your feed in plain English. Type "show more AI posts" or "mute politics" - it just works. Every post shows why it appeared, so you always know what\'s driving your feed. No black boxes. No hidden manipulation.',
+    description: 'Other platforms decide what you see based on what keeps you addicted. On Kural, you set the parameters. Tell your feed: "Prioritize high-rigor science posts" or "Show me novel tech insights." You are the active supply-chain manager of your own attention.',
     visual: <TypingAnimation />,
     demo: true,
   },
   {
-    id: 'audience',
-    title: 'Audience Tuning',
-    tagline: 'Stop shouting into the void',
-    description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts - and they guess wrong. On Kural, AI analyzes your content and matches it to users whose profiles align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
-    visual: <AudienceTargetingDemo />,
-    demo: true,
-  },
-  {
-    id: 'monetization',
-    title: 'Value over Views',
-    tagline: 'Get recognized for what matters',
-    description: 'Other platforms reward views. Clickbait wins. On Kural, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kural Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. Rage-bait doesn\'t.',
-    visual: <ValueBasedMonetizationDemo />,
-    demo: true,
-  },
-  {
-    id: 'factcheck',
+    id: 'truth',
     title: 'Truth Intelligence',
     tagline: 'Trust what you read',
-    description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kural, Truth Intelligence verifies every post before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
+    description: 'In an era of AI sludge, truth is the ultimate luxury. Kural verifies factual claims in real-time. Falsehoods are blocked. Sources are cited. You can finally trust the words on your screen because they\'ve passed an epistemic firewall.',
     visual: <TruthIntelligenceDemo />,
     demo: true,
   },
   {
+    id: 'audience',
+    title: 'Intent Matching',
+    tagline: 'Audience tuning, not targeting',
+    description: 'Stop shouting into the void. Kural matches your high-value content with the specific people who need that exact insight. It\'s not about "going viral." It\'s about "going vital"—reaching the 1,000 people for whom your work is indispensable.',
+    visual: <AudienceTargetingDemo />,
+    demo: true,
+  },
+  {
     id: 'transparency',
-    title: 'Transparent by Design',
-    tagline: 'Your data, your rules',
-    description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kural, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Social media that works for you, not against you.',
+    title: 'Radical Transparency',
+    tagline: 'No black boxes',
+    description: 'We believe you have a right to know why you see what you see. Every recommendation comes with a "Why." Every algorithm is explainable. Your data is yours. We optimize for your intellect, not your dopamine.',
     visual: <TransparencyDemo />,
     demo: true,
   },
 ];
 
-const ValuePropositionSection = ({}: ValuePropositionSectionProps) => {
+const ValuePropositionSection = ({ }: ValuePropositionSectionProps) => {
   const [activeTab, setActiveTab] = useState(0);
 
   return (
     <section id="how-it-works" className="section-container py-20 md:py-32">
       <div className="max-w-6xl mx-auto space-y-12">
-          {/* Header */}
-          <div className="text-center space-y-4">
+        {/* Header */}
+        <div className="text-center space-y-4">
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-textPrimary">
             Why{' '}
-              <span className="bg-gradient-to-r from-primary via-accent to-accentSecondary bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-primary via-accent to-accentSecondary bg-clip-text text-transparent">
               Kural
             </span>{' '}
             is different
-            </h2>
+          </h2>
           <p className="text-base md:text-lg text-textMuted max-w-xl mx-auto">
             Stop fighting the feed. Start getting what you actually want.
           </p>
@@ -857,11 +822,10 @@ const ValuePropositionSection = ({}: ValuePropositionSectionProps) => {
               <button
                 key={pillar.id}
                 onClick={() => setActiveTab(index)}
-                className={`px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${
-                  activeTab === index
-                    ? 'bg-gradient-to-r from-primary to-accent text-white shadow-lg shadow-primary/20 scale-105'
-                    : 'bg-white/5 text-textMuted hover:bg-white/10 hover:text-textPrimary border border-white/10'
-                }`}
+                className={`px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${activeTab === index
+                  ? 'bg-gradient-to-r from-primary to-accent text-white shadow-lg shadow-primary/20 scale-105'
+                  : 'bg-white/5 text-textMuted hover:bg-white/10 hover:text-textPrimary border border-white/10'
+                  }`}
               >
                 {pillar.title}
               </button>
@@ -873,11 +837,10 @@ const ValuePropositionSection = ({}: ValuePropositionSectionProps) => {
             {pillars.map((pillar, index) => (
               <div
                 key={pillar.id}
-                className={`absolute inset-0 transition-all duration-500 ${
-                  activeTab === index
-                    ? 'opacity-100 translate-y-0 pointer-events-auto'
-                    : 'opacity-0 translate-y-4 pointer-events-none'
-                }`}
+                className={`absolute inset-0 transition-all duration-500 ${activeTab === index
+                  ? 'opacity-100 translate-y-0 pointer-events-auto'
+                  : 'opacity-0 translate-y-4 pointer-events-none'
+                  }`}
               >
                 <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-center">
                   {/* Visual side */}
@@ -895,11 +858,11 @@ const ValuePropositionSection = ({}: ValuePropositionSectionProps) => {
                       </div>
                       <h3 className="text-2xl md:text-3xl font-bold text-textPrimary mb-3">
                         {pillar.title}
-                  </h3>
+                      </h3>
                       <p className="text-base md:text-lg text-textMuted leading-relaxed">
                         {pillar.description}
                       </p>
-                </div>
+                    </div>
                   </div>
                 </div>
               </div>

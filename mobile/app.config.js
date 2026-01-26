@@ -2,7 +2,7 @@ require('dotenv').config();
 
 module.exports = {
   expo: {
-    name: 'mobile',
+    name: 'Kural',
     slug: 'mobile',
     version: '1.0.0',
     orientation: 'portrait',
@@ -13,10 +13,25 @@ module.exports = {
       resizeMode: 'contain',
       backgroundColor: '#ffffff',
     },
+    plugins: [
+      'expo-web-browser',
+    ],
     ios: {
+      bundleIdentifier: 'com.kural.mobile',
       supportsTablet: true,
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+        CFBundleURLTypes: [
+          {
+            CFBundleURLSchemes: [
+              'com.googleusercontent.apps.679170031454-42298smr8jjo3nu17va5nhdrcag9raoj',
+            ],
+          },
+        ],
+      },
     },
     android: {
+      package: 'com.kural.mobile',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',

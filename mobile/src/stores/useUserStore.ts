@@ -32,16 +32,9 @@ export const useUserStore = create<UserState>((set, get) => ({
     const cached = get().users[userId];
     if (cached) return cached;
 
-    // Check if current user matches
+    // Check if current user matches (return without updating cache to avoid setState during render)
     const currentUser = useAuthStore.getState().user;
     if (currentUser?.id === userId) {
-      // Add to cache if not already there
-      if (!get().users[userId]) {
-        set((state) => ({
-          users: { ...state.users, [userId]: currentUser },
-          userFetchTimestamps: { ...state.userFetchTimestamps, [userId]: Date.now() },
-        }));
-      }
       return currentUser;
     }
 

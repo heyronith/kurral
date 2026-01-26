@@ -41,6 +41,9 @@ const Stack = createNativeStackNavigator<OnboardingStackParamList>();
 
 const OnboardingNavigator = () => {
   const { user, setUser } = useAuthStore();
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/navigation/OnboardingNavigator.tsx:43',message:'OnboardingNavigator mounting',data:{hasUser: !!user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'nav-render'})}).catch(()=>{});
+  // #endregion
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({
     displayName: user?.name || user?.displayName || '',
     handle: user?.handle || '',

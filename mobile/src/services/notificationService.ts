@@ -142,21 +142,22 @@ export const notificationService = {
     const { read = null, type, limitCount = 50 } = options;
     
     try {
-      const constraints: any[] = [
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
-      ];
+      // Build constraints with all filters first, then ordering/limit
+      const constraints: any[] = [where('userId', '==', userId)];
       
       if (read !== null) {
         constraints.push(where('read', '==', read));
       }
       
       if (type) {
-        constraints.splice(constraints.length - 1, 0, where('type', '==', type));
+        constraints.push(where('type', '==', type));
       }
       
       // Always filter out dismissed
       constraints.push(where('dismissed', '==', false));
+
+      // Order must come after filters for Firestore
+      constraints.push(orderBy('createdAt', 'desc'));
       constraints.push(limit(limitCount));
       
       const q = query(collection(db, 'notifications'), ...constraints);

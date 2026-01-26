@@ -130,20 +130,18 @@ export const notificationService = {
         // Extract options outside try-catch for use in catch block
         const { read = null, type, limitCount = 50 } = options;
         try {
-            const constraints = [
-                where('userId', '==', userId),
-                orderBy('createdAt', 'desc'),
-            ];
+            // Build constraints with filters first, then ordering/limit
+            const constraints = [where('userId', '==', userId)];
             if (read !== null) {
                 constraints.push(where('read', '==', read));
             }
             if (type) {
-                // If type filter is specified, need to filter by type first
-                // Note: Firestore requires single field index, so we'll filter client-side if needed
-                constraints.splice(constraints.length - 1, 0, where('type', '==', type));
+                constraints.push(where('type', '==', type));
             }
             // Always filter out dismissed
             constraints.push(where('dismissed', '==', false));
+            // Order must follow filters for Firestore index expectations
+            constraints.push(orderBy('createdAt', 'desc'));
             constraints.push(limit(limitCount));
             const q = query(collection(db, 'notifications'), ...constraints);
             const snapshot = await getDocs(q);

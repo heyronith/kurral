@@ -34,7 +34,13 @@ const firebaseConfig = {
 };
 
 // Validate config
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/config/firebase.ts:37',message:'Checking firebase config',data:{hasApiKey: !!firebaseConfig.apiKey, hasAuthDomain: !!firebaseConfig.authDomain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'env-vars'})}).catch(()=>{});
+// #endregion
 if (!firebaseConfig.apiKey) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/config/firebase.ts:39',message:'Missing API Key - Throwing Error',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'env-vars'})}).catch(()=>{});
+  // #endregion
   throw new Error(
     'Firebase API key is missing. Please set EXPO_PUBLIC_FIREBASE_API_KEY in your .env file and restart the development server.'
   );

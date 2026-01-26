@@ -32,6 +32,11 @@ const getGreeting = (): string => {
 };
 
 const HomeScreen = () => {
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/screens/Home/HomeScreen.tsx:34',message:'HomeScreen mounted',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'home-render'})}).catch(()=>{});
+  }, []);
+  // #endregion
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
   const { user } = useAuthStore();

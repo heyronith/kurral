@@ -60,9 +60,8 @@ const FAQ = () => {
                 >
                   <h3 className="text-base sm:text-lg font-semibold text-textPrimary pr-4">{faq.question}</h3>
                   <svg
-                    className={`flex-shrink-0 w-5 h-5 text-textMuted transition-transform duration-200 ${
-                      isOpen ? 'rotate-180' : ''
-                    }`}
+                    className={`flex-shrink-0 w-5 h-5 text-textMuted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''
+                      }`}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"

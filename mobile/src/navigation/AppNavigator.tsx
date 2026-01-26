@@ -193,7 +193,12 @@ const MainTabs = () => {
 );
 };
 
-const AppNavigator = () => <MainTabs />;
+const AppNavigator = () => {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/navigation/AppNavigator.tsx:196',message:'AppNavigator mounting',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'nav-render'})}).catch(()=>{});
+  // #endregion
+  return <MainTabs />;
+};
 
 export default AppNavigator;
 

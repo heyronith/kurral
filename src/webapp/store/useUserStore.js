@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { userService } from '../lib/firestore';
+import { userService, chirpService } from '../lib/firestore';
 import { notificationService } from '../lib/services/notificationService';
 const USER_CACHE_TTL_MS = 5 * 60 * 1000;
 export const useUserStore = create((set, get) => ({
@@ -153,6 +153,10 @@ export const useUserStore = create((set, get) => ({
             // Persist to Firestore
             try {
                 await userService.updateBookmarks(currentUser.id, newBookmarks);
+                // Update bookmark count on chirp (non-blocking)
+                chirpService.updateBookmarkCount(chirpId, 1).catch(error => {
+                    console.error('Error updating bookmark count:', error);
+                });
                 // Update cache
                 set((state) => ({
                     users: {
@@ -193,6 +197,10 @@ export const useUserStore = create((set, get) => ({
         // Persist to Firestore
         try {
             await userService.updateBookmarks(currentUser.id, newBookmarks);
+            // Update bookmark count on chirp (non-blocking)
+            chirpService.updateBookmarkCount(chirpId, -1).catch(error => {
+                console.error('Error updating bookmark count:', error);
+            });
             // Update cache
             set((state) => ({
                 users: {

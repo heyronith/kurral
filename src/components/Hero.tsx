@@ -16,7 +16,8 @@ const Hero = ({ onGetStartedClick }: HeroProps) => {
 
         {/* Subhead - Single scannable line */}
         <p className="text-lg sm:text-xl md:text-2xl text-textMuted max-w-2xl mx-auto">
-          Control what you see. Trust what you read. Get recognized for quality, not clicks.
+          The first platform that measures <strong>Insight</strong>, <strong>Rigor</strong>, and <strong>Utility</strong>.
+          We replaced the popularity contest with a value system.
         </p>
 
         {/* CTAs */}

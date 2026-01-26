@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -491,7 +491,7 @@ const SearchScreen = () => {
     );
   };
 
-  const renderChirpResult = ({ item }: { item: typeof results[0] }) => (
+  const renderChirpResult = useCallback(({ item }: { item: typeof results[0] }) => (
     <View>
       <View style={dynamicStyles.resultHeader}>
         <Text style={dynamicStyles.resultHeaderText}>
@@ -500,13 +500,13 @@ const SearchScreen = () => {
       </View>
       <ChirpCard chirp={item.chirp} />
     </View>
-  );
+  ), [dynamicStyles]);
 
-  const renderUserResult = ({ item }: { item: typeof userResults[0] }) => (
+  const renderUserResult = useCallback(({ item }: { item: typeof userResults[0] }) => (
     <UserSearchResult user={item} />
-  );
+  ), []);
 
-  const renderTopicResult = ({ item }: { item: TopicMetadata }) => (
+  const renderTopicResult = useCallback(({ item }: { item: TopicMetadata }) => (
     <TouchableOpacity
       style={dynamicStyles.topicResult}
       onPress={() => {
@@ -520,7 +520,7 @@ const SearchScreen = () => {
         {item.postsLast48h} posts • {item.totalUsers} users
       </Text>
     </TouchableOpacity>
-  );
+  ), [dynamicStyles, selectTopic, navigation]);
 
   const renderExploreContent = () => (
     <ScrollView style={dynamicStyles.exploreContent} showsVerticalScrollIndicator={false}>
@@ -649,17 +649,17 @@ const SearchScreen = () => {
     );
   };
 
-  const getData = () => {
+  const getData = useCallback(() => {
     if (activeTab === 'kural') return results;
     if (activeTab === 'users') return userResults;
     return topicResults;
-  };
+  }, [activeTab, results, userResults, topicResults]);
 
-  const renderItem = ({ item }: any) => {
+  const renderItem = useCallback(({ item }: any) => {
     if (activeTab === 'kural') return renderChirpResult({ item });
     if (activeTab === 'users') return renderUserResult({ item });
     return renderTopicResult({ item });
-  };
+  }, [activeTab, renderChirpResult, renderUserResult, renderTopicResult]);
 
   return (
     <SafeAreaView style={dynamicStyles.container} edges={['top']}>

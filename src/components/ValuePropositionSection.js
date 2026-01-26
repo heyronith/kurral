@@ -101,96 +101,70 @@ const AudienceTargetingDemo = () => {
                                                 : 'bg-white/5 border-white/10'}`, children: [_jsx("span", { className: `text-[9px] font-medium text-center transition-colors duration-500 ${isActive ? 'text-accent' : 'text-textMuted'}`, children: audience.label }), isActive && (_jsx("div", { className: "absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-black flex items-center justify-center animate-scaleIn", children: _jsx("svg", { className: "w-1.5 h-1.5 text-white", fill: "currentColor", viewBox: "0 0 20 20", children: _jsx("path", { fillRule: "evenodd", d: "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z", clipRule: "evenodd" }) }) }))] })] }, audience.id));
                             }) })] }))] }) }));
 };
-// Value-Based Monetization Dashboard Demo - Clean & Compact
-const ValueBasedMonetizationDemo = () => {
-    const [kurralScore, setKurralScore] = useState(0);
-    const [totalPosts, setTotalPosts] = useState(0);
-    const [avgPostValue, setAvgPostValue] = useState(0);
-    const [totalComments, setTotalComments] = useState(0);
-    const [avgDiscussionQuality, setAvgDiscussionQuality] = useState(0);
+// 5-Dimensional Value Vector Demo
+const ValueDimensionsDemo = () => {
+    const [dimensions, setDimensions] = useState({
+        epistemic: { score: 0, label: 'Epistemic Rigor', color: 'bg-blue-500' },
+        insight: { score: 0, label: 'Insight', color: 'bg-purple-500' },
+        practical: { score: 0, label: 'Practicality', color: 'bg-emerald-500' },
+        relational: { score: 0, label: 'Relational', color: 'bg-rose-500' },
+        effort: { score: 0, label: 'Effort', color: 'bg-amber-500' },
+    });
+    const [isScanning, setIsScanning] = useState(true);
+    const [totalScore, setTotalScore] = useState(0);
     useEffect(() => {
-        let scoreInterval;
-        let metricsInterval;
-        let timeoutIds = [];
-        const cycle = () => {
-            // Reset all values
-            setKurralScore(0);
-            setTotalPosts(0);
-            setAvgPostValue(0);
-            setTotalComments(0);
-            setAvgDiscussionQuality(0);
-            // Animate Kurral Score (0 to 82)
-            let currentScore = 0;
-            scoreInterval = setInterval(() => {
-                currentScore += 2.5;
-                if (currentScore >= 82) {
-                    clearInterval(scoreInterval);
-                    setKurralScore(82);
-                    // After score completes, animate KPIs
-                    const timeout1 = setTimeout(() => {
-                        let currentPosts = 0;
-                        let currentAvgValue = 0;
-                        let currentComments = 0;
-                        let currentQuality = 0;
-                        metricsInterval = setInterval(() => {
-                            currentPosts += 1.2;
-                            currentAvgValue += 0.8;
-                            currentComments += 0.6;
-                            currentQuality += 0.5;
-                            if (currentPosts >= 47) {
-                                clearInterval(metricsInterval);
-                                setTotalPosts(47);
-                                setAvgPostValue(72);
-                                setTotalComments(23);
-                                setAvgDiscussionQuality(68);
-                                // Reset after showing complete metrics
-                                const timeout2 = setTimeout(() => {
-                                    cycle();
-                                }, 3000);
-                                timeoutIds.push(timeout2);
-                            }
-                            else {
-                                setTotalPosts(Math.round(currentPosts));
-                                setAvgPostValue(Math.round(currentAvgValue));
-                                setTotalComments(Math.round(currentComments));
-                                setAvgDiscussionQuality(Math.round(currentQuality));
-                            }
-                        }, 30);
-                    }, 800);
-                    timeoutIds.push(timeout1);
-                }
-                else {
-                    setKurralScore(currentScore);
-                }
-            }, 20);
+        let interval;
+        const animate = () => {
+            setIsScanning(true);
+            setDimensions(prev => ({
+                epistemic: { ...prev.epistemic, score: 0 },
+                insight: { ...prev.insight, score: 0 },
+                practical: { ...prev.practical, score: 0 },
+                relational: { ...prev.relational, score: 0 },
+                effort: { ...prev.effort, score: 0 },
+            }));
+            setTotalScore(0);
+            // Scanning phase
+            setTimeout(() => {
+                setIsScanning(false);
+                // Animate bars filling up
+                const targets = {
+                    epistemic: 92,
+                    insight: 88,
+                    practical: 75,
+                    relational: 95,
+                    effort: 85
+                };
+                let progress = 0;
+                interval = setInterval(() => {
+                    progress += 2;
+                    const factor = progress / 100;
+                    if (progress <= 100) {
+                        setDimensions(prev => ({
+                            epistemic: { ...prev.epistemic, score: targets.epistemic * factor },
+                            insight: { ...prev.insight, score: targets.insight * factor },
+                            practical: { ...prev.practical, score: targets.practical * factor },
+                            relational: { ...prev.relational, score: targets.relational * factor },
+                            effort: { ...prev.effort, score: targets.effort * factor },
+                        }));
+                        // Weighted average for total
+                        setTotalScore((targets.epistemic * 0.3 +
+                            targets.insight * 0.25 +
+                            targets.practical * 0.2 +
+                            targets.relational * 0.15 +
+                            targets.effort * 0.1) * factor);
+                    }
+                    else {
+                        clearInterval(interval);
+                        setTimeout(animate, 3000);
+                    }
+                }, 20);
+            }, 1000);
         };
-        cycle();
-        return () => {
-            if (scoreInterval)
-                clearInterval(scoreInterval);
-            if (metricsInterval)
-                clearInterval(metricsInterval);
-            timeoutIds.forEach(id => clearTimeout(id));
-        };
+        animate();
+        return () => clearInterval(interval);
     }, []);
-    const getScoreColor = (score) => {
-        if (score >= 88)
-            return 'bg-green-500';
-        if (score >= 77)
-            return 'bg-blue-500';
-        if (score >= 65)
-            return 'bg-yellow-500';
-        if (score >= 53)
-            return 'bg-orange-500';
-        return 'bg-red-500';
-    };
-    return (_jsx("div", { className: "relative w-full flex items-center justify-center py-4", children: _jsxs("div", { className: "relative w-full max-w-sm space-y-4", children: [_jsxs("div", { className: "space-y-2.5", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("div", { className: `w-1.5 h-1.5 rounded-full ${getScoreColor(kurralScore)} transition-colors duration-300` }), _jsx("span", { className: "text-[10px] font-medium text-textMuted uppercase tracking-wide", children: "Kural Score" })] }), _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("div", { className: "flex items-center gap-1.5", children: [1, 2, 3, 4, 5].map((level) => {
-                                        const threshold = level * 20;
-                                        const isActive = kurralScore >= threshold - 20;
-                                        return (_jsx("div", { className: `w-2.5 h-2.5 rounded-full transition-all duration-300 ${isActive
-                                                ? `${getScoreColor(kurralScore)} shadow-sm`
-                                                : 'bg-white/10'}` }, level));
-                                    }) }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsx("span", { className: "text-2xl font-bold text-accent", children: Math.round(kurralScore) }), kurralScore >= 77 && (_jsxs("div", { className: "flex items-center gap-0.5", children: [_jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" }), _jsx("div", { className: "w-1 h-1 rounded-full bg-green-400" })] }))] })] })] }), kurralScore > 0 && (_jsxs("div", { className: "grid grid-cols-2 gap-3 animate-fadeIn", children: [_jsxs("div", { className: "space-y-0.5", children: [_jsx("div", { className: "text-[9px] text-textMuted", children: "Posts" }), _jsx("div", { className: "text-xl font-bold text-textPrimary", children: totalPosts }), _jsxs("div", { className: "text-[9px] text-accent/80", children: ["Avg: ", avgPostValue] })] }), _jsxs("div", { className: "space-y-0.5", children: [_jsx("div", { className: "text-[9px] text-textMuted", children: "Comments" }), _jsx("div", { className: "text-xl font-bold text-textPrimary", children: totalComments }), _jsxs("div", { className: "text-[9px] text-accent/80", children: ["Quality: ", avgDiscussionQuality, "%"] })] })] }))] }) }));
+    return (_jsx("div", { className: "relative w-full flex items-center justify-center py-4", children: _jsx("div", { className: "relative w-full max-w-sm", children: _jsxs("div", { className: "rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5 space-y-5", children: [_jsxs("div", { className: "flex items-center justify-between", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("div", { className: "w-2 h-2 rounded-full bg-accent animate-pulse" }), _jsx("span", { className: "text-xs font-medium text-accent uppercase tracking-wider", children: "Value Analysis" })] }), _jsxs("div", { className: "text-2xl font-bold text-white", children: [Math.round(totalScore), _jsx("span", { className: "text-sm text-textMuted font-normal", children: "/100" })] })] }), _jsx("div", { className: "space-y-3", children: Object.entries(dimensions).map(([key, data]) => (_jsxs("div", { className: "space-y-1.5", children: [_jsxs("div", { className: "flex items-center justify-between text-[10px] uppercase tracking-wide font-medium", children: [_jsx("span", { className: "text-textMuted", children: data.label }), _jsxs("span", { className: "text-textPrimary", children: [Math.round(data.score), "%"] })] }), _jsx("div", { className: "h-1.5 bg-white/5 rounded-full overflow-hidden", children: _jsx("div", { className: `h-full rounded-full transition-all duration-300 ${data.color}`, style: { width: `${data.score}%` } }) })] }, key))) }), isScanning && (_jsx("div", { className: "absolute inset-0 z-10 bg-black/50 backdrop-blur-sm rounded-xl flex items-center justify-center", children: _jsxs("div", { className: "flex flex-col items-center gap-3", children: [_jsx("div", { className: "w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" }), _jsx("span", { className: "text-xs font-medium text-accent animate-pulse", children: "Analyzing Content..." })] }) }))] }) }) }));
 };
 // Animated typing component for Algorithm Control
 const TypingAnimation = () => {
@@ -198,7 +172,7 @@ const TypingAnimation = () => {
     const [showSuccess, setShowSuccess] = useState(false);
     const [isTyping, setIsTyping] = useState(true);
     const [showProcessing, setShowProcessing] = useState(false);
-    const fullText = 'Show more posts about AI and startups';
+    const fullText = 'Prioritize high insight & verified facts about AI';
     const typingSpeed = 40; // milliseconds per character
     useEffect(() => {
         if (!isTyping || showSuccess)
@@ -238,7 +212,7 @@ const TypingAnimation = () => {
     }, [isTyping, showSuccess, fullText]);
     return (_jsx("div", { className: "relative w-full flex items-center justify-center py-4", children: _jsx("div", { className: "relative w-full max-w-sm space-y-2.5", children: _jsxs("div", { className: "rounded-xl border border-accent/40 bg-gradient-to-br from-accent/10 via-accent/5 to-transparent backdrop-blur-xl p-4 space-y-3 shadow-lg shadow-accent/10 relative overflow-hidden", children: [_jsx("div", { className: "absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-accent/10 opacity-50 animate-pulse" }), _jsxs("div", { className: "flex items-center gap-2 relative z-10", children: [_jsx("div", { className: "p-1.5 rounded-lg bg-accent/20 border border-accent/30", children: _jsx("svg", { className: "w-3 h-3 text-accent", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" }) }) }), _jsx("div", { children: _jsx("span", { className: "text-[10px] font-semibold text-accent uppercase tracking-wider", children: "Experience Control" }) })] }), _jsxs("div", { className: "relative z-10", children: [_jsx("div", { className: `w-full rounded-lg bg-white/5 border-2 transition-all duration-300 px-3 py-2.5 pr-10 text-xs text-textPrimary min-h-[40px] flex items-center ${showProcessing
                                     ? 'border-accent/50 bg-accent/10 shadow-lg shadow-accent/20'
-                                    : 'border-accent/30 hover:border-accent/50'}`, children: showProcessing ? (_jsxs("div", { className: "flex items-center gap-2 w-full", children: [_jsxs("div", { className: "flex gap-1", children: [_jsx("div", { className: "w-1.5 h-1.5 bg-accent rounded-full animate-bounce", style: { animationDelay: '0ms' } }), _jsx("div", { className: "w-1.5 h-1.5 bg-accent rounded-full animate-bounce", style: { animationDelay: '150ms' } }), _jsx("div", { className: "w-1.5 h-1.5 bg-accent rounded-full animate-bounce", style: { animationDelay: '300ms' } })] }), _jsx("span", { className: "text-[10px] text-textMuted", children: "Processing..." })] })) : (_jsxs(_Fragment, { children: [_jsx("span", { className: "text-textPrimary", children: displayedText }), isTyping && (_jsx("span", { className: "inline-block w-0.5 h-3.5 bg-accent ml-1 animate-pulse shadow-sm shadow-accent/50" }))] })) }), _jsx("div", { className: "absolute right-3 top-1/2 -translate-y-1/2", children: showProcessing ? (_jsx("div", { className: "w-2.5 h-2.5 bg-accent rounded-full animate-pulse shadow-lg shadow-accent/50" })) : (_jsx("div", { className: "w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-sm" })) })] }), showSuccess && (_jsx("div", { className: "relative z-20 animate-slideUp", children: _jsxs("div", { className: "flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-gradient-to-r from-green-500/20 to-green-500/10 border-2 border-green-500/40 backdrop-blur-sm shadow-lg shadow-green-500/20", children: [_jsxs("div", { className: "relative flex-shrink-0", children: [_jsx("div", { className: "absolute inset-0 bg-green-500 rounded-full animate-ping opacity-75" }), _jsx("svg", { className: "w-4 h-4 text-green-400 relative", fill: "currentColor", viewBox: "0 0 20 20", children: _jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z", clipRule: "evenodd" }) })] }), _jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "text-xs font-semibold text-green-400", children: "Your custom experience is ready" }), _jsx("div", { className: "text-[10px] text-green-500/70 mt-0.5", children: "Experience updated \u2022 Algorithm adjusted" })] })] }) })), _jsxs("div", { className: "space-y-1.5 pt-2 border-t border-white/10 relative z-10", children: [_jsx("div", { className: "text-[10px] text-textMuted mb-2 font-medium", children: "Try these commands:" }), _jsx("div", { className: "flex flex-wrap gap-1.5", children: ['Mute politics', 'Boost conversations', 'Show more from people I follow'].map((cmd, i) => (_jsxs("button", { className: "group px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/10 transition-all duration-200 text-[10px] text-textMuted hover:text-textPrimary hover:scale-105 hover:shadow-md hover:shadow-accent/20", style: { transitionDelay: `${i * 50}ms` }, children: [_jsx("span", { className: "relative z-10", children: cmd }), _jsx("div", { className: "absolute inset-0 rounded-lg bg-gradient-to-r from-accent/0 to-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" })] }, cmd))) })] })] }) }) }));
+                                    : 'border-accent/30 hover:border-accent/50'}`, children: showProcessing ? (_jsxs("div", { className: "flex items-center gap-2 w-full", children: [_jsxs("div", { className: "flex gap-1", children: [_jsx("div", { className: "w-1.5 h-1.5 bg-accent rounded-full animate-bounce", style: { animationDelay: '0ms' } }), _jsx("div", { className: "w-1.5 h-1.5 bg-accent rounded-full animate-bounce", style: { animationDelay: '150ms' } }), _jsx("div", { className: "w-1.5 h-1.5 bg-accent rounded-full animate-bounce", style: { animationDelay: '300ms' } })] }), _jsx("span", { className: "text-[10px] text-textMuted", children: "Processing..." })] })) : (_jsxs(_Fragment, { children: [_jsx("span", { className: "text-textPrimary", children: displayedText }), isTyping && (_jsx("span", { className: "inline-block w-0.5 h-3.5 bg-accent ml-1 animate-pulse shadow-sm shadow-accent/50" }))] })) }), _jsx("div", { className: "absolute right-3 top-1/2 -translate-y-1/2", children: showProcessing ? (_jsx("div", { className: "w-2.5 h-2.5 bg-accent rounded-full animate-pulse shadow-lg shadow-accent/50" })) : (_jsx("div", { className: "w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-sm" })) })] }), showSuccess && (_jsx("div", { className: "relative z-20 animate-slideUp", children: _jsxs("div", { className: "flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-gradient-to-r from-green-500/20 to-green-500/10 border-2 border-green-500/40 backdrop-blur-sm shadow-lg shadow-green-500/20", children: [_jsxs("div", { className: "relative flex-shrink-0", children: [_jsx("div", { className: "absolute inset-0 bg-green-500 rounded-full animate-ping opacity-75" }), _jsx("svg", { className: "w-4 h-4 text-green-400 relative", fill: "currentColor", viewBox: "0 0 20 20", children: _jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z", clipRule: "evenodd" }) })] }), _jsxs("div", { className: "flex-1 min-w-0", children: [_jsx("div", { className: "text-xs font-semibold text-green-400", children: "Value Filter Updated" }), _jsx("div", { className: "text-[10px] text-green-500/70 mt-0.5", children: "Experience updated \u2022 Algorithm adjusted" })] })] }) })), _jsxs("div", { className: "space-y-1.5 pt-2 border-t border-white/10 relative z-10", children: [_jsx("div", { className: "text-[10px] text-textMuted mb-2 font-medium", children: "Try these commands:" }), _jsx("div", { className: "flex flex-wrap gap-1.5", children: ['Mute politics', 'Boost conversations', 'Show more from people I follow'].map((cmd, i) => (_jsxs("button", { className: "group px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/10 transition-all duration-200 text-[10px] text-textMuted hover:text-textPrimary hover:scale-105 hover:shadow-md hover:shadow-accent/20", style: { transitionDelay: `${i * 50}ms` }, children: [_jsx("span", { className: "relative z-10", children: cmd }), _jsx("div", { className: "absolute inset-0 rounded-lg bg-gradient-to-r from-accent/0 to-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" })] }, cmd))) })] })] }) }) }));
 };
 // Transparent by Design Demo - Shows why posts appear
 const TransparencyDemo = () => {
@@ -324,42 +298,42 @@ const TruthIntelligenceDemo = () => {
 };
 const pillars = [
     {
+        id: 'value',
+        title: 'The Value Standard',
+        tagline: 'Measure what matters',
+        description: 'We don\'t just "like" content. We measure it. Our open-source Value Vector scores every post on 5 dimensions: Epistemic Rigor, Insight, Practicality, Relational Quality, and Effort. You see the score before you read. The result? A feed filled with deep insights, not shallow clickbait.',
+        visual: _jsx(ValueDimensionsDemo, {}),
+        demo: true,
+    },
+    {
         id: 'control',
         title: 'Your Experience, Your Control',
         tagline: 'Stop fighting the feed',
-        description: 'Other platforms decide what you see. You don\'t. On Kural, talk to your feed in plain English. Type "show more AI posts" or "mute politics" - it just works. Every post shows why it appeared, so you always know what\'s driving your feed. No black boxes. No hidden manipulation.',
+        description: 'Other platforms decide what you see based on what keeps you addicted. On Kural, you set the parameters. Tell your feed: "Prioritize high-rigor science posts" or "Show me novel tech insights." You are the active supply-chain manager of your own attention.',
         visual: _jsx(TypingAnimation, {}),
         demo: true,
     },
     {
-        id: 'audience',
-        title: 'Audience Tuning',
-        tagline: 'Stop shouting into the void',
-        description: 'You post great content. Nobody sees it. On other platforms, algorithms guess who should see your posts - and they guess wrong. On Kural, AI analyzes your content and matches it to users whose profiles align with what you\'re sharing. Your posts reach people who genuinely care, not random followers.',
-        visual: _jsx(AudienceTargetingDemo, {}),
-        demo: true,
-    },
-    {
-        id: 'monetization',
-        title: 'Value over Views',
-        tagline: 'Get recognized for what matters',
-        description: 'Other platforms reward views. Clickbait wins. On Kural, every post is scored across 5 dimensions: factual rigor, insight, practicality, tone, and effort. Your Kural Score reflects your content\'s real value and impact, not just how many people scrolled past it. Quality creators get recognized. Rage-bait doesn\'t.',
-        visual: _jsx(ValueBasedMonetizationDemo, {}),
-        demo: true,
-    },
-    {
-        id: 'factcheck',
+        id: 'truth',
         title: 'Truth Intelligence',
         tagline: 'Trust what you read',
-        description: 'On other platforms, fact-checking takes days or arrives after content goes viral. On Kural, Truth Intelligence verifies every post before you see it. False claims are blocked instantly. Authors who spread misinformation lose credibility and reach. You read verified content, not viral lies.',
+        description: 'In an era of AI sludge, truth is the ultimate luxury. Kural verifies factual claims in real-time. Falsehoods are blocked. Sources are cited. You can finally trust the words on your screen because they\'ve passed an epistemic firewall.',
         visual: _jsx(TruthIntelligenceDemo, {}),
         demo: true,
     },
     {
+        id: 'audience',
+        title: 'Intent Matching',
+        tagline: 'Audience tuning, not targeting',
+        description: 'Stop shouting into the void. Kural matches your high-value content with the specific people who need that exact insight. It\'s not about "going viral." It\'s about "going vital"—reaching the 1,000 people for whom your work is indispensable.',
+        visual: _jsx(AudienceTargetingDemo, {}),
+        demo: true,
+    },
+    {
         id: 'transparency',
-        title: 'Transparent by Design',
-        tagline: 'Your data, your rules',
-        description: 'Other platforms track you, sell your data, and hide how their algorithms work. On Kural, every recommendation is explained. Your data is yours - export it anytime. We never sell to advertisers. No dark patterns. No addiction optimization. Social media that works for you, not against you.',
+        title: 'Radical Transparency',
+        tagline: 'No black boxes',
+        description: 'We believe you have a right to know why you see what you see. Every recommendation comes with a "Why." Every algorithm is explainable. Your data is yours. We optimize for your intellect, not your dopamine.',
         visual: _jsx(TransparencyDemo, {}),
         demo: true,
     },

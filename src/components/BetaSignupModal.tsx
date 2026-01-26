@@ -11,98 +11,8 @@ const BetaSignupModal = ({ open, onClose }: BetaSignupModalProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [greeting, setGreeting] = useState('Hey Friend,');
-  const [displayedText, setDisplayedText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
-
-  // Detect mobile device
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768); // md breakpoint
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Get time-based greeting
-  const getTimeBasedGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      return { base: 'Good morning,', friend: 'Friend,' };
-    } else if (hour >= 12 && hour < 17) {
-      return { base: 'Good afternoon,', friend: 'Friend,' };
-    } else if (hour >= 17 && hour < 22) {
-      return { base: 'Good evening,', friend: 'Friend,' };
-    } else {
-      return { base: 'Hey', friend: 'Friend,' };
-    }
-  };
-
-  // Full message content
-  const fullMessage = `We're tired of algorithms that optimize for engagement instead of value. Tired of black boxes. Tired of misinformation spreading. So we built Kural - social media that rewards quality, not clickbait.
-
-Every post gets a Kural Score. Quality content? Your score rises. Misinformation? You get penalized. Future monetization is based on value, not clicks.
-
-You control your feed in plain English. No black boxes. Just social media that works for you.
-
-Early access opens Jan 5, 2026. You'll be one of a few thousand shaping value-driven social media. Join the beta and get lifetime premium access, forever free.
-
-With Love,
-Kural Team`;
-
-  // Render text with highlights
-  const renderTextWithHighlights = (text: string) => {
-    // Split by highlights and signature
-    const parts = text.split(/(Jan 5, 2026|lifetime premium access, forever free|With Love,|Kural Team)/);
-    return parts.map((part, index) => {
-      if (part === 'Jan 5, 2026') {
-        return <span key={index} className="font-semibold text-accentLight">{part}</span>;
-      } else if (part === 'lifetime premium access, forever free') {
-        return <span key={index} className="font-semibold text-accentSecondary">{part}</span>;
-      } else if (part === 'With Love,' || part === 'Kural Team') {
-        return <span key={index} className="italic text-white/85">{part}</span>;
-      }
-      return <span key={index}>{part}</span>;
-    });
-  };
-
-  // Update greeting and start typewriter when modal opens (desktop only)
-  useEffect(() => {
-    if (open && !success) {
-      setGreeting(getTimeBasedGreeting().base);
-      
-      // On mobile, show full message immediately
-      if (isMobile) {
-        setDisplayedText(fullMessage);
-        setIsTyping(false);
-      } else {
-        // On desktop, use typewriter animation
-        setDisplayedText('');
-        setIsTyping(true);
-        
-        let currentIndex = 0;
-        const typeInterval = setInterval(() => {
-          if (currentIndex < fullMessage.length) {
-            setDisplayedText(fullMessage.slice(0, currentIndex + 1));
-            currentIndex++;
-          } else {
-            setIsTyping(false);
-            clearInterval(typeInterval);
-          }
-        }, 20); // Adjust speed here (lower = faster)
-
-        return () => clearInterval(typeInterval);
-      }
-    } else if (!open) {
-      setDisplayedText('');
-      setIsTyping(false);
-    }
-  }, [open, success, isMobile]);
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -175,7 +85,7 @@ Kural Team`;
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !loading) {
@@ -186,9 +96,9 @@ Kural Team`;
       aria-modal="true"
       aria-labelledby="beta-signup-title"
     >
-      <div 
+      <div
         ref={modalRef}
-        className="relative w-full max-w-5xl max-h-[95vh] flex flex-col md:flex-row bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-xl max-h-[95vh] flex flex-col bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -203,147 +113,116 @@ Kural Team`;
           </svg>
         </button>
 
-        {/* Personal Message Section - Left Side */}
-        <div className="flex-1 p-4 sm:p-6 md:p-8 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/10 bg-[#030712]">
+        <div className="p-6 sm:p-8 md:p-10 overflow-y-auto">
           {success ? (
-            <div className="space-y-6 text-white">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="rounded-full bg-green-500/20 border border-green-500/30 w-12 h-12 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-6 h-6 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+            <div className="space-y-8">
+              <div className="text-center space-y-4">
+                <div className="inline-flex items-center justify-center rounded-full bg-green-500/20 border border-green-500/30 w-16 h-16 mb-2">
+                  <svg className="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-400 to-accent bg-clip-text text-transparent">
-                  You're on the list!
-                </h2>
+                <h2 className="text-3xl font-bold text-white">Welcome to Kural!</h2>
+                <p className="text-white/70 text-lg">You've been added to our early access list.</p>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-3">What happens next?</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-full bg-accent/20 border border-accent/30 w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-accent">1</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white mb-1">You're on the list</p>
-                        <p className="text-sm text-white/70">We've added you to the beta waitlist. You're all set!</p>
-                      </div>
+              <div className="space-y-6 bg-white/5 rounded-xl p-6 border border-white/10">
+                <h3 className="text-lg font-semibold text-white">What happens next?</h3>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-full bg-accent/20 border border-accent/30 w-7 h-7 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-sm font-bold text-accent">1</span>
                     </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-full bg-accent/20 border border-accent/30 w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-accent">2</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white mb-1">Wait for launch</p>
-                        <p className="text-sm text-white/70">We'll send you an invite when early access opens on <span className="font-semibold text-accentLight">Jan 5, 2026</span>.</p>
-                      </div>
+                    <div>
+                      <p className="font-medium text-white">Confirmation email</p>
+                      <p className="text-sm text-white/60">We've reserved your spot. Watch your inbox for a confirmation!</p>
                     </div>
+                  </div>
 
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-full bg-accent/20 border border-accent/30 w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-accent">3</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white mb-1">Get lifetime premium</p>
-                        <p className="text-sm text-white/70">As a beta member, you'll receive <span className="font-semibold text-accentSecondary">lifetime premium access</span> at no cost.</p>
-                      </div>
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-full bg-accent/20 border border-accent/30 w-7 h-7 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-sm font-bold text-accent">2</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">Early Access Launch</p>
+                      <p className="text-sm text-white/60">You'll get an invite when we open on <span className="text-accentLight font-semibold">Jan 5, 2026</span>.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-full bg-accent/20 border border-accent/30 w-7 h-7 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-sm font-bold text-accent">3</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">Lifetime Premium</p>
+                      <p className="text-sm text-white/60">As a beta member, your account will be upgraded to <span className="text-accentSecondary font-semibold">lifetime premium</span> for free.</p>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="pt-4 border-t border-white/10">
-                  <p className="text-sm text-white/80">
-                    Questions? Reach out to us at <span className="font-semibold text-accentLight">support@kurral.app</span>
-                  </p>
-                </div>
+              <div className="text-center pt-2">
+                <button
+                  onClick={handleClose}
+                  className="px-8 py-3 rounded-xl bg-white/10 border border-white/20 text-white font-medium hover:bg-white/20 transition-all"
+                >
+                  Close
+                </button>
+                <p className="mt-6 text-sm text-white/40">
+                  Questions? Contact <span className="text-white/60">support@kurral.app</span>
+                </p>
               </div>
             </div>
           ) : (
-            <div className="space-y-3 sm:space-y-4 text-white leading-relaxed flex flex-col">
-              <p className="text-sm sm:text-base md:text-lg mb-2 sm:mb-3">
-                {greeting} <span className="bg-gradient-to-r from-accent to-accentSecondary bg-clip-text text-transparent font-semibold">{getTimeBasedGreeting().friend}</span>
-              </p>
-              
-              <div className="text-xs sm:text-sm md:text-base text-white/95 whitespace-pre-wrap flex-1">
-                {renderTextWithHighlights(displayedText)}
-                {isTyping && !isMobile && (
-                  <span className="inline-block w-0.5 h-4 bg-accent ml-1 animate-pulse" />
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Form Section - Right Side */}
-        <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-h-[95vh] flex flex-col justify-center">
-          {success ? (
-            <div className="flex flex-col items-center justify-center text-center">
-              <div className="rounded-full bg-green-500/20 border border-green-500/30 w-20 h-20 flex items-center justify-center mb-6">
-                <svg className="w-10 h-10 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Welcome to Kural!</h3>
-              <p className="text-white/80 text-base leading-relaxed max-w-sm">
-                Your email has been confirmed. Check the left side to see what happens next.
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <h2 id="beta-signup-title" className="text-2xl md:text-3xl font-bold text-white mb-2">
+            <div className="space-y-8">
+              <div className="text-center">
+                <h2 id="beta-signup-title" className="text-3xl md:text-4xl font-bold text-white mb-3">
                   Join the Beta
                 </h2>
-                <p className="text-white/60 text-sm">Enter your email to get early access</p>
+                <p className="text-white/60 text-lg max-w-sm mx-auto">
+                  Be among the first to experience social media focused on value, not virality.
+                </p>
               </div>
 
               {error && (
-                <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-red-400 text-sm">
+                <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-4 text-red-400 text-sm animate-shake">
                   {error}
                 </div>
               )}
 
-              {/* Email - Required */}
-              <div>
-                <label htmlFor="beta-email" className="block text-sm font-medium text-white/90 mb-2">
-                  Email Address
-                </label>
-                <input
-                  ref={emailInputRef}
-                  type="email"
-                  id="beta-email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/40 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-base"
-                  placeholder="your.email@example.com"
-                  aria-required="true"
-                />
-              </div>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="beta-email" className="block text-sm font-medium text-white/90 mb-2 ml-1">
+                    Email Address
+                  </label>
+                  <input
+                    ref={emailInputRef}
+                    type="email"
+                    id="beta-email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-4 text-white placeholder-white/30 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg"
+                    placeholder="your.email@example.com"
+                    aria-required="true"
+                  />
+                </div>
 
-              {/* Submit Button */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  disabled={loading}
-                  className="flex-1 rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/20 hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-accent to-accentLight px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:from-accentHover hover:to-accent shadow-button hover:shadow-buttonHover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Submitting...' : 'Join Beta'}
-                </button>
-              </div>
-            </form>
+                <div className="flex flex-col gap-4 pt-2">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full rounded-xl bg-gradient-to-r from-accent to-accentLight py-4 text-lg font-bold text-white transition-all duration-200 hover:from-accentHover hover:to-accent shadow-lg shadow-accent/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Joining...' : 'Get Early Access'}
+                  </button>
+                  <p className="text-center text-xs text-white/40">
+                    By joining, you agree to our <span className="text-white/60 hover:underline cursor-pointer">Terms of Service</span> and <span className="text-white/60 hover:underline cursor-pointer">Privacy Policy</span>.
+                  </p>
+                </div>
+              </form>
+            </div>
           )}
         </div>
       </div>
