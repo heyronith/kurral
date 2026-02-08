@@ -92,6 +92,7 @@ const Composer = () => {
     allowNonFollowers: false,
   });
   const [isPosting, setIsPosting] = useState(false);
+  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
   const [audienceDescription, setAudienceDescription] = useState('');
   
   // New state for enhanced features

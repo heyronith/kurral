@@ -12,7 +12,8 @@ const WEIGHTS = {
 
 const CAP_WEIGHTED_COUNT = 50;
 
-const toNumber = (value: number | undefined): number => (Number.isFinite(value) ? value : 0);
+const toNumber = (value: number | undefined): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : 0;
 
 export const getEngagementScore = (counts: EngagementCounts): number => {
   const bookmarks = toNumber(counts.bookmarkCount);
