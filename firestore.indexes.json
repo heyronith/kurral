@@ -1,6 +1,15 @@
 {
   "indexes": [
     {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isPlatformAccount", "order": "ASCENDING" },
+        { "fieldPath": "platformAccountType", "order": "ASCENDING" },
+        { "fieldPath": "handle", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "chirps",
       "queryScope": "COLLECTION",
       "fields": [

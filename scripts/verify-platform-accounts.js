@@ -39,19 +39,18 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Must match create-platform-accounts.js; passwords from .env (from create output)
 const PLATFORM_ACCOUNTS = [
-  {
-    name: 'Kural',
-    handle: 'kural',
-    email: process.env.KURAL_PLATFORM_EMAIL || 'platform@kurral.app',
-    password: process.env.KURAL_PLATFORM_PASSWORD,
-  },
-  {
-    name: 'Kural News',
-    handle: 'kuralnews',
-    email: process.env.KURAL_NEWS_EMAIL || 'news@kurral.app',
-    password: process.env.KURAL_NEWS_PASSWORD,
-  },
+  { name: 'Kural', handle: 'kural', email: process.env.KURAL_PLATFORM_EMAIL || 'platform@kurral.app', password: process.env.KURAL_PLATFORM_PASSWORD },
+  { name: 'Kural News', handle: 'kuralnews', email: process.env.KURAL_NEWS_EMAIL || 'news@kurral.app', password: process.env.KURAL_NEWS_PASSWORD },
+  { name: 'Kural Tech', handle: 'kuraltech', email: process.env.KURAL_TECH_EMAIL || 'tech@kurral.app', password: process.env.KURAL_TECH_PASSWORD },
+  { name: 'Kural Science', handle: 'kuralscience', email: process.env.KURAL_SCIENCE_EMAIL || 'science@kurral.app', password: process.env.KURAL_SCIENCE_PASSWORD },
+  { name: 'Kural Business', handle: 'kuralbusiness', email: process.env.KURAL_BUSINESS_EMAIL || 'business@kurral.app', password: process.env.KURAL_BUSINESS_PASSWORD },
+  { name: 'Kural Sports', handle: 'kuralsports', email: process.env.KURAL_SPORTS_EMAIL || 'sports@kurral.app', password: process.env.KURAL_SPORTS_PASSWORD },
+  { name: 'Kural Health', handle: 'kuralhealth', email: process.env.KURAL_HEALTH_EMAIL || 'health@kurral.app', password: process.env.KURAL_HEALTH_PASSWORD },
+  { name: 'Kural Entertainment', handle: 'kuralentertainment', email: process.env.KURAL_ENTERTAINMENT_EMAIL || 'entertainment@kurral.app', password: process.env.KURAL_ENTERTAINMENT_PASSWORD },
+  { name: 'Kural Design', handle: 'kuraldesign', email: process.env.KURAL_DESIGN_EMAIL || 'design@kurral.app', password: process.env.KURAL_DESIGN_PASSWORD },
+  { name: 'Kural Gaming', handle: 'kuralgaming', email: process.env.KURAL_GAMING_EMAIL || 'gaming@kurral.app', password: process.env.KURAL_GAMING_PASSWORD },
 ];
 
 const shouldResetPasswords = process.argv.includes('--reset-passwords');
@@ -65,8 +64,9 @@ async function verifyAccount(account) {
   console.log(`\n🔍 Verifying: ${name} (${email})`);
   
   if (!password) {
+    const envVar = { kural: 'KURAL_PLATFORM_PASSWORD', kuralnews: 'KURAL_NEWS_PASSWORD', kuraltech: 'KURAL_TECH_PASSWORD', kuralscience: 'KURAL_SCIENCE_PASSWORD', kuralbusiness: 'KURAL_BUSINESS_PASSWORD', kuralsports: 'KURAL_SPORTS_PASSWORD', kuralhealth: 'KURAL_HEALTH_PASSWORD', kuralentertainment: 'KURAL_ENTERTAINMENT_PASSWORD', kuraldesign: 'KURAL_DESIGN_PASSWORD', kuralgaming: 'KURAL_GAMING_PASSWORD' }[account.handle] || `KURAL_${(account.handle || '').toUpperCase()}_PASSWORD`;
     console.log(`   ⚠️  No password provided in environment variables`);
-    console.log(`   💡 Add KURAL_PLATFORM_PASSWORD or KURAL_NEWS_PASSWORD to .env`);
+    console.log(`   💡 Add ${envVar}=<password> to .env (from create:platform output)`);
     return { success: false, reason: 'No password provided' };
   }
   
@@ -189,9 +189,8 @@ async function main() {
     console.log('\n📝 Next Steps:');
     console.log('   1. Check email inbox (and spam folder) for reset links');
     console.log('   2. Click reset link and set new password');
-    console.log('   3. Update .env file with new passwords:');
-    console.log('      KURAL_PLATFORM_PASSWORD=new-password');
-    console.log('      KURAL_NEWS_PASSWORD=new-password');
+    console.log('   3. Update .env with new passwords, e.g.:');
+    console.log('      KURAL_PLATFORM_PASSWORD=... KURAL_NEWS_PASSWORD=... KURAL_TECH_PASSWORD=... (etc.)');
     
   } else {
     const successful = results.filter(r => r.success);
@@ -211,10 +210,9 @@ async function main() {
       });
       
       console.log('\n💡 Troubleshooting:');
-      console.log('   1. Make sure passwords are in .env file');
-      console.log('   2. Check for special character issues when copying passwords');
-      console.log('   3. Try resetting passwords: npm run verify:platform --reset-passwords');
-      console.log('   4. Verify accounts exist: npm run create:platform');
+      console.log('   1. Run npm run create:platform to create all 10 bot accounts, then add the printed passwords to .env');
+      console.log('   2. Use KURAL_<HANDLE>_PASSWORD for each (e.g. KURAL_TECH_PASSWORD, KURAL_SCIENCE_PASSWORD)');
+      console.log('   3. Reset passwords if needed: npm run verify:platform --reset-passwords');
     }
   }
   

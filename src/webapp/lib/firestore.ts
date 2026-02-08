@@ -320,6 +320,7 @@ const normalizeKurralScore = (raw?: any): KurralScore | undefined => {
       qualityHistory: clampComponent(normalizeNumber(components.qualityHistory)),
       violationHistory: clampComponent(normalizeNumber(components.violationHistory)),
       engagementQuality: clampComponent(normalizeNumber(components.engagementQuality)),
+      audienceValue: clampComponent(normalizeNumber(components.audienceValue)),
       consistency: clampComponent(normalizeNumber(components.consistency)),
       communityTrust: clampComponent(normalizeNumber(components.communityTrust)),
     },
@@ -521,6 +522,28 @@ export const chirpService = {
     }
   },
 
+  async getRecentChirpsByAuthor(
+    authorId: string,
+    days: number = 30,
+    limitCount: number = 50
+  ): Promise<Chirp[]> {
+    try {
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const q = query(
+        collection(db, 'chirps'),
+        where('authorId', '==', authorId),
+        where('createdAt', '>=', cutoff),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(chirpFromFirestore);
+    } catch (error) {
+      console.error('Error fetching recent chirps by author:', error);
+      return [];
+    }
+  },
+
   async getChirpsBySemanticTopics(
     topics: string[],
     limitPerBatch: number = 50
@@ -713,6 +736,8 @@ export const chirpService = {
         reachMode: chirp.reachMode,
         createdAt: Timestamp.now(),
         commentCount: 0,
+        bookmarkCount: 0,
+        rechirpCount: 0,
       };
       
       // Only include tunedAudience if it exists and is not undefined
@@ -1432,6 +1457,7 @@ export const userService = {
             qualityHistory: 0,
             violationHistory: 0,
             engagementQuality: 0,
+            audienceValue: 0,
             consistency: 0,
             communityTrust: 0,
           },

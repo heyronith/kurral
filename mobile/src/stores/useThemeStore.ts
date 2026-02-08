@@ -12,7 +12,7 @@ type ThemeState = {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: 'light',
+      theme: 'dark',
       setTheme: (theme) => set({ theme }),
       toggleTheme: () =>
         set((state) => ({
@@ -21,7 +21,11 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'theme-store',
-      getStorage: () => AsyncStorage,
+      storage: {
+        getItem: (name) => AsyncStorage.getItem(name).then(val => val ? JSON.parse(val) : null),
+        setItem: (name, value) => AsyncStorage.setItem(name, JSON.stringify(value)),
+        removeItem: (name) => AsyncStorage.removeItem(name),
+      },
     }
   )
 );

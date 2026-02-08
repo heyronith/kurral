@@ -31,7 +31,6 @@ import { useTheme } from '../../hooks/useTheme';
 import { storageService } from '../../services/storageService';
 import { extractMentionHandles, linkifyMentions } from '../../utils/mentions';
 import { userService } from '../../services/userService';
-import { getReachAgent } from '../../services/reachAgentService';
 import { tryGenerateEmbedding } from '../../services/embeddingService';
 import {
   mapSemanticTopicToBucket,
@@ -41,6 +40,7 @@ import {
 import { topicService } from '../../services/topicService';
 import { isValidTopic } from '../../types';
 import { renderFormattedText } from '../../utils/formattedText';
+import AudienceDescriptionBox from './AudienceDescriptionBox';
 
 type MentionCandidate = {
   id: string;
@@ -221,7 +221,7 @@ const ComposerModal = () => {
   const { getUser, loadUser } = useUserStore();
 
   const [text, setText] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [reachMode, setReachMode] = useState<ReachMode>('forAll');
   const [tunedAudience, setTunedAudience] = useState<TunedAudience>({
     allowFollowers: true,
@@ -241,7 +241,7 @@ const ComposerModal = () => {
     start: 0,
     end: 0,
   });
-  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
+  const [audienceDescription, setAudienceDescription] = useState('');
   const [showTopicPicker, setShowTopicPicker] = useState(false);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -250,10 +250,7 @@ const ComposerModal = () => {
   const [tempScheduleTime, setTempScheduleTime] = useState<string>('');
   const mentionStartRef = useRef<number | null>(null);
   const mentionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mentionCache = useRef<Map<string, string>>(new Map());
-  const suggestionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const requestInFlightRef = useRef<boolean>(false);
-  const availableTopicsRef = useRef<Array<{ name: string; postsLast48h?: number; totalUsers?: number }>>([]);
+  const mentionCache = useRef<Map<string, string>>(new Map());;
 
   const remaining = useMemo(() => CHAR_LIMIT - text.length, [text]);
   const canPost = useMemo(
@@ -263,7 +260,8 @@ const ComposerModal = () => {
 
   const resetState = () => {
     setText('');
-    setSelectedTopic('');
+    setSelectedTopics([]);
+    setAudienceDescription('');
     setReachMode('forAll');
     setTunedAudience({ allowFollowers: true, allowNonFollowers: false });
     setIsPosting(false);
@@ -273,19 +271,12 @@ const ComposerModal = () => {
     setScheduledAt(null);
     setMentionQuery(null);
     setMentionResults([]);
-    setIsGeneratingSuggestion(false);
     setShowTopicPicker(false);
     setShowSchedulePicker(false);
     setShowEmojiPicker(false);
     setTempScheduleDate(null);
     setTempScheduleTime('');
     mentionStartRef.current = null;
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current);
-      suggestionTimeoutRef.current = null;
-    }
-    requestInFlightRef.current = false;
-    availableTopicsRef.current = [];
   };
 
   useEffect(() => {
@@ -324,133 +315,18 @@ const ComposerModal = () => {
     }, mentionQuery.length === 0 ? 0 : 250);
   }, [mentionQuery]);
 
-  // Auto-suggest topics when switching to Tuned mode (matching webapp behavior)
+  // Reset audience settings when switching away from tuned mode
   useEffect(() => {
-    // Clear any pending timeout
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current);
-      suggestionTimeoutRef.current = null;
+    if (reachMode === 'forAll') {
+      // Reset tuned mode state when switching to forAll
+      setSelectedTopics([]);
+      setAudienceDescription('');
+      setTunedAudience({
+        allowFollowers: true,
+        allowNonFollowers: false,
+      });
     }
-
-    if (reachMode === 'tuned' && text.trim() && text.trim().length > 10 && user && !requestInFlightRef.current) {
-      suggestionTimeoutRef.current = setTimeout(async () => {
-        // Prevent duplicate requests
-        if (requestInFlightRef.current) {
-          return;
-        }
-
-        requestInFlightRef.current = true;
-        setIsGeneratingSuggestion(true);
-        setSelectedTopic(''); // Clear previous selection
-
-        try {
-          const userTopics = user.topics || user.interests || [];
-          
-          // Load topics for user (top 30 + user's topics)
-          let availableTopics: Array<{ name: string; postsLast48h?: number; totalUsers?: number }> = [];
-          try {
-            availableTopics = await topicService.getTopicsForUser(userTopics);
-            availableTopicsRef.current = availableTopics;
-          } catch (error) {
-            console.warn('[Composer] Failed to load topics:', error);
-            requestInFlightRef.current = false;
-            setIsGeneratingSuggestion(false);
-            return;
-          }
-
-          if (availableTopics.length === 0) {
-            console.warn('[Composer] No topics available');
-            requestInFlightRef.current = false;
-            setIsGeneratingSuggestion(false);
-            return;
-          }
-
-          const reachAgent = getReachAgent();
-          console.log('[Composer] ReachAgent available:', !!reachAgent);
-          console.log('[Composer] Available topics:', availableTopics.length);
-
-          if (reachAgent) {
-            // Use AI agent to suggest topics + reach settings
-            console.log('[Composer] Using AI agent...');
-            const response = await reachAgent.suggestTopicsAndReach(
-              text.trim(),
-              availableTopics as any,
-              userTopics
-            );
-
-            console.log('[Composer] AI response:', response);
-
-            if (response.success && response.data) {
-              console.log('[Composer] Using AI suggestion');
-              const suggestionResult = response.data;
-
-              // Auto-select the first (highest confidence) suggested topic
-              if (suggestionResult.suggestedTopics.length > 0) {
-                setSelectedTopic(suggestionResult.suggestedTopics[0].topic);
-                setTunedAudience({
-                  ...suggestionResult.tunedAudience,
-                  targetAudienceDescription: suggestionResult.targetAudienceDescription,
-                  targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
-                });
-              }
-            } else if (response.fallback) {
-              console.warn('[Composer] AI failed, using fallback:', response.error);
-              const fallbackResult = response.fallback;
-
-              // Auto-select fallback topic if available
-              if (fallbackResult.suggestedTopics.length > 0) {
-                setSelectedTopic(fallbackResult.suggestedTopics[0].topic);
-                setTunedAudience({
-                  ...fallbackResult.tunedAudience,
-                  targetAudienceDescription: fallbackResult.targetAudienceDescription,
-                  targetAudienceEmbedding: fallbackResult.targetAudienceEmbedding,
-                });
-              }
-            } else {
-              // No suggestion available - use most active topic as fallback
-              const fallbackTopic = availableTopics[0].name;
-              setSelectedTopic(fallbackTopic);
-              setTunedAudience({
-                allowFollowers: true,
-                allowNonFollowers: true,
-                targetAudienceDescription: undefined,
-                targetAudienceEmbedding: undefined,
-              });
-            }
-          } else {
-            // No agent available - use most active topic as fallback
-            const fallbackTopic = availableTopics[0].name;
-            setSelectedTopic(fallbackTopic);
-            setTunedAudience({
-              allowFollowers: true,
-              allowNonFollowers: true,
-              targetAudienceDescription: undefined,
-              targetAudienceEmbedding: undefined,
-            });
-          }
-        } catch (error) {
-          console.error('[Composer] Error generating suggestion:', error);
-          // Fallback to first available topic
-          if (availableTopicsRef.current.length > 0) {
-            setSelectedTopic(availableTopicsRef.current[0].name);
-          }
-        } finally {
-          setIsGeneratingSuggestion(false);
-          requestInFlightRef.current = false;
-        }
-      }, 1000); // 1 second debounce
-    } else if (reachMode === 'forAll') {
-      // Reset to empty when switching back to forAll
-      setSelectedTopic('');
-    }
-
-    return () => {
-      if (suggestionTimeoutRef.current) {
-        clearTimeout(suggestionTimeoutRef.current);
-        suggestionTimeoutRef.current = null;
-      }
-    };
-  }, [reachMode, text, user]);
+  }, [reachMode]);
 
   const updateMentionState = (currentText: string, cursorPos: number) => {
     if (!currentText || cursorPos < 0) {
@@ -672,12 +548,20 @@ const ComposerModal = () => {
       // Normalize semantic topics
       semanticTopics = normalizeSemanticTopics(semanticTopics);
 
+      // Merge user-selected topics into semanticTopics
+      const userSelectedTopicsNormalized = selectedTopics.map((t) => t.toLowerCase().trim()).filter(Boolean);
+      const allSemanticTopics = [...new Set([...userSelectedTopicsNormalized, ...semanticTopics])];
+      semanticTopics = allSemanticTopics;
+
+      // Primary topic = first user-selected topic, or AI bucket, or fallback
+      const primaryTopic = userSelectedTopicsNormalized[0] || null;
+
       // Map semantic topics to buckets
       const semanticTopicBuckets: Record<string, string> = {};
       if (semanticTopics.length > 0) {
         const mapped = await Promise.all(
           semanticTopics.map(async (topic) => {
-            const bucket = await mapSemanticTopicToBucket(topic, bucketFromAI || selectedTopic);
+            const bucket = await mapSemanticTopicToBucket(topic, bucketFromAI || primaryTopic || '');
             return { topic, bucket };
           })
         );
@@ -701,7 +585,7 @@ const ComposerModal = () => {
 
       // Resolve final topic
       const resolvedTopic: Topic =
-        (selectedTopic && isValidTopic(selectedTopic) ? selectedTopic : null) ||
+        (primaryTopic && isValidTopic(primaryTopic) ? primaryTopic : null) ||
         (bucketFromAI && isValidTopic(bucketFromAI) ? bucketFromAI : null) ||
         (userTopics.find((topic) => isValidTopic(topic)) as Topic | undefined) ||
         ALL_TOPICS[0];
@@ -847,6 +731,28 @@ const ComposerModal = () => {
   };
 
   const getInitial = (value?: string) => value?.charAt(0)?.toUpperCase() || 'U';
+
+  // Get all topic names for manual selection
+  const allTopicNames = useMemo(() => {
+    const userTopicsList = user?.topics || user?.interests || [];
+    const unique = [...new Set([...ALL_TOPICS, ...userTopicsList])];
+    return unique.sort();
+  }, [user?.topics, user?.interests]);
+
+  // Handler: Change selected topics
+  const handleTopicsChange = (topics: string[]) => {
+    setSelectedTopics(topics);
+  };
+
+  // Handler: Change audience settings
+  const handleAudienceChange = (audience: TunedAudience) => {
+    setTunedAudience(audience);
+  };
+
+  // Handler: Change audience description
+  const handleDescriptionChange = (description: string) => {
+    setAudienceDescription(description);
+  };
 
   const isCommentMode = !!commentingChirp;
   const commentingAuthor = commentingChirp ? getUser(commentingChirp.authorId) : null;
@@ -996,7 +902,7 @@ const ComposerModal = () => {
                       setShowSchedulePicker(false);
                       setShowTopicPicker(!showTopicPicker);
                     }} 
-                    style={[dynamicStyles.toolButton, (selectedTopic || showTopicPicker) && dynamicStyles.toolButtonActive]}
+                    style={[dynamicStyles.toolButton, (selectedTopics.length > 0 || showTopicPicker) && dynamicStyles.toolButtonActive]}
                   >
                     <Text style={dynamicStyles.toolText}>#</Text>
                   </TouchableOpacity>
@@ -1009,12 +915,30 @@ const ComposerModal = () => {
                 </>
               )}
             </View>
-            {!isCommentMode && selectedTopic && (
-              <View style={dynamicStyles.selectedTopicBadge}>
-                <Text style={dynamicStyles.selectedTopicText}>#{selectedTopic}</Text>
-                <TouchableOpacity onPress={() => setSelectedTopic('')}>
-                  <Text style={dynamicStyles.removeTopicText}>×</Text>
-                </TouchableOpacity>
+            {!isCommentMode && selectedTopics.length > 0 && (
+              <View style={dynamicStyles.selectedTopicsRow}>
+                {selectedTopics.map((topic, index) => (
+                  <View 
+                    key={topic} 
+                    style={[
+                      dynamicStyles.selectedTopicBadge,
+                      index === 0 && dynamicStyles.primaryTopicBadge,
+                    ]}
+                  >
+                    <Text style={[
+                      dynamicStyles.selectedTopicText,
+                      index === 0 && dynamicStyles.primaryTopicText,
+                    ]}>
+                      #{topic}{index === 0 && ' (primary)'}
+                    </Text>
+                    <TouchableOpacity onPress={() => setSelectedTopics(selectedTopics.filter(t => t !== topic))}>
+                      <Text style={[
+                        dynamicStyles.removeTopicText,
+                        index === 0 && dynamicStyles.primaryRemoveText,
+                      ]}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
             )}
             {!isCommentMode && scheduledAt && scheduleLabel && (
@@ -1085,34 +1009,44 @@ const ComposerModal = () => {
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={dynamicStyles.inlinePickerBody} nestedScrollEnabled>
-                  {isGeneratingSuggestion && (
-                    <View style={dynamicStyles.suggestionLoading}>
-                      <ActivityIndicator size="small" color={colors.accent} />
-                      <Text style={dynamicStyles.suggestionLoadingText}>Analyzing content...</Text>
-                    </View>
-                  )}
                   <View style={dynamicStyles.topicGrid}>
                     {ALL_TOPICS.map((topic) => {
-                      const isSelected = topic === selectedTopic;
+                      const normalizedTopic = topic.toLowerCase();
+                      const isSelected = selectedTopics.includes(normalizedTopic);
+                      const isDisabled = !isSelected && selectedTopics.length >= 5;
                       return (
                         <TouchableOpacity
-                        key={topic}
+                          key={topic}
                           onPress={() => {
-                            setSelectedTopic(topic);
-                          setShowTopicPicker(false);
-                        }}
+                            if (!isDisabled) {
+                              if (isSelected) {
+                                setSelectedTopics(selectedTopics.filter((t) => t !== normalizedTopic));
+                              } else {
+                                setSelectedTopics([...selectedTopics, normalizedTopic]);
+                              }
+                            }
+                          }}
                           style={[
                             dynamicStyles.chip,
-                            isSelected ? dynamicStyles.chipSelected : undefined,
+                            isSelected && dynamicStyles.chipSelected,
+                            isDisabled && dynamicStyles.chipDisabled,
                           ]}
+                          disabled={isDisabled}
                         >
-                          <Text style={[dynamicStyles.chipText, isSelected ? dynamicStyles.chipTextSelected : undefined]}>
+                          <Text style={[
+                            dynamicStyles.chipText, 
+                            isSelected && dynamicStyles.chipTextSelected,
+                            isDisabled && dynamicStyles.chipTextDisabled,
+                          ]}>
                             #{topic}
                           </Text>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
+                  {selectedTopics.length >= 5 && (
+                    <Text style={dynamicStyles.maxTopicsWarning}>Maximum 5 topics selected</Text>
+                  )}
                 </ScrollView>
               </View>
             )}
@@ -1206,39 +1140,17 @@ const ComposerModal = () => {
             </View>
           )}
 
+          {/* Tuned mode content - Audience Description Box */}
           {!isCommentMode && reachMode === 'tuned' && (
-            <View style={dynamicStyles.audienceRow}>
-              <Text style={dynamicStyles.smallLabel}>Audience</Text>
-              <View style={dynamicStyles.toggleRow}>
-                {[
-                  { label: 'Followers', key: 'allowFollowers' },
-                  { label: 'Non-followers', key: 'allowNonFollowers' },
-                ].map((option) => (
-                  <TouchableOpacity
-                    key={option.key}
-                    style={[
-                      dynamicStyles.toggle,
-                      tunedAudience[option.key as keyof TunedAudience] && dynamicStyles.toggleActive,
-                    ]}
-                    onPress={() =>
-                      setTunedAudience((prev) => ({
-                        ...prev,
-                        [option.key]: !prev[option.key as keyof TunedAudience],
-                      }))
-                    }
-                  >
-                    <Text
-                      style={[
-                        dynamicStyles.toggleText,
-                        tunedAudience[option.key as keyof TunedAudience] && dynamicStyles.toggleTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+            <AudienceDescriptionBox
+              audienceDescription={audienceDescription}
+              onDescriptionChange={handleDescriptionChange}
+              selectedTopics={selectedTopics}
+              onTopicsChange={handleTopicsChange}
+              tunedAudience={tunedAudience}
+              onAudienceChange={handleAudienceChange}
+              allTopics={allTopicNames}
+            />
           )}
 
 
@@ -1484,26 +1396,39 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
     fontWeight: '700',
     color: colors.textPrimary,
   },
+  selectedTopicsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
   selectedTopicBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: colors.accent + '20',
-    borderRadius: 12,
-    alignSelf: 'flex-start',
+    borderRadius: 10,
+  },
+  primaryTopicBadge: {
+    backgroundColor: colors.accent,
   },
   selectedTopicText: {
     color: colors.accent,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 12,
+  },
+  primaryTopicText: {
+    color: '#fff',
   },
   removeTopicText: {
     color: colors.accent,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
+  },
+  primaryRemoveText: {
+    color: '#fff',
   },
   scheduledBadge: {
     flexDirection: 'row',
@@ -1545,12 +1470,24 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
   chipSelected: {
     backgroundColor: colors.accent,
   },
+  chipDisabled: {
+    opacity: 0.5,
+  },
   chipText: {
     color: colors.textPrimary,
     fontWeight: '600',
   },
   chipTextSelected: {
     color: '#fff',
+  },
+  chipTextDisabled: {
+    color: colors.textMuted,
+  },
+  maxTopicsWarning: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#F59E0B',
+    fontWeight: '500',
   },
   chipRow: {
     flexDirection: 'row',
@@ -1623,6 +1560,56 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
   },
   toggleTextActive: {
     color: '#fff',
+  },
+  tunedLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: colors.accent + '15',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.accent + '30',
+  },
+  tunedLoadingText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  aiErrorRow: {
+    marginTop: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F59E0B40',
+  },
+  aiErrorText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '500',
+  },
+  selectedTopicRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectTopicButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: colors.backgroundElevated,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignSelf: 'flex-start',
+  },
+  selectTopicText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '600',
   },
   scheduleRow: {
     flexDirection: 'row',

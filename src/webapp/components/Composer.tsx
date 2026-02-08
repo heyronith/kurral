@@ -18,9 +18,8 @@ import { getReachAgent } from '../lib/agents/reachAgent';
 import { topicService, userService } from '../lib/firestore';
 import { extractMentionHandles } from '../lib/utils/mentions';
 import { BaseAgent } from '../lib/agents/baseAgent';
-import type { ReachSuggestion } from '../lib/agents/reachAgent';
 import { mapSemanticTopicToBucket, ensureBucket, getAllBuckets } from '../lib/services/topicBucketService';
-import TopicSuggestionBox from './TopicSuggestionBox';
+import AudienceDescriptionBox from './AudienceDescriptionBox';
 import { ImageIcon, EmojiIcon, CalendarIcon } from './Icon';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import DatePicker from 'react-datepicker';
@@ -86,17 +85,14 @@ const createMissingTopics = async (
 
 const Composer = () => {
   const [text, setText] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [reachMode, setReachMode] = useState<ReachMode>('forAll');
   const [tunedAudience, setTunedAudience] = useState<TunedAudience>({
     allowFollowers: true,
     allowNonFollowers: false,
   });
   const [isPosting, setIsPosting] = useState(false);
-  const [suggestion, setSuggestion] = useState<ReachSuggestion | null>(null);
-  const [showSuggestion, setShowSuggestion] = useState(false);
-  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const [audienceDescription, setAudienceDescription] = useState('');
   
   // New state for enhanced features
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -242,165 +238,18 @@ const Composer = () => {
     }
   };
 
-  // Generate suggestion when switching to Tuned mode (new flow)
+  // Reset audience settings when switching away from tuned mode
   useEffect(() => {
-    // Clear any pending timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+    if (reachMode === 'forAll') {
+      // Reset tuned mode state when switching to forAll
+      setSelectedTopics([]);
+      setAudienceDescription('');
+      setTunedAudience({
+        allowFollowers: true,
+        allowNonFollowers: false,
+      });
     }
-
-    if (reachMode === 'tuned' && plainText.trim() && plainText.trim().length > 10 && currentUser && !requestInFlight.current) {
-      timeoutRef.current = setTimeout(async () => {
-        // Prevent duplicate requests
-        if (requestInFlight.current) {
-          return;
-        }
-
-        requestInFlight.current = true;
-        setIsGeneratingSuggestion(true);
-        setShowSuggestion(false);
-        setSelectedTopic(''); // Clear previous selection
-
-        try {
-          // Load topics for user (top 30 + user's topics)
-          const availableTopics = await loadTopicsForUser(userTopics);
-          availableTopicsRef.current = availableTopics;
-          
-          if (availableTopics.length === 0) {
-            console.warn('[Composer] No topics available');
-            setIsGeneratingSuggestion(false);
-            requestInFlight.current = false;
-            return;
-          }
-
-          const reachAgent = getReachAgent();
-          console.log('[Composer] ReachAgent available:', !!reachAgent);
-          console.log('[Composer] Available topics:', availableTopics.length);
-          
-          let suggestionResult: ReachSuggestion | null = null;
-
-          if (reachAgent) {
-            // Use AI agent to suggest topics + reach settings
-            console.log('[Composer] Using AI agent...');
-            const response = await reachAgent.suggestTopicsAndReach(
-              plainText.trim(),
-              availableTopics,
-              userTopics
-            );
-            
-            console.log('[Composer] AI response:', response);
-            
-            if (response.success && response.data) {
-              console.log('[Composer] Using AI suggestion');
-              suggestionResult = response.data;
-              
-              // Auto-select the first (highest confidence) suggested topic
-              if (suggestionResult.suggestedTopics.length > 0) {
-                setSelectedTopic(suggestionResult.suggestedTopics[0].topic);
-                setTunedAudience({
-                  ...suggestionResult.tunedAudience,
-                  targetAudienceDescription: suggestionResult.targetAudienceDescription,
-                  targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
-                });
-              }
-            } else if (response.fallback) {
-              console.warn('[Composer] AI failed, using fallback:', response.error);
-              
-              // Check if it's a rate limit error
-              if (response.error?.includes('rate limit') || response.error?.includes('quota') || response.error?.includes('429')) {
-                setAiError('AI suggestions temporarily unavailable (rate limit). Using smart fallback suggestions.');
-                // Clear error after 5 seconds
-                setTimeout(() => setAiError(null), 5000);
-              } else if (response.error?.includes('Empty response')) {
-                setAiError('AI temporarily unavailable. Using smart fallback suggestions.');
-                setTimeout(() => setAiError(null), 5000);
-              }
-              
-              suggestionResult = response.fallback;
-              
-              // Auto-select fallback topic if available
-              if (suggestionResult.suggestedTopics.length > 0) {
-                setSelectedTopic(suggestionResult.suggestedTopics[0].topic);
-                setTunedAudience({
-                  ...suggestionResult.tunedAudience,
-                  targetAudienceDescription: suggestionResult.targetAudienceDescription,
-                  targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
-                });
-              }
-            }
-          }
-
-          // Fallback if AI not available or failed
-          if (!suggestionResult && availableTopics.length > 0) {
-            console.warn('[Composer] AI not available, using fallback');
-            const fallbackTopic = availableTopics[0].name;
-            suggestionResult = {
-              suggestedTopics: [{
-                topic: fallbackTopic,
-                confidence: 0.5,
-                explanation: 'Using most active topic as fallback.',
-                isUserTopic: userTopics.includes(fallbackTopic),
-              }],
-              tunedAudience: {
-                allowFollowers: true,
-                allowNonFollowers: true,
-              },
-              explanation: 'Using default settings.',
-              overallExplanation: 'AI suggestions not available. Using most active topic with default settings.',
-              targetAudienceDescription: 'Default reach settings for topic audience.',
-              targetAudienceEmbedding: undefined,
-            };
-            setSelectedTopic(fallbackTopic);
-            setTunedAudience({
-              ...suggestionResult.tunedAudience,
-              targetAudienceDescription: suggestionResult.targetAudienceDescription,
-              targetAudienceEmbedding: suggestionResult.targetAudienceEmbedding,
-            });
-          }
-
-          if (suggestionResult) {
-            setSuggestion(suggestionResult);
-            setShowSuggestion(true);
-          }
-        } catch (error) {
-          console.error('[Composer] Error generating suggestion:', error);
-          // Fallback to first available topic name
-          if (allTopicNames.length > 0) {
-            const fallbackTopic = allTopicNames[0];
-            setSelectedTopic(fallbackTopic);
-            setTunedAudience({
-              allowFollowers: true,
-              allowNonFollowers: true,
-              targetAudienceDescription: undefined,
-              targetAudienceEmbedding: undefined,
-            });
-          }
-        } finally {
-          setIsGeneratingSuggestion(false);
-          requestInFlight.current = false;
-        }
-      }, 1500); // Increased debounce to 1500ms to reduce API calls
-
-      return () => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-      };
-    } else if (reachMode === 'forAll') {
-      // Reset when switching away from tuned mode
-      setShowSuggestion(false);
-      setIsGeneratingSuggestion(false);
-      setSuggestion(null);
-      setAiError(null);
-      requestInFlight.current = false;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    }
-  }, [reachMode, plainText, currentUser, userTopics, loadTopicsForUser, allTopicNames]);
+  }, [reachMode]);
 
   // Search users when mention query changes
   useEffect(() => {
@@ -620,25 +469,16 @@ const Composer = () => {
     setIsDragging(true);
   };
 
-  const handleApplySuggestion = () => {
-    // Settings are already applied, just hide suggestion
-    setShowSuggestion(false);
-  };
-
-  const handleIgnoreSuggestion = () => {
-    setShowSuggestion(false);
-    // Reset to defaults
-    if (suggestion && suggestion.suggestedTopics.length > 0) {
-      setSelectedTopic('');
-    }
-  };
-
-  const handleTopicSelect = (topic: string) => {
-    setSelectedTopic(topic);
+  const handleTopicsChange = (topics: string[]) => {
+    setSelectedTopics(topics);
   };
 
   const handleAudienceChange = (audience: TunedAudience) => {
     setTunedAudience(audience);
+  };
+
+  const handleDescriptionChange = (description: string) => {
+    setAudienceDescription(description);
   };
 
   // WYSIWYG Formatting functions
@@ -992,11 +832,19 @@ const Composer = () => {
 
       semanticTopics = normalizeSemanticTopics(semanticTopics);
 
+      // Merge user-selected topics into semanticTopics
+      const userSelectedTopicsNormalized = selectedTopics.map((t) => t.toLowerCase().trim()).filter(Boolean);
+      const allSemanticTopics = [...new Set([...userSelectedTopicsNormalized, ...semanticTopics])];
+      semanticTopics = normalizeSemanticTopics(allSemanticTopics);
+
+      // Primary topic = first user-selected topic, or AI bucket, or fallback
+      const primaryTopic = userSelectedTopicsNormalized[0] || null;
+
       const semanticTopicBuckets: Record<string, string> = {};
       if (semanticTopics.length > 0) {
         const mapped = await Promise.all(
           semanticTopics.map(async (topic) => {
-            const bucket = await mapSemanticTopicToBucket(topic, bucketFromAI || selectedTopic);
+            const bucket = await mapSemanticTopicToBucket(topic, bucketFromAI || primaryTopic || '');
             return { topic, bucket };
           })
         );
@@ -1031,7 +879,7 @@ const Composer = () => {
       }
 
       const resolvedTopic: Topic =
-        (selectedTopic && isValidTopic(selectedTopic) ? selectedTopic : null) ||
+        (primaryTopic && isValidTopic(primaryTopic) ? primaryTopic : null) ||
         (bucketFromAI && isValidTopic(bucketFromAI) ? bucketFromAI : null) ||
         (userTopics.find((topic) => isValidTopic(topic)) as Topic | undefined) ||
         'dev';
@@ -1105,11 +953,10 @@ const Composer = () => {
       setImageFile(null);
       setImagePreview(null);
       setImageUrl('');
-      setSelectedTopic('');
+      setSelectedTopics([]);
+      setAudienceDescription('');
       setReachMode('forAll');
       setScheduledAt(null);
-      setSuggestion(null);
-      setShowSuggestion(false);
       setShowEmojiPicker(false);
       setShowSchedulePicker(false);
       setShowReachMenu(false);
@@ -1157,22 +1004,6 @@ const Composer = () => {
     >
       {/* Always visible: Full composer */}
       <div className={`${theme === 'dark' ? 'bg-black/90 border-white/20' : 'bg-gradient-to-br from-blue-50 via-blue-100/80 to-primary/20 border-primary/40'} rounded-3xl border-2 ${theme === 'dark' ? '' : 'shadow-2xl'} overflow-hidden relative`}>
-        {/* Inline Analyzing Overlay - Embedded in Composer */}
-        {isGeneratingSuggestion && (
-          <div className={`absolute inset-0 z-50 ${theme === 'dark' ? 'bg-black/80' : 'bg-white/80'} backdrop-blur-sm rounded-3xl flex items-center justify-center`}>
-            <div className="flex flex-col items-center gap-3">
-              {/* Simple Spinner */}
-              <div className="relative w-8 h-8">
-                <div className={`absolute inset-0 border-2 ${theme === 'dark' ? 'border-white/20' : 'border-primary/20'} rounded-full`}></div>
-                <div className={`absolute inset-0 border-2 border-transparent ${theme === 'dark' ? 'border-t-white' : 'border-t-primary'} rounded-full animate-spin`}></div>
-              </div>
-              {/* Simple Message */}
-              <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-textPrimary'}`}>
-                {isPosting ? 'Analyzing post...' : 'Analyzing content...'}
-              </p>
-            </div>
-          </div>
-        )}
         {/* Compact Header with Profile - Draggable */}
         <div 
           ref={headerRef}
@@ -1914,65 +1745,20 @@ const Composer = () => {
           </div>
         )}
       
-      {/* AI Suggestions for Tuned Mode */}
-      {reachMode === 'tuned' && plainText.trim() && plainText.trim().length > 10 && (
-        <>
-          {/* Error message for AI issues */}
-          {aiError && (
-                  <div className="px-4 pb-3">
-                    <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning text-xs font-medium">
-              {aiError}
-                    </div>
-            </div>
-          )}
-          
-          {showSuggestion && suggestion && suggestion.suggestedTopics.length > 0 && (
-                  <div className="px-4 pb-3">
-            <TopicSuggestionBox
-              suggestedTopics={suggestion.suggestedTopics}
-              selectedTopic={selectedTopic}
-              onTopicSelect={handleTopicSelect}
-              tunedAudience={tunedAudience}
-              onAudienceChange={handleAudienceChange}
-              overallExplanation={suggestion.overallExplanation || suggestion.explanation}
-              onApply={handleApplySuggestion}
-              onIgnore={handleIgnoreSuggestion}
-              allTopics={allTopicNames}
-            />
-                  </div>
-          )}
-        </>
+      {/* Audience Description for Tuned Mode */}
+      {reachMode === 'tuned' && (
+        <div className="px-4 pb-3">
+          <AudienceDescriptionBox
+            audienceDescription={audienceDescription}
+            onDescriptionChange={handleDescriptionChange}
+            selectedTopics={selectedTopics}
+            onTopicsChange={handleTopicsChange}
+            tunedAudience={tunedAudience}
+            onAudienceChange={handleAudienceChange}
+            allTopics={allTopicNames}
+          />
+        </div>
       )}
-
-        {/* Manual reach settings - only show if not using AI suggestions */}
-        {reachMode === 'tuned' && !showSuggestion && selectedTopic && (
-          <div className={`px-4 pb-3 pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-border/30'}`}>
-                <div className="flex items-center gap-4 text-xs">
-                  <label className={`flex items-center gap-1.5 ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
-              <input
-                type="checkbox"
-                checked={tunedAudience.allowFollowers}
-                onChange={(e) =>
-                  setTunedAudience({ ...tunedAudience, allowFollowers: e.target.checked })
-                }
-                className="rounded"
-              />
-              Followers
-            </label>
-                  <label className={`flex items-center gap-1.5 ${theme === 'dark' ? 'text-white/70' : 'text-textMuted'}`}>
-              <input
-                type="checkbox"
-                checked={tunedAudience.allowNonFollowers}
-                onChange={(e) =>
-                  setTunedAudience({ ...tunedAudience, allowNonFollowers: e.target.checked })
-                }
-                className="rounded"
-              />
-              Non-followers
-            </label>
-                </div>
-          </div>
-        )}
             </div>
     </div>
     

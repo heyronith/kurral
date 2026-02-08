@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "a654358c-087d-4fdb-80fa-0d2ff6dc6b0a"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.kural.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

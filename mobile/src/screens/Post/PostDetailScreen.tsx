@@ -35,7 +35,7 @@ const formatTimeAgo = (date: Date) => {
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
     return 'recently';
   }
-  
+
   const now = Date.now();
   const diffMs = Math.max(0, now - date.getTime());
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
@@ -92,51 +92,47 @@ const PostDetailScreen = () => {
       return;
     }
 
-    const loadPost = async () => {
-      try {
-        // First check if chirp is in store (check both latest and forYou arrays)
-        const storedChirp = latest.find((c) => c.id === postId) || forYou.find((c) => c.id === postId);
-        
-        if (storedChirp) {
-          setChirp(storedChirp);
-          const authorData = getUser(storedChirp.authorId);
-          if (authorData) {
-            setAuthor(authorData);
-          } else {
-            await loadUser(storedChirp.authorId);
-            const loadedAuthor = getUser(storedChirp.authorId);
-            if (loadedAuthor) {
-              setAuthor(loadedAuthor);
-            }
-          }
-          setIsLoading(false);
-        } else {
-          // Load from Firestore
-          const loadedChirp = await chirpService.getChirp(postId);
-          if (loadedChirp) {
-            setChirp(loadedChirp);
-            // Load author
-            const authorData = getUser(loadedChirp.authorId);
-            if (authorData) {
-              setAuthor(authorData);
-            } else {
-              await loadUser(loadedChirp.authorId);
-              const loadedAuthor = getUser(loadedChirp.authorId);
-              if (loadedAuthor) {
-                setAuthor(loadedAuthor);
-              }
-            }
-          }
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('[PostDetailScreen] Error loading post:', error);
-        setIsLoading(false);
+    // Attempt to load from store first for immediate display
+    const storedChirp = latest.find((c) => c.id === postId) || forYou.find((c) => c.id === postId);
+    if (storedChirp) {
+      setChirp(storedChirp);
+      // Load author if needed
+      const authorData = getUser(storedChirp.authorId);
+      if (authorData) {
+        setAuthor(authorData);
+      } else {
+        loadUser(storedChirp.authorId).then(() => {
+          setAuthor(getUser(storedChirp.authorId));
+        });
       }
-    };
+      setIsLoading(false);
+    }
 
-    loadPost();
-  }, [postId, latest, forYou, getUser, loadUser]);
+    // Subscribe to real-time updates
+    const unsubscribe = chirpService.listenToChirp(
+      postId,
+      (updatedChirp) => {
+        setChirp(updatedChirp);
+
+        // Load author if not loaded or changed
+        const authorData = getUser(updatedChirp.authorId);
+        if (authorData) {
+          setAuthor(authorData);
+        } else {
+          loadUser(updatedChirp.authorId).then(() => {
+            setAuthor(getUser(updatedChirp.authorId));
+          });
+        }
+        setIsLoading(false);
+      },
+      (err) => {
+        console.error('[PostDetailScreen] Error listening to post:', err);
+        if (!storedChirp) setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [postId, getUser, loadUser]);
 
   // Update author if it gets loaded
   useEffect(() => {
@@ -316,7 +312,7 @@ const PostDetailScreen = () => {
 
   const handleCommentClick = () => {
     if (!chirp) return;
-    
+
     // Open composer for comment
     openForComment(chirp);
   };
@@ -373,9 +369,9 @@ const PostDetailScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         ref={scrollViewRef}
-        style={dynamicStyles.content} 
+        style={dynamicStyles.content}
         contentContainerStyle={dynamicStyles.contentContainer}
       >
         <View style={dynamicStyles.postCard}>
@@ -409,7 +405,7 @@ const PostDetailScreen = () => {
                 @{displayHandle} · {formatTimeAgo(createdAt)}
               </Text>
             </View>
-            
+
             {/* Fact-check status badge - top right */}
             {chirp.factCheckStatus && factCheckStyle && (
               <TouchableOpacity
@@ -490,12 +486,12 @@ const PostDetailScreen = () => {
         </View>
 
         {/* Comment Section */}
-        <CommentSection 
-          chirp={chirp} 
+        <CommentSection
+          chirp={chirp}
           initialExpanded={false}
         />
       </ScrollView>
-      
+
       {/* Fact-check status modal */}
       {chirp && (
         <FactCheckStatusModal

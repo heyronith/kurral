@@ -38,6 +38,9 @@
     "cleanup:users": "node scripts/cleanup-test-users.js",
     "create:users": "node scripts/create-5-users-with-posts.js",
     "create:platform": "node scripts/create-platform-accounts.js",
+    "reset-bot-passwords": "cd functions && npm run reset-bot-passwords",
+    "recreate-bots-except-news": "cd functions && npm run recreate-bots-except-news",
+    "ensure:platform-flags": "node scripts/ensure-platform-firestore-flags.js",
     "verify:platform": "node scripts/verify-platform-accounts.js",
     "test:all": "bash scripts/test-all.sh"
   },

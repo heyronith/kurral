@@ -245,10 +245,49 @@ function scoreChirpForViewer(chirp, viewer, config, getAuthor) {
   };
 }
 
+
+function hasUserAffinity(chirp, viewer, config) {
+  // Check following affinity
+  if (viewer.following.includes(chirp.authorId)) {
+    return config.followingWeight !== 'none';
+  }
+
+  // Check interest affinity
+  const viewerInterests = viewer.interests || [];
+  if (viewerInterests.length > 0 && chirp.semanticTopics && chirp.semanticTopics.length > 0) {
+    const hasInterestMatch = chirp.semanticTopics.some((topic) =>
+      viewerInterests.some((interest) => {
+        const normalizedInterest = interest.toLowerCase();
+        const normalizedTopic = topic.toLowerCase();
+        return (
+          normalizedInterest.includes(normalizedTopic) ||
+          normalizedTopic.includes(normalizedInterest)
+        );
+      })
+    );
+    if (hasInterestMatch) return true;
+  }
+
+  // Check liked topic affinity
+  const likedMatch = config.likedTopics.some(liked =>
+    chirp.topic.toLowerCase().includes(liked.toLowerCase())
+  );
+  if (likedMatch) {
+    return true;
+  }
+
+  return false;
+}
+
 function generateForYouFeed(allChirps, viewer, config, getAuthor, limit = 50) {
   if (!viewer) {
     return [];
   }
+
+  // Determine if we should apply strict filtering (Fine-Tuned Mode)
+  const isFineTuningActive =
+    (viewer.interests && viewer.interests.length > 0) ||
+    (config.likedTopics && config.likedTopics.length > 0);
 
   const timeWindowDays = config.timeWindowDays || 7;
   const cutoffTime = Date.now() - timeWindowDays * 24 * 60 * 60 * 1000;
@@ -259,12 +298,24 @@ function generateForYouFeed(allChirps, viewer, config, getAuthor, limit = 50) {
   );
 
   // Filter by eligibility
-  const eligibleChirps = recentChirps.filter((chirp) =>
+  let eligibleChirps = recentChirps.filter((chirp) =>
     isChirpEligibleForViewer(chirp, viewer, config)
   );
 
-  // If no eligible chirps, try relaxed filter
+  // Apply STRICT filtering if fine-tuning is active
+  if (isFineTuningActive) {
+    eligibleChirps = eligibleChirps.filter((chirp) =>
+      hasUserAffinity(chirp, viewer, config)
+    );
+  }
+
+  // If no eligible chirps, try relaxed filter (ONLY if NOT fine/strict tuning)
   if (eligibleChirps.length === 0) {
+    // If strict mode is active, RETURN EMPTY. Do not fall back to generic.
+    if (isFineTuningActive) {
+      return [];
+    }
+
     const relaxedEligible = recentChirps.filter((chirp) =>
       isChirpEligibleForViewer(chirp, viewer, config, { ignoreMuted: true })
     );
@@ -328,6 +379,62 @@ async function runTests() {
   console.log('🚀 Starting For You Feed Comprehensive Tests...\n');
   console.log('='.repeat(60));
   console.log('');
+
+  // Test 17: Strict Filtering for Fine-Tuned Feed
+  console.log('📋 Test 17: Strict Filtering for Fine-Tuned Feed');
+  console.log('-'.repeat(60));
+  {
+    const viewer = createMockUser({
+      following: [],
+      interests: ['pottery'] // Very specific interest
+    });
+    const config = createMockConfig({
+      followingWeight: 'medium',
+      likedTopics: []
+    });
+    const getAuthor = () => null;
+
+    const now = Date.now();
+    const chirps = [
+      // Matches interest
+      createMockChirp({
+        id: '1',
+        topic: 'art',
+        semanticTopics: ['pottery', 'ceramics'],
+        createdAt: new Date(now - 1 * 60 * 60 * 1000), // 1 hour ago
+      }),
+      // Completely unrelated (but recent)
+      createMockChirp({
+        id: '2',
+        topic: 'politics',
+        semanticTopics: ['elections'],
+        createdAt: new Date(now - 10 * 60 * 1000), // 10 mins ago (very recent)
+      }),
+      // Unrelated popular post
+      createMockChirp({
+        id: '3',
+        topic: 'sports',
+        commentCount: 100,
+        createdAt: new Date(now - 20 * 60 * 1000),
+      })
+    ];
+
+    const feed = generateForYouFeed(chirps, viewer, config, getAuthor, 10);
+
+    assert(feed.length === 1, 'Strict filtering should only return matching post');
+    if (feed.length > 0) {
+      assert(feed[0].chirp.id === '1', 'Should match the interest post');
+    } else {
+      console.error('Feed was empty but expected 1 post');
+    }
+
+    // Test with NO interests (should fallback to global)
+    const viewerNoInterests = createMockUser({ following: [], interests: [] });
+    const feedGlobal = generateForYouFeed(chirps, viewerNoInterests, config, getAuthor, 10);
+    assert(feedGlobal.length === 3, 'Without fine-tuning, should show all posts (fallback/discovery)');
+  }
+  console.log('');
+
 
   // Test 1: Basic Eligibility Filtering
   console.log('📋 Test 1: Basic Eligibility Filtering');
@@ -406,7 +513,7 @@ async function runTests() {
     const viewer = createMockUser({ following: ['author-1'] });
     // Use old chirp (40 hours ago) so recency score is 0, allowing us to test following weight in isolation
     // recencyScore = Math.max(0, 15 - 40 * 0.5) = Math.max(0, 15 - 20) = Math.max(0, -5) = 0
-    const oldChirp = createMockChirp({ 
+    const oldChirp = createMockChirp({
       authorId: 'author-1',
       createdAt: new Date(Date.now() - 40 * 60 * 60 * 1000) // 40 hours ago
     });

@@ -2,7 +2,6 @@ import * as functions from 'firebase-functions/v2';
 import * as functionsV1 from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { Resend } from 'resend';
-import Parser from 'rss-parser';
 import type { Chirp, Comment } from './types';
 import { processChirp, processComment } from './services/pipeline';
 import { chirpService } from './services/firestoreService';
@@ -26,7 +25,7 @@ type Priority = 'high' | 'medium' | 'low';
 
 interface NotificationData {
   userId: string;
-  type: 'comment' | 'reply' | 'rechirp' | 'follow' | 'mention';
+  type: 'comment' | 'reply' | 'rechirp' | 'follow' | 'mention' | 'review_request';
   actorId: string;
   chirpId?: string;
   commentId?: string;
@@ -43,6 +42,7 @@ interface NotificationPreferences {
   rechirpNotifications: boolean;
   followNotifications: boolean;
   mentionNotifications: boolean;
+  reviewRequestNotifications?: boolean;
   quietHoursStart?: string;
   quietHoursEnd?: string;
   mutedUserIds: string[];
@@ -59,65 +59,7 @@ function getResendClient(): Resend {
   return resendClient;
 }
 
-/**
- * Build push notification payload (title/body/url)
- */
-function buildPushPayload(
-  data: NotificationData,
-  notificationId: string,
-  actorName: string
-): { title: string; body: string; url: string; data: Record<string, string> } {
-  let title = 'New notification';
-  let body = 'You have a new notification';
-  let url = '/';
 
-  switch (data.type) {
-    case 'comment':
-      title = `${actorName} commented on your post`;
-      body = 'Tap to view the comment';
-      url = data.chirpId ? `/post/${data.chirpId}` : '/';
-      break;
-    case 'reply':
-      title = `${actorName} replied to your comment`;
-      body = 'Tap to view the reply';
-      url = data.chirpId ? `/post/${data.chirpId}` : '/';
-      break;
-    case 'rechirp':
-      title = `${actorName} reposted your post`;
-      body = 'Tap to view the repost';
-      url = data.chirpId ? `/post/${data.chirpId}` : '/';
-      break;
-    case 'follow':
-      title = `${actorName} followed you`;
-      body = 'See their profile';
-      url = data.actorId ? `/profile/${data.actorId}` : '/';
-      break;
-    case 'mention':
-      title = `${actorName} mentioned you`;
-      body = 'Tap to view the mention';
-      url = data.chirpId ? `/post/${data.chirpId}` : '/';
-      break;
-    default:
-      title = 'New notification';
-      body = 'You have a new notification';
-      url = '/';
-  }
-
-  return {
-    title,
-    body,
-    url,
-    data: {
-      notificationId,
-      type: data.type,
-      userId: data.userId,
-      actorId: data.actorId,
-      chirpId: data.chirpId || '',
-      commentId: data.commentId || '',
-      url,
-    },
-  };
-}
 
 /**
  * Get default notification preferences
@@ -142,22 +84,22 @@ function isQuietHoursActive(preferences: NotificationPreferences | null): boolea
   if (!preferences?.quietHoursStart || !preferences?.quietHoursEnd) {
     return false;
   }
-  
+
   const now = new Date();
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
   const currentTime = currentHour * 60 + currentMinute; // Minutes since midnight
-  
+
   const [startHour, startMin] = preferences.quietHoursStart.split(':').map(Number);
   const [endHour, endMin] = preferences.quietHoursEnd.split(':').map(Number);
   const startTime = startHour * 60 + startMin;
   const endTime = endHour * 60 + endMin;
-  
+
   // Handle case where quiet hours span midnight
   if (startTime > endTime) {
     return currentTime >= startTime || currentTime < endTime;
   }
-  
+
   return currentTime >= startTime && currentTime < endTime;
 }
 
@@ -169,7 +111,7 @@ function isNotificationTypeEnabled(
   preferences: NotificationPreferences | null
 ): boolean {
   if (!preferences) return true; // Default to enabled
-  
+
   switch (type) {
     case 'comment':
       return preferences.commentNotifications;
@@ -524,9 +466,9 @@ export const createNotification = functions.https.onCall(
 
       const preferences: NotificationPreferences = prefsDoc.exists
         ? {
-            ...getDefaultPreferences(),
-            ...prefsDoc.data(),
-          }
+          ...getDefaultPreferences(),
+          ...prefsDoc.data(),
+        }
         : getDefaultPreferences();
 
       // Check if notification type is enabled
@@ -590,58 +532,8 @@ export const createNotification = functions.https.onCall(
 
       // Send push notifications if tokens exist
       try {
-        // Get actor name for nicer messages
-        const actorDoc = await db.collection('users').doc(data.actorId).get();
-        const actorName = actorDoc.exists && actorDoc.data()?.name ? actorDoc.data()!.name : 'Someone';
-
-        const tokensSnap = await db
-          .collection('users')
-          .doc(data.userId)
-          .collection('pushTokens')
-          .get();
-
-        const tokens: string[] = [];
-        tokensSnap.forEach((t) => {
-          const token = (t.data() as any)?.token || t.id;
-          if (token) tokens.push(token);
-        });
-
-        if (tokens.length > 0) {
-          const payload = buildPushPayload(data, docRef.id, actorName);
-          const response = await admin.messaging().sendEachForMulticast({
-            tokens,
-            notification: {
-              title: payload.title,
-              body: payload.body,
-            },
-            data: payload.data,
-            webpush: {
-              fcmOptions: {
-                link: payload.url,
-              },
-            },
-          });
-
-          // Cleanup invalid tokens
-          if (response.failureCount > 0) {
-            response.responses.forEach((res, idx) => {
-              if (!res.success) {
-                const code = res.error?.code || '';
-                if (code.includes('registration-token-not-registered') || code.includes('invalid-argument')) {
-                  const badToken = tokens[idx];
-                  if (badToken) {
-                    db.collection('users')
-                      .doc(data.userId)
-                      .collection('pushTokens')
-                      .doc(badToken)
-                      .delete()
-                      .catch((cleanupErr) => console.error('Error removing bad token', cleanupErr));
-                  }
-                }
-              }
-            });
-          }
-        }
+        const { notificationService } = await import('./services/notificationService');
+        await notificationService.sendPushNotification(data.userId, data, docRef.id);
       } catch (pushError) {
         console.error('Error sending push notification:', pushError);
         // Do not fail the main request if push fails
@@ -654,12 +546,12 @@ export const createNotification = functions.https.onCall(
       };
     } catch (error: any) {
       console.error('Error creating notification:', error);
-      
+
       // If it's already an HttpsError, re-throw it
       if (error instanceof functions.https.HttpsError) {
         throw error;
       }
-      
+
       // Otherwise, wrap it
       throw new functions.https.HttpsError(
         'internal',
@@ -1070,7 +962,18 @@ async function sendReviewRequestsForChirp(chirpId: string): Promise<number> {
         viewPostUrl: `https://kurral.app/post/${chirpId}`,
       });
       await logReviewEmail(reviewer.userId, chirpId);
-      sent += 1;
+      try {
+        const { notificationService } = await import('./services/notificationService');
+        await notificationService.createNotification({
+          userId: reviewer.userId,
+          type: 'review_request',
+          actorId: 'system',
+          chirpId,
+        });
+        sent += 1;
+      } catch (err) {
+        console.error('Error sending push notification', chirpId, reviewer.userId, err);
+      }
     } catch (err) {
       console.error('Error sending review request email', chirpId, reviewer.userId, err);
     }
@@ -1131,717 +1034,6 @@ export const sendReviewRequestsCron = functions.scheduler.onSchedule(
   }
 );
 
-// ---------- RSS Feed Polling for Breaking News ----------
-
-interface RSSFeed {
-  url: string;
-  name: string;
-  enabled: boolean;
-  lastChecked?: admin.firestore.Timestamp;
-}
-
-interface Article {
-  title: string;
-  link: string;
-  pubDate: Date;
-  description?: string;
-  content?: string;
-}
-
-// RSS Feeds configuration
-const RSS_FEEDS: RSSFeed[] = [
-  { url: 'https://feeds.bbci.co.uk/news/rss.xml', name: 'BBC News', enabled: true },
-  { url: 'https://feeds.reuters.com/reuters/topNews', name: 'Reuters Top News', enabled: true },
-  { url: 'https://apnews.com/apf-topnews', name: 'AP News', enabled: true },
-  { url: 'http://rss.cnn.com/rss/edition.rss', name: 'CNN', enabled: true },
-  { url: 'https://feeds.npr.org/1001/rss.xml', name: 'NPR News', enabled: true },
-];
-
-// Breaking news keywords
-const BREAKING_KEYWORDS = [
-  'breaking',
-  'urgent',
-  'developing',
-  'just in',
-  'alert',
-  'emergency',
-  'crisis',
-  'major',
-  'significant',
-  'unprecedented',
-];
-
-// Map topics to platform account types
-const TOPIC_TO_ACCOUNT_TYPE: Record<string, string> = {
-  'technology': 'tech',
-  'tech': 'tech',
-  'science': 'science',
-  'business': 'business',
-  'finance': 'business',
-  'economy': 'business',
-  'sports': 'sports',
-  'health': 'health',
-  'medical': 'health',
-  'wellness': 'health',
-  'entertainment': 'entertainment',
-  'movies': 'entertainment',
-  'tv': 'entertainment',
-  'music': 'entertainment',
-  'news': 'news',
-  'politics': 'news',
-  'general': 'news',
-};
-
-// Get platform account user ID by topic
-async function getPlatformAccountByTopic(topic: string): Promise<string | null> {
-  try {
-    // Normalize topic to lowercase
-    const normalizedTopic = topic.toLowerCase().trim();
-    
-    // Map topic to account type
-    const accountType = TOPIC_TO_ACCOUNT_TYPE[normalizedTopic] || 'news';
-    
-    // Map account type to handle
-    const handleMap: Record<string, string> = {
-      'main': 'kural',
-      'news': 'kuralnews',
-      'tech': 'kuraltech',
-      'science': 'kuralscience',
-      'business': 'kuralbusiness',
-      'sports': 'kuralsports',
-      'health': 'kuralhealth',
-      'entertainment': 'kuralentertainment',
-    };
-    
-    const handle = handleMap[accountType] || 'kuralnews';
-    
-    const usersSnapshot = await db
-      .collection('users')
-      .where('isPlatformAccount', '==', true)
-      .where('platformAccountType', '==', accountType)
-      .where('handle', '==', handle)
-      .limit(1)
-      .get();
-
-    if (usersSnapshot.empty) {
-      console.warn(`[RSSPoll] Platform account not found for topic "${topic}" (type: ${accountType}, handle: ${handle}), falling back to news`);
-      // Fallback to news account
-      return await getPlatformAccountByTopic('news');
-    }
-
-    return usersSnapshot.docs[0].id;
-  } catch (error) {
-    console.error(`[RSSPoll] Error finding platform account for topic "${topic}":`, error);
-    // Fallback to news account
-    try {
-      return await getPlatformAccountByTopic('news');
-    } catch (fallbackError) {
-      console.error('[RSSPoll] Fallback to news account also failed:', fallbackError);
-      return null;
-    }
-  }
-}
-
-// Get Kural News platform account user ID (legacy function for backward compatibility)
-async function getKuralNewsUserId(): Promise<string | null> {
-  return getPlatformAccountByTopic('news');
-}
-
-// Check if article is breaking news
-function isBreakingNews(article: Article): boolean {
-  const titleLower = article.title.toLowerCase();
-  const descriptionLower = (article.description || '').toLowerCase();
-  const contentLower = (article.content || '').toLowerCase();
-
-  // Check for breaking keywords in title (highest priority)
-  const hasBreakingKeyword = BREAKING_KEYWORDS.some((keyword) =>
-    titleLower.includes(keyword)
-  );
-
-  if (hasBreakingKeyword) {
-    return true;
-  }
-
-  // Check if article is very recent (published in last 10 minutes)
-  const now = new Date();
-  const articleAge = now.getTime() - article.pubDate.getTime();
-  const tenMinutesAgo = 10 * 60 * 1000;
-
-  if (articleAge < tenMinutesAgo) {
-    // Recent article - check description/content for breaking keywords
-    return (
-      BREAKING_KEYWORDS.some((keyword) => descriptionLower.includes(keyword)) ||
-      BREAKING_KEYWORDS.some((keyword) => contentLower.includes(keyword))
-    );
-  }
-
-  return false;
-}
-
-// Generate article ID for deduplication
-// IMPROVED: Use article link as primary identifier to prevent duplicates across feeds
-function generateArticleId(article: Article, feedUrl: string): string {
-  // Primary: Use normalized article link (same story = same link across feeds)
-  if (article.link) {
-    try {
-      const url = new URL(article.link);
-      // Normalize URL: remove query params, fragments, trailing slashes, and www
-      const normalizedLink = `${url.protocol}//${url.host.replace(/^www\./, '')}${url.pathname.replace(/\/$/, '')}`.toLowerCase();
-      // Use normalized link as ID (same article from different feeds will have same ID)
-      return `article_${normalizedLink}`;
-    } catch {
-      // Invalid URL, fallback to feed-specific ID
-    }
-  }
-  // Fallback: feed + title + date (for articles without links)
-  return `${feedUrl}_${article.title}_${article.pubDate.getTime()}`;
-}
-
-// Check if article has been processed
-async function isArticleProcessed(articleId: string): Promise<boolean> {
-  try {
-    const doc = await db.collection('processedArticles').doc(articleId).get();
-    return doc.exists;
-  } catch (error) {
-    console.error('[RSSPoll] Error checking processed article:', error);
-    return false;
-  }
-}
-
-// Mark article as processed
-async function markArticleProcessed(article: Article, feedUrl: string): Promise<void> {
-  try {
-    const articleId = generateArticleId(article, feedUrl);
-    await db.collection('processedArticles').doc(articleId).set({
-      articleId,
-      feedUrl,
-      title: article.title,
-      link: article.link,
-      pubDate: admin.firestore.Timestamp.fromDate(article.pubDate),
-      processedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  } catch (error) {
-    console.error('[RSSPoll] Error marking article as processed:', error);
-  }
-}
-
-// Format article for posting
-function formatArticleForPost(article: Article, feedName: string): string {
-  const maxLength = 280;
-  let postText = `📰 ${article.title}`;
-
-  // Add description if available and space permits
-  if (article.description) {
-    const cleanDescription = article.description
-      .replace(/<[^>]*>/g, '') // Remove HTML tags
-      .trim()
-      .substring(0, 150);
-
-    if (cleanDescription && postText.length + cleanDescription.length + 10 < maxLength) {
-      postText += `\n\n${cleanDescription}`;
-    }
-  }
-
-  // Add source and link if space permits
-  const sourceText = `\n\nSource: ${feedName}`;
-  const linkText = `\n${article.link}`;
-
-  if (postText.length + sourceText.length + linkText.length <= maxLength) {
-    postText += sourceText + linkText;
-  } else if (postText.length + linkText.length <= maxLength) {
-    postText += linkText;
-  }
-
-  // Truncate if still too long
-  if (postText.length > maxLength) {
-    postText = postText.substring(0, maxLength - 3) + '...';
-  }
-
-  return postText;
-}
-
-// Create chirp with semantic topic extraction and route to appropriate platform account
-async function createNewsChirp(
-  fallbackUserId: string,
-  text: string,
-  articleLink: string
-): Promise<string | null> {
-  try {
-    // Extract semantic topics using ReachAgent (same as user posts)
-    let semanticTopics: string[] = [];
-    let entities: string[] = [];
-    let intent: string | undefined;
-    let analyzedAt: Date | undefined;
-    let resolvedTopic: string = 'news'; // Default to 'news'
-
-    try {
-      const reachAgent = getReachAgent();
-      if (reachAgent) {
-        // Get available topics from Firestore for better context
-        let availableTopics: Array<{ name: string; postsLast48h?: number; totalUsers?: number }> = [];
-        try {
-          const topicsSnapshot = await db.collection('topics')
-            .orderBy('postsLast48h', 'desc')
-            .limit(30)
-            .get();
-          availableTopics = topicsSnapshot.docs.map(doc => ({
-            name: doc.id,
-            postsLast48h: doc.data().postsLast48h || 0,
-            totalUsers: doc.data().totalUsers || 0,
-          }));
-        } catch (topicsError) {
-          console.warn('[RSSPoll] Could not load topics for analysis:', topicsError);
-        }
-
-        // Analyze content to extract semantic topics
-        const analysis = await reachAgent.analyzePostContent(text, availableTopics, []);
-        semanticTopics = analysis.semanticTopics || [];
-        entities = analysis.entities || [];
-        intent = analysis.intent;
-        resolvedTopic = analysis.suggestedBucket || 'news';
-        analyzedAt = new Date();
-
-        console.log(`[RSSPoll] Extracted semantic topics: ${semanticTopics.join(', ')}`);
-        console.log(`[RSSPoll] Resolved topic: ${resolvedTopic}`);
-      } else {
-        console.warn('[RSSPoll] ReachAgent not available, skipping semantic analysis');
-      }
-    } catch (analysisError) {
-      console.warn('[RSSPoll] Failed to extract semantic topics:', analysisError);
-      // Continue without semantic topics - post will still be created
-    }
-
-    // Get the appropriate platform account based on resolved topic
-    let userId = fallbackUserId;
-    try {
-      const topicBasedUserId = await getPlatformAccountByTopic(resolvedTopic);
-      if (topicBasedUserId) {
-        userId = topicBasedUserId;
-        console.log(`[RSSPoll] Routing to platform account for topic "${resolvedTopic}" (userId: ${userId})`);
-      } else {
-        console.warn(`[RSSPoll] Could not find platform account for topic "${resolvedTopic}", using fallback`);
-      }
-    } catch (accountError) {
-      console.warn(`[RSSPoll] Error getting platform account for topic "${resolvedTopic}":`, accountError);
-      // Use fallback userId
-    }
-
-    const chirpData: any = {
-      authorId: userId,
-      text: text,
-      topic: resolvedTopic,
-      reachMode: 'forAll',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      commentCount: 0,
-      // Skip value pipeline for automated posts - mark as clean immediately
-      factCheckingStatus: 'completed',
-      factCheckStatus: 'clean',
-      // Store original article link for reference
-      sourceUrl: articleLink,
-      isAutomatedPost: true,
-    };
-
-    // Add semantic analysis fields if available
-    if (semanticTopics.length > 0) {
-      chirpData.semanticTopics = semanticTopics;
-    }
-    if (entities.length > 0) {
-      chirpData.entities = entities;
-    }
-    if (intent) {
-      chirpData.intent = intent;
-    }
-    if (analyzedAt) {
-      chirpData.analyzedAt = admin.firestore.Timestamp.fromDate(analyzedAt);
-    }
-
-    const docRef = await db.collection('chirps').add(chirpData);
-
-    // Update topic engagement for resolved topic
-    try {
-      const topicRef = db.collection('topics').doc(resolvedTopic);
-      const topicSnap = await topicRef.get();
-
-      if (topicSnap.exists) {
-        await topicRef.update({
-          postsLast48h: admin.firestore.FieldValue.increment(1),
-          postsLast1h: admin.firestore.FieldValue.increment(1),
-          postsLast4h: admin.firestore.FieldValue.increment(1),
-          lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      } else {
-        await topicRef.set({
-          name: resolvedTopic,
-          postsLast48h: 1,
-          postsLast1h: 1,
-          postsLast4h: 1,
-          totalUsers: 0,
-          averageVelocity1h: 0,
-          isTrending: false,
-          lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-
-      // Also update semantic topic engagement
-      if (semanticTopics.length > 0) {
-        for (const semanticTopic of semanticTopics) {
-          if (semanticTopic !== resolvedTopic) {
-            try {
-              const semanticTopicRef = db.collection('topics').doc(semanticTopic);
-              const semanticTopicSnap = await semanticTopicRef.get();
-              
-              if (semanticTopicSnap.exists) {
-                await semanticTopicRef.update({
-                  postsLast48h: admin.firestore.FieldValue.increment(1),
-                  postsLast1h: admin.firestore.FieldValue.increment(1),
-                  postsLast4h: admin.firestore.FieldValue.increment(1),
-                  lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
-                });
-              } else {
-                await semanticTopicRef.set({
-                  name: semanticTopic,
-                  postsLast48h: 1,
-                  postsLast1h: 1,
-                  postsLast4h: 1,
-                  totalUsers: 0,
-                  averageVelocity1h: 0,
-                  isTrending: false,
-                  lastEngagementUpdate: admin.firestore.FieldValue.serverTimestamp(),
-                });
-              }
-            } catch (semanticTopicError) {
-              console.warn(`[RSSPoll] Could not update semantic topic engagement for ${semanticTopic}:`, semanticTopicError);
-            }
-          }
-        }
-      }
-    } catch (topicError) {
-      console.warn('[RSSPoll] Could not update topic engagement:', topicError);
-    }
-
-    return docRef.id;
-  } catch (error) {
-    console.error('[RSSPoll] Error creating chirp:', error);
-    return null;
-  }
-}
-
-// Score article for smart selection
-interface ArticleScore {
-  article: Article;
-  score: number;
-  reasons: string[];
-}
-
-function scoreArticle(article: Article): ArticleScore {
-  let score = 0;
-  const reasons: string[] = [];
-
-  // Breaking news gets highest priority
-  if (isBreakingNews(article)) {
-    score += 100;
-    reasons.push('breaking-news');
-  }
-
-  // Recency bonus (more recent = higher score)
-  const ageMinutes = (Date.now() - article.pubDate.getTime()) / (1000 * 60);
-  if (ageMinutes < 30) {
-    score += 50;
-    reasons.push('very-recent');
-  } else if (ageMinutes < 120) {
-    score += 20;
-    reasons.push('recent');
-  } else if (ageMinutes < 360) {
-    score += 10;
-    reasons.push('moderately-recent');
-  }
-
-  // Title quality (length, clarity)
-  if (article.title) {
-    const titleLength = article.title.length;
-    if (titleLength > 20 && titleLength < 100) {
-      score += 10;
-      reasons.push('good-title-length');
-    }
-    // Check for important keywords
-    const titleLower = article.title.toLowerCase();
-    const importantKeywords = ['breaking', 'urgent', 'major', 'significant', 'announcement', 'update', 'report'];
-    if (importantKeywords.some(keyword => titleLower.includes(keyword))) {
-      score += 15;
-      reasons.push('important-keywords');
-    }
-  }
-
-  // Has description
-  if (article.description && article.description.length > 50) {
-    score += 10;
-    reasons.push('has-description');
-  }
-
-  // Has content
-  if (article.content && article.content.length > 100) {
-    score += 5;
-    reasons.push('has-content');
-  }
-
-  return { article, score, reasons };
-}
-
-// Poll a single RSS feed for breaking news
-async function pollRSSFeed(feed: RSSFeed, fallbackUserId: string): Promise<number> {
-  if (!feed.enabled) {
-    return 0;
-  }
-
-  try {
-    const parser = new Parser();
-    const feedData = await parser.parseURL(feed.url);
-
-    if (!feedData.items || feedData.items.length === 0) {
-      console.log(`[RSSPoll] No items found in feed: ${feed.name}`);
-      return 0;
-    }
-
-    let postedCount = 0;
-
-    for (const item of feedData.items) {
-      try {
-        const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
-        const article: Article = {
-          title: item.title || 'Untitled',
-          link: item.link || '',
-          pubDate: pubDate,
-          description: item.contentSnippet || item.content || '',
-          content: item.content || item.contentSnippet || '',
-        };
-
-        // Generate article ID and check if processed
-        const articleId = generateArticleId(article, feed.url);
-        if (await isArticleProcessed(articleId)) {
-          continue; // Skip already processed articles
-        }
-
-        // Check if breaking news
-        if (!isBreakingNews(article)) {
-          // Mark as processed even if not breaking (to avoid reprocessing)
-          await markArticleProcessed(article, feed.url);
-          continue;
-        }
-
-        // Format and post (will route to appropriate platform account based on topic)
-        const postText = formatArticleForPost(article, feed.name);
-        const chirpId = await createNewsChirp(fallbackUserId, postText, article.link);
-
-        if (chirpId) {
-          await markArticleProcessed(article, feed.url);
-          postedCount++;
-          console.log(`[RSSPoll] Posted breaking news: ${article.title.substring(0, 50)}...`);
-        }
-      } catch (itemError) {
-        console.error(`[RSSPoll] Error processing article from ${feed.name}:`, itemError);
-        continue;
-      }
-    }
-
-    // Update feed last checked timestamp
-    try {
-      const feedRef = db.collection('rssFeeds').doc(feed.url);
-      await feedRef.set(
-        {
-          url: feed.url,
-          name: feed.name,
-          enabled: feed.enabled,
-          lastChecked: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (updateError) {
-      console.warn(`[RSSPoll] Could not update feed timestamp for ${feed.name}:`, updateError);
-    }
-
-    return postedCount;
-  } catch (error) {
-    console.error(`[RSSPoll] Error polling feed ${feed.name}:`, error);
-    return 0;
-  }
-}
-
-// Poll RSS feed for top headlines (not just breaking news) with smart scoring
-async function pollRSSFeedForTopHeadlines(
-  feed: RSSFeed,
-  fallbackUserId: string,
-  maxArticles: number = 5
-): Promise<number> {
-  if (!feed.enabled) {
-    return 0;
-  }
-
-  try {
-    const parser = new Parser();
-    const feedData = await parser.parseURL(feed.url);
-
-    if (!feedData.items || feedData.items.length === 0) {
-      console.log(`[RSSPoll] No items found in feed: ${feed.name}`);
-      return 0;
-    }
-
-    // Score all articles
-    const articles: Article[] = [];
-    for (const item of feedData.items) {
-      try {
-        const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
-        const article: Article = {
-          title: item.title || 'Untitled',
-          link: item.link || '',
-          pubDate: pubDate,
-          description: item.contentSnippet || item.content || '',
-          content: item.content || item.contentSnippet || '',
-        };
-        articles.push(article);
-      } catch (itemError) {
-        console.error(`[RSSPoll] Error parsing article from ${feed.name}:`, itemError);
-        continue;
-      }
-    }
-
-    // Score and sort articles
-    const scoredArticles = articles.map(article => scoreArticle(article));
-    scoredArticles.sort((a, b) => b.score - a.score);
-
-    // Take top N articles
-    const topArticles = scoredArticles.slice(0, maxArticles);
-    let postedCount = 0;
-
-    for (const { article, score, reasons } of topArticles) {
-      try {
-        // Generate article ID and check if processed
-        const articleId = generateArticleId(article, feed.url);
-        if (await isArticleProcessed(articleId)) {
-          continue; // Skip already processed articles
-        }
-
-        // Format and post (will route to appropriate platform account based on topic)
-        const postText = formatArticleForPost(article, feed.name);
-        const chirpId = await createNewsChirp(fallbackUserId, postText, article.link);
-
-        if (chirpId) {
-          await markArticleProcessed(article, feed.url);
-          postedCount++;
-          console.log(`[RSSPoll] Posted top headline (score: ${score}, reasons: ${reasons.join(', ')}): ${article.title.substring(0, 50)}...`);
-        }
-      } catch (itemError) {
-        console.error(`[RSSPoll] Error processing article from ${feed.name}:`, itemError);
-        continue;
-      }
-    }
-
-    // Update feed last checked timestamp
-    try {
-      const feedRef = db.collection('rssFeeds').doc(feed.url);
-      await feedRef.set(
-        {
-          url: feed.url,
-          name: feed.name,
-          enabled: feed.enabled,
-          lastChecked: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (updateError) {
-      console.warn(`[RSSPoll] Could not update feed timestamp for ${feed.name}:`, updateError);
-    }
-
-    return postedCount;
-  } catch (error) {
-    console.error(`[RSSPoll] Error polling feed ${feed.name} for top headlines:`, error);
-    return 0;
-  }
-}
-
-// Main RSS polling function - polls for breaking news
-async function pollAllRSSFeeds(): Promise<void> {
-  console.log('[RSSPoll] Starting RSS feed polling (breaking news)...');
-
-  // Get Kural News user ID as fallback
-  const kuralNewsUserId = await getKuralNewsUserId();
-  if (!kuralNewsUserId) {
-    console.error('[RSSPoll] Cannot proceed without Kural News account');
-    return;
-  }
-
-  let totalBreaking = 0;
-
-  // Poll each enabled feed for breaking news
-  for (const feed of RSS_FEEDS) {
-    if (!feed.enabled) {
-      continue;
-    }
-
-    try {
-      const posted = await pollRSSFeed(feed, kuralNewsUserId);
-      totalBreaking += posted;
-    } catch (error) {
-      console.error(`[RSSPoll] Error processing feed ${feed.name}:`, error);
-    }
-  }
-
-  console.log(`[RSSPoll] Completed. Posted ${totalBreaking} breaking news articles.`);
-}
-
-// Poll RSS feeds for top headlines (with smart scoring)
-async function pollAllRSSFeedsForHeadlines(): Promise<void> {
-  console.log('[RSSPoll] Starting RSS feed polling (top headlines)...');
-
-  // Get Kural News user ID as fallback
-  const kuralNewsUserId = await getKuralNewsUserId();
-  if (!kuralNewsUserId) {
-    console.error('[RSSPoll] Cannot proceed without Kural News account');
-    return;
-  }
-
-  let totalHeadlines = 0;
-
-  // Poll each enabled feed for top headlines
-  for (const feed of RSS_FEEDS) {
-    if (!feed.enabled) {
-      continue;
-    }
-
-    try {
-      // Post top 3 headlines per feed (smart scoring will select best ones)
-      const posted = await pollRSSFeedForTopHeadlines(feed, kuralNewsUserId, 3);
-      totalHeadlines += posted;
-    } catch (error) {
-      console.error(`[RSSPoll] Error processing feed ${feed.name} for headlines:`, error);
-    }
-  }
-
-  console.log(`[RSSPoll] Completed. Posted ${totalHeadlines} top headline articles.`);
-}
-
-// Scheduled Cloud Function: Poll RSS feeds for breaking news every 2 minutes (faster polling)
-export const pollRSSFeedsCron = functions.scheduler.onSchedule(
-  {
-    schedule: 'every 2 minutes',
-    timeZone: 'Etc/UTC',
-    maxInstances: 1,
-  },
-  async () => {
-    await pollAllRSSFeeds();
-  }
-);
-
-// Scheduled Cloud Function: Poll RSS feeds for top headlines every 15 minutes (with smart scoring)
-export const pollRSSFeedsHeadlinesCron = functions.scheduler.onSchedule(
-  {
-    schedule: 'every 15 minutes',
-    timeZone: 'Etc/UTC',
-    maxInstances: 1,
-  },
-  async () => {
-    await pollAllRSSFeedsForHeadlines();
-  }
-);
 
 // Scheduled Cloud Function: Validate engagement predictions daily at 2 AM UTC
 export const validatePredictionsCron = functions.scheduler.onSchedule(
@@ -1862,43 +1054,8 @@ export const validatePredictionsCron = functions.scheduler.onSchedule(
   }
 );
 
-// Manual trigger function (for testing)
-export const pollRSSFeedsManual = functions.https.onCall(
-  { cors: true, maxInstances: 1, memory: '512MiB' },
-  async (request) => {
-    // Optional: Add authentication check for admin users
-    if (!request.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'Authentication required'
-      );
-    }
-
-    try {
-      const mode = request.data?.mode || 'breaking'; // 'breaking' or 'headlines' or 'both'
-      
-      if (mode === 'breaking' || mode === 'both') {
-        await pollAllRSSFeeds();
-      }
-      
-      if (mode === 'headlines' || mode === 'both') {
-        await pollAllRSSFeedsForHeadlines();
-      }
-      
-      return { 
-        success: true, 
-        message: `RSS polling completed (mode: ${mode})`,
-        mode 
-      };
-    } catch (error: any) {
-      console.error('[RSSPoll] Manual trigger error:', error);
-      throw new functions.https.HttpsError(
-        'internal',
-        `Failed to poll RSS feeds: ${error.message}`
-      );
-    }
-  }
-);
+// ---------- GNews News Poll (Kural News) ----------
+export { pollGNewsCron, pollGNewsManual } from './news/scheduler';
 
 // ---------- Value Pipeline Cloud Functions ----------
 
@@ -1967,10 +1124,10 @@ const normalizeCommentPayload = (payload: any): Comment => ({
 });
 
 export const processChirpValue = functions.https.onCall(
-  { 
-    cors: true, 
-    maxInstances: 5, 
-    memory: '1GiB', 
+  {
+    cors: true,
+    maxInstances: 5,
+    memory: '1GiB',
     timeoutSeconds: 300,
     secrets: ['OPENAI_API_KEY']
   },
@@ -1979,7 +1136,7 @@ export const processChirpValue = functions.https.onCall(
     console.log('📞 [CLOUD FUNCTION] processChirpValue called');
     console.log('='.repeat(80));
     console.log(`👤 User: ${request.auth?.uid || 'unauthenticated'}`);
-    
+
     if (!request.auth) {
       console.log('❌ Unauthenticated request - rejecting');
       throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
@@ -1987,7 +1144,7 @@ export const processChirpValue = functions.https.onCall(
 
     const { chirpId, chirp: chirpPayload, options } = request.data || {};
     console.log(`📝 Input: chirpId=${chirpId || 'none'}, hasPayload=${!!chirpPayload}`);
-    
+
     let chirp: Chirp | null = null;
 
     if (chirpId) {
@@ -2013,15 +1170,15 @@ export const processChirpValue = functions.https.onCall(
     try {
       console.log(`🚀 Starting pipeline processing...`);
       // Use the new simplified pipeline
-      const result = await processChirp({ 
-        chirp, 
+      const result = await processChirp({
+        chirp,
         skipPreCheck: options?.skipFactCheck === false // Force processing if skipFactCheck is explicitly false
       });
 
       if (!result.success) {
         console.error('[processChirpValue] Pipeline failed:', result.error);
         throw new functions.https.HttpsError(
-          'internal', 
+          'internal',
           result.error?.message || 'Pipeline processing failed'
         );
       }
@@ -2046,9 +1203,9 @@ export const processChirpValue = functions.https.onCall(
       console.log('\n❌ Cloud Function error');
       console.log(`   Error: ${error.message}`);
       console.log('='.repeat(80) + '\n');
-      
+
       console.error('[processChirpValue] Failed', error);
-      
+
       // Still throw the error so client knows processing failed
       // The Firestore trigger will handle processing as a fallback
       throw new functions.https.HttpsError('internal', error?.message || 'Failed to process chirp value');
@@ -2078,21 +1235,21 @@ export const onChirpCreate = functionsV1.firestore
     console.log(`⏳ Processing Status: ${chirpData.factCheckingStatus || 'none'}`);
     console.log(`🤖 Is Automated Post: ${chirpData.isAutomatedPost || false}`);
 
-    // Skip automated posts - they don't need value pipeline processing
-    if (chirpData.isAutomatedPost) {
-      console.log(`⏭️  Skipping - automated post (no value pipeline needed)`);
+    // Skip rechirps
+    if (chirpData.rechirpOfId) {
+      console.log(`⏭️  Skipping - rechirp`);
       console.log('='.repeat(80) + '\n');
       return;
     }
 
-    // Skip if already processed or if it's a rechirp (for now)
+    // Skip user posts already processed (automated posts have factCheckStatus 'clean' set at creation but still need pipeline for value scoring)
     if (
-      chirpData.factCheckStatus === 'clean' ||
-      chirpData.factCheckStatus === 'blocked' ||
-      chirpData.factCheckStatus === 'needs_review' ||
-      chirpData.rechirpOfId
+      !chirpData.isAutomatedPost &&
+      (chirpData.factCheckStatus === 'clean' ||
+        chirpData.factCheckStatus === 'blocked' ||
+        chirpData.factCheckStatus === 'needs_review')
     ) {
-      console.log(`⏭️  Skipping - already processed (status: ${chirpData.factCheckStatus}) or rechirp`);
+      console.log(`⏭️  Skipping - already processed (status: ${chirpData.factCheckStatus})`);
       console.log('='.repeat(80) + '\n');
       return;
     }
@@ -2112,8 +1269,11 @@ export const onChirpCreate = functionsV1.firestore
         ...chirpData,
       });
 
-      // Process through pipeline
-      const result = await processChirp({ chirp });
+      // Process through pipeline (bot posts: skip fact-check, run value scoring only)
+      const result = await processChirp(
+        { chirp },
+        chirpData.isAutomatedPost ? { skipFactCheck: true } : undefined
+      );
 
       if (!result.success) {
         console.log('\n❌ Pipeline failed in trigger');
@@ -2148,10 +1308,10 @@ export const onChirpCreate = functionsV1.firestore
   });
 
 export const processCommentValue = functions.https.onCall(
-  { 
-    cors: true, 
-    maxInstances: 5, 
-    memory: '1GiB', 
+  {
+    cors: true,
+    maxInstances: 5,
+    memory: '1GiB',
     timeoutSeconds: 300,
     secrets: ['OPENAI_API_KEY']
   },
@@ -2167,7 +1327,7 @@ export const processCommentValue = functions.https.onCall(
 
     try {
       const normalizedComment = normalizeCommentPayload(comment);
-      
+
       // Get parent chirp for context
       const parentChirp = await chirpService.getChirp(normalizedComment.chirpId);
       if (!parentChirp) {
@@ -2175,7 +1335,7 @@ export const processCommentValue = functions.https.onCall(
       }
 
       // Use the new simplified pipeline
-      const result = await processComment({ 
+      const result = await processComment({
         comment: normalizedComment,
         parentChirp,
       });
@@ -2183,7 +1343,7 @@ export const processCommentValue = functions.https.onCall(
       if (!result.success) {
         console.error('[processCommentValue] Pipeline failed:', result.error);
         throw new functions.https.HttpsError(
-          'internal', 
+          'internal',
           result.error?.message || 'Pipeline processing failed'
         );
       }
@@ -2201,3 +1361,57 @@ export const processCommentValue = functions.https.onCall(
 );
 
 // Note: processPendingRechirpsCron removed - rechirp handling is skipped in v2 pipeline
+
+// Maintenance Callable: Fix platform account flags
+export const fixPlatformAccounts = functions.https.onCall(
+  { cors: true, maxInstances: 10, memory: '256MiB' },
+  async (request) => {
+    // Basic auth check
+    if (!request.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Auth required');
+    }
+
+    const { profilePictures } = request.data as { profilePictures?: Record<string, string> };
+
+    const PLATFORM_ACCOUNTS = [
+      { handle: 'kural', name: 'Kural', type: 'main' },
+      { handle: 'kuralnews', name: 'Kural News', type: 'news' },
+      { handle: 'kuraltech', name: 'Kural Tech', type: 'tech' },
+      { handle: 'kuralscience', name: 'Kural Science', type: 'science' },
+      { handle: 'kuralbusiness', name: 'Kural Business', type: 'business' },
+      { handle: 'kuralsports', name: 'Kural Sports', type: 'sports' },
+      { handle: 'kuralhealth', name: 'Kural Health', type: 'health' },
+      { handle: 'kuralentertainment', name: 'Kural Entertainment', type: 'entertainment' },
+      { handle: 'kuraldesign', name: 'Kural Design', type: 'design' },
+      { handle: 'kuralgaming', name: 'Kural Gaming', type: 'gaming' },
+    ];
+
+    const results: string[] = [];
+    for (const account of PLATFORM_ACCOUNTS) {
+      const query = await db.collection('users').where('handle', '==', account.handle).limit(1).get();
+      if (!query.empty) {
+        const updates: any = {
+          isPlatformAccount: true,
+          platformAccountType: account.type,
+          onboardingCompleted: true,
+        };
+
+        if (profilePictures && profilePictures[account.handle]) {
+          updates.profilePictureUrl = profilePictures[account.handle];
+        }
+
+        await query.docs[0].ref.update(updates);
+        results.push(`Updated @${account.handle}${updates.profilePictureUrl ? ' (w/ Image)' : ''}`);
+      } else {
+        results.push(`Missing @${account.handle}`);
+      }
+    }
+    return { success: true, results };
+  }
+);
+
+// Review Service Triggers
+export { onPostReviewContextCreated } from './services/reviewService';
+
+
+

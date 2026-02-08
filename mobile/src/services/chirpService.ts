@@ -13,6 +13,7 @@ import {
   Timestamp,
   where,
   deleteField,
+  increment,
   type DocumentData,
   type QueryConstraint,
   type QuerySnapshot,
@@ -51,6 +52,31 @@ const normalizeFactChecks = (factChecks?: FactCheck[]): FactCheck[] | undefined 
   }));
 };
 
+const chunkArray = <T>(items: T[], chunkSize: number): T[][] => {
+  if (chunkSize <= 0) {
+    return [items];
+  }
+
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
+const dedupeChirps = (chirps: Chirp[]): Chirp[] => {
+  const map = new Map<string, Chirp>();
+  chirps.forEach((chirp) => {
+    const existing = map.get(chirp.id);
+    if (!existing || existing.createdAt < chirp.createdAt) {
+      map.set(chirp.id, chirp);
+    }
+  });
+  return Array.from(map.values()).sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+  );
+};
+
 const toChirp = (docSnap: QuerySnapshot<DocumentData>['docs'][number] | any): Chirp => {
   const data = docSnap.data() as FirestoreChirp;
 
@@ -84,7 +110,7 @@ const buildLatestQuery = (followingIds: string[] | undefined | null, max: number
   const safeFollowingIds = Array.isArray(followingIds) ? followingIds : [];
   // Firestore 'in' query has a limit of 10 items
   const idsToQuery = safeFollowingIds.slice(0, 10);
-  
+
   if (idsToQuery.length === 0) {
     // Return empty query result if no following - use a query that will return no results
     // We can't use limit(0), so we use a where clause that will never match
@@ -158,6 +184,28 @@ export const chirpService = {
     );
   },
 
+  listenToChirp(
+    chirpId: string,
+    onUpdate: (chirp: Chirp) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const docRef = doc(db, CHIRPS_COLLECTION, chirpId);
+    return onSnapshot(
+      docRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          onUpdate(toChirp(snapshot));
+        } else {
+          onError?.(new Error('Chirp not found'));
+        }
+      },
+      (err) => {
+        console.error('[chirpService] listenToChirp failed', err, { chirpId });
+        onError?.(err);
+      }
+    );
+  },
+
   async fetchLatest(
     followingIds: string[] | undefined | null,
     currentUserId: string,
@@ -192,6 +240,8 @@ export const chirpService = {
       reachMode: chirp.reachMode,
       createdAt: Timestamp.now(),
       commentCount: 0,
+      bookmarkCount: 0,
+      rechirpCount: 0,
       // Initialize fact checking status for resume capability
       factCheckingStatus: 'pending',
       factCheckingStartedAt: Timestamp.now(),
@@ -269,6 +319,10 @@ export const chirpService = {
               }
             });
           }
+          // Increment rechirp count on original chirp (non-blocking)
+          chirpService.updateRechirpCount(chirp.rechirpOfId!, 1).catch((error: any) => {
+            console.error('Error incrementing rechirp count:', error);
+          });
         } catch (notifError: any) {
           // Don't let notification errors break rechirp creation
           if (!notifError.message?.includes('disabled') && !notifError.message?.includes('muted')) {
@@ -281,6 +335,28 @@ export const chirpService = {
     }
 
     return newChirp;
+  },
+
+  async updateBookmarkCount(chirpId: string, delta: number): Promise<void> {
+    try {
+      const chirpRef = doc(db, CHIRPS_COLLECTION, chirpId);
+      await updateDoc(chirpRef, {
+        bookmarkCount: increment(delta),
+      });
+    } catch (error) {
+      console.error(`Error updating bookmark count for chirp ${chirpId}:`, error);
+    }
+  },
+
+  async updateRechirpCount(chirpId: string, delta: number): Promise<void> {
+    try {
+      const chirpRef = doc(db, CHIRPS_COLLECTION, chirpId);
+      await updateDoc(chirpRef, {
+        rechirpCount: increment(delta),
+      });
+    } catch (error) {
+      console.error(`Error updating rechirp count for chirp ${chirpId}:`, error);
+    }
   },
 
   async deleteChirp(chirpId: string, authorId: string): Promise<void> {
@@ -419,6 +495,142 @@ export const chirpService = {
     }
 
     await updateDoc(doc(db, CHIRPS_COLLECTION, chirpId), cleanedUpdates);
+  },
+
+  async getLatestChirps(followingIds: string[], limitCount: number = 50): Promise<Chirp[]> {
+    if (followingIds.length === 0) return [];
+
+    try {
+      const constraints: QueryConstraint[] = [
+        where('authorId', 'in', followingIds),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount),
+      ];
+
+      const q = query(collection(db, CHIRPS_COLLECTION), ...constraints);
+      const snapshot = await getDocs(q);
+      const now = new Date();
+      return snapshot.docs
+        .map(toChirp)
+        .filter(chirp => {
+          // Filter out scheduled posts that haven't been published yet
+          if (chirp.scheduledAt && chirp.scheduledAt > now) {
+            return false;
+          }
+          return true;
+        });
+    } catch (error) {
+      console.error('Error fetching latest chirps:', error);
+      return [];
+    }
+  },
+
+  async getRecentChirps(limitCount: number = 100): Promise<Chirp[]> {
+    try {
+      const q = query(
+        collection(db, CHIRPS_COLLECTION),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      const snapshot = await getDocs(q);
+      const now = new Date();
+      return snapshot.docs
+        .map(toChirp)
+        .filter(chirp => {
+          // Filter out scheduled posts that haven't been published yet
+          if (chirp.scheduledAt && chirp.scheduledAt > now) {
+            return false;
+          }
+          return true;
+        });
+    } catch (error) {
+      console.error('Error fetching recent chirps:', error);
+      return [];
+    }
+  },
+
+  async getChirpsBySemanticTopics(
+    topics: string[],
+    limitPerBatch: number = 50
+  ): Promise<Chirp[]> {
+    const normalizedTopics = Array.from(
+      new Set(
+        topics
+          .map((topic) => topic?.trim().toLowerCase())
+          .filter((topic): topic is string => Boolean(topic))
+      )
+    );
+
+    if (normalizedTopics.length === 0) {
+      return [];
+    }
+
+    const batches = chunkArray(normalizedTopics, 10);
+    const now = new Date();
+
+    try {
+      const results = await Promise.all(
+        batches.map(async (batch) => {
+          const q = query(
+            collection(db, CHIRPS_COLLECTION),
+            where('semanticTopics', 'array-contains-any', batch),
+            orderBy('createdAt', 'desc'),
+            limit(limitPerBatch)
+          );
+          const snapshot = await getDocs(q);
+          return snapshot.docs
+            .map(toChirp)
+            .filter((chirp) => {
+              if (chirp.scheduledAt && chirp.scheduledAt > now) {
+                return false;
+              }
+              return true;
+            });
+        })
+      );
+
+      return dedupeChirps(results.flat());
+    } catch (error) {
+      console.error('Error fetching semantic topic chirps:', error);
+      return [];
+    }
+  },
+
+  async getPersonalizedChirps(
+    user: any,
+    limitCount: number = 120
+  ): Promise<Chirp[]> {
+    const interests = (user.interests || []) as string[];
+    const followingIds = (user.following || []) as string[];
+
+    // If no personalization data exists, fall back to recent posts
+    if (interests.length === 0 && followingIds.length === 0) {
+      return this.getRecentChirps(limitCount);
+    }
+
+    const interestLimit = Math.max(Math.floor(limitCount * 0.6), 40);
+    const followingLimit = Math.max(Math.floor(limitCount * 0.4), 40);
+
+    try {
+      const [interestChirps, followingChirps] = await Promise.all([
+        interests.length > 0
+          ? this.getChirpsBySemanticTopics(interests, interestLimit)
+          : Promise.resolve<Chirp[]>([]),
+        followingIds.length > 0
+          ? Promise.all(
+            chunkArray(followingIds, 10).map((chunk) =>
+              this.getLatestChirps(chunk, Math.ceil(followingLimit / (chunk.length || 1)))
+            )
+          ).then((chunks) => dedupeChirps(chunks.flat()))
+          : Promise.resolve<Chirp[]>([]),
+      ]);
+
+      const combined = dedupeChirps([...interestChirps, ...followingChirps]);
+      return combined.slice(0, limitCount);
+    } catch (error) {
+      console.error('Error fetching personalized chirps:', error);
+      return this.getRecentChirps(limitCount);
+    }
   },
 };
 

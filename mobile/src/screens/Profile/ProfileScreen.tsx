@@ -72,6 +72,7 @@ const initializeKurralScore = async (userId: string): Promise<void> => {
         qualityHistory: 50,
         violationHistory: 0,
         engagementQuality: 40,
+        audienceValue: 40,
         consistency: Math.min(100, Math.floor(totalRollingValue / 5)),
         communityTrust: 100,
       },

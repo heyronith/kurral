@@ -54,6 +54,7 @@ const userFromFirestoreDoc = (doc: any): User => {
             qualityHistory: 0,
             violationHistory: 0,
             engagementQuality: 0,
+            audienceValue: 0,
             consistency: 0,
             communityTrust: 0,
           },

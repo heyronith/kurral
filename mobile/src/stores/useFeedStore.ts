@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Chirp, FeedType, ForYouConfig, Comment, CommentTreeNode } from '../types';
+import type { Chirp, FeedType, ForYouConfig, Comment, CommentTreeNode, User } from '../types';
 import { DEFAULT_FOR_YOU_CONFIG } from '../types';
 import { chirpService } from '../services/chirpService';
 import { topicService } from '../services/topicService';
@@ -37,7 +37,7 @@ type FeedState = {
     max?: number
   ) => () => void;
   startForYouListener: (
-    userId: string,
+    user: User,
     config?: ForYouConfig,
     max?: number
   ) => () => void;
@@ -47,11 +47,19 @@ type FeedState = {
     max?: number
   ) => Promise<void>;
   refreshForYou: (
-    userId: string,
+    user: User,
     config?: ForYouConfig,
     max?: number
   ) => Promise<void>;
   clear: () => void;
+};
+
+// Helper to merge and sort chirps
+const mergeAndSortChirps = (current: Chirp[], incoming: Chirp[]): Chirp[] => {
+  const map = new Map<string, Chirp>();
+  current.forEach((c) => map.set(c.id, c));
+  incoming.forEach((c) => map.set(c.id, c));
+  return Array.from(map.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 };
 
 export const useFeedStore = create<FeedState>((set, get) => ({
@@ -73,7 +81,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     try {
       // Create chirp in Firestore
       const newChirp = await chirpService.createChirp(chirpData);
-      
+
       // Increment topic engagement (async, don't wait)
       const engagementTopics = new Set(
         [
@@ -89,13 +97,13 @@ export const useFeedStore = create<FeedState>((set, get) => ({
           console.error('Error incrementing topic engagement:', error);
         });
       }
-      
+
       // Optionally wait for processing before showing in feeds
       let processedChirp: Chirp = newChirp;
       if (options?.waitForProcessing) {
         try {
           processedChirp = await processChirpValue(newChirp);
-          
+
           // If processing failed or returned without factCheckStatus, mark as needs_review
           if (!processedChirp.factCheckStatus) {
             console.warn('[ValuePipeline] Processing returned without factCheckStatus, marking as needs_review');
@@ -134,12 +142,12 @@ export const useFeedStore = create<FeedState>((set, get) => ({
       const canShowInFeed = !isBlocked && !isProcessing;
 
       if (canShowInFeed) {
-      set((state) => ({
+        set((state) => ({
           latest: [processedChirp, ...state.latest.filter((c) => c.id !== processedChirp.id)],
           forYou: [processedChirp, ...state.forYou.filter((c) => c.id !== processedChirp.id)],
         }));
       }
-      
+
       return processedChirp;
     } catch (error) {
       console.error('Error creating chirp:', error);
@@ -222,7 +230,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
       // Get the comment to find all replies before deletion
       const comments = get().comments[chirpId] || [];
       const commentToDelete = comments.find(c => c.id === commentId);
-      
+
       // Delete comment and all replies (commentService handles count updates)
       await commentService.deleteComment(commentId, authorId);
 
@@ -348,14 +356,14 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     return unsubscribe;
   },
 
-  startForYouListener: (userId, config, max) => {
+  startForYouListener: (user, config, max) => {
     const filterVisibleChirps = (chirps: Chirp[]): Chirp[] =>
       chirps.filter((chirp) => {
         const isProcessing =
           chirp.factCheckingStatus === 'pending' || chirp.factCheckingStatus === 'in_progress';
         const isBlocked = chirp.factCheckStatus === 'blocked';
         if (isProcessing) return false;
-        if (isBlocked && chirp.authorId !== userId) return false;
+        if (isBlocked && chirp.authorId !== user.id) return false;
         return true;
       });
 
@@ -363,10 +371,29 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     forYouUnsubscribe?.();
     set({ forYouLoading: true, error: null });
 
+    // 1. Initial Fetch of personalized content
+    chirpService.getPersonalizedChirps(user, max ? max * 3 : 150)
+      .then((personalized) => {
+        set((state) => ({
+          forYou: mergeAndSortChirps(state.forYou, filterVisibleChirps(personalized)),
+          forYouLoading: false
+        }));
+      })
+      .catch((err) => {
+        console.error('Failed to fetch personalized chirps:', err);
+        // Don't set error state here, let the listener handle it or succeed
+      });
+
+    // 2. Real-time listener for "recent" posts (discovery)
     const unsubscribe = chirpService.listenForYou(
-      userId,
+      user.id,
       config ?? DEFAULT_FOR_YOU_CONFIG,
-      (chirps) => set({ forYou: filterVisibleChirps(chirps), forYouLoading: false }),
+      (newChirps) => {
+        set((state) => ({
+          forYou: mergeAndSortChirps(state.forYou, filterVisibleChirps(newChirps)),
+          forYouLoading: false
+        }));
+      },
       (err) => set({ error: err?.message ?? 'Failed to load For You feed' }),
       max
     );
@@ -398,25 +425,27 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     }
   },
 
-  refreshForYou: async (userId, config, max) => {
+  refreshForYou: async (user, config, max) => {
     const filterVisibleChirps = (chirps: Chirp[]): Chirp[] =>
       chirps.filter((chirp) => {
         const isProcessing =
           chirp.factCheckingStatus === 'pending' || chirp.factCheckingStatus === 'in_progress';
         const isBlocked = chirp.factCheckStatus === 'blocked';
-        if (isProcessing) return false;
-        if (isBlocked && chirp.authorId !== userId) return false;
+        if (isBlocked && chirp.authorId !== user.id) return false;
         return true;
       });
 
     try {
       set({ forYouLoading: true, error: null });
-      const chirps = await chirpService.fetchForYou(
-        userId,
-        config ?? DEFAULT_FOR_YOU_CONFIG,
-        max
-      );
-      set({ forYou: filterVisibleChirps(chirps), forYouLoading: false });
+
+      // Parallel fetch: personalized + fresh recent
+      const [personalized, recent] = await Promise.all([
+        chirpService.getPersonalizedChirps(user, max ? max * 3 : 150),
+        chirpService.fetchForYou(user.id, config ?? DEFAULT_FOR_YOU_CONFIG, max)
+      ]);
+
+      const merged = mergeAndSortChirps(personalized, recent);
+      set({ forYou: filterVisibleChirps(merged), forYouLoading: false });
     } catch (err: any) {
       set({
         error: err?.message ?? 'Failed to refresh For You feed',

@@ -27,10 +27,11 @@ import type { Chirp } from '../../types';
 import type { PipelineResult, PipelineOptions, ChirpPipelineInput, CommentPipelineInput } from './types';
 
 // Default options
-const DEFAULT_OPTIONS: Required<PipelineOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<PipelineOptions, 'skipFactCheck'>> & Pick<PipelineOptions, 'skipFactCheck'> = {
   maxRetries: 2,
   timeoutMs: 120000, // 2 minutes
   skipValueScoring: false,
+  skipFactCheck: false,
 };
 
 /**
@@ -63,9 +64,56 @@ export async function processChirp(
     authorId: chirp.authorId,
     textLength: chirp.text?.length || 0,
     hasImage: !!chirp.imageUrl,
+    skipFactCheck: opts.skipFactCheck,
   });
 
   try {
+    // ========================================================================
+    // Bot/automated path: skip fact-check, run value scoring only
+    // ========================================================================
+    if (opts.skipFactCheck) {
+      console.log('\n⏭️  [PIPELINE] skipFactCheck=true — skipping pre-check, claims, and fact-check; running value scoring only');
+      stepsCompleted.push('precheck_skipped', 'extract_claims_skipped', 'verify_claims_skipped');
+
+      let valueScore;
+      if (!opts.skipValueScoring) {
+        const scoreStart = Date.now();
+        const scoreResult = await scoreChirp(chirp, [], []);
+        const scoreDuration = Date.now() - scoreStart;
+        valueScore = scoreResult?.valueScore;
+        stepsCompleted.push('score_value');
+        if (scoreResult && valueScore) {
+          console.log(`✅ Value scored (${scoreDuration}ms) — Total: ${(valueScore.total * 100).toFixed(1)}%`);
+        }
+      } else {
+        stepsCompleted.push('score_value_skipped');
+      }
+
+      const result: PipelineResult = {
+        success: true,
+        status: 'completed',
+        claims: [],
+        factChecks: [],
+        factCheckStatus: 'clean',
+        valueScore,
+        processedAt: new Date(),
+        durationMs: Date.now() - startTime,
+        stepsCompleted,
+      };
+
+      let predictedEngagement;
+      if (valueScore) {
+        predictedEngagement = generateEngagementPrediction(valueScore, [], []);
+      }
+      await saveChirpResult(chirp.id, result, predictedEngagement);
+      queueSideEffects(chirp, result).catch((err) => {
+        logger.error('[Pipeline] Failed to queue side effects', { error: err.message });
+      });
+      console.log(`\n✅ Pipeline completed (bot path) in ${result.durationMs}ms`);
+      console.log('='.repeat(80) + '\n');
+      return result;
+    }
+
     // ========================================================================
     // STEP 1: Pre-check
     // ========================================================================

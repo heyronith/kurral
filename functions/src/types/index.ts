@@ -76,6 +76,7 @@ export type KurralScoreComponents = {
   qualityHistory: number;
   violationHistory: number;
   engagementQuality: number;
+  audienceValue: number;
   consistency: number;
   communityTrust: number;
 };
@@ -279,7 +280,7 @@ export type FirestoreTopicMetadata = Omit<TopicMetadata, 'lastEngagementUpdate'>
   lastNewsGeneratedAt?: any;
 };
 
-export type NotificationType = 'comment' | 'reply' | 'rechirp' | 'follow' | 'mention';
+export type NotificationType = 'comment' | 'reply' | 'rechirp' | 'follow' | 'mention' | 'review_request';
 
 export type Notification = {
   id: string;

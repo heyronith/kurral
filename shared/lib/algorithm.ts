@@ -3,6 +3,7 @@
 // Each app imports this and provides types via wrapper files
 // Base types - apps will re-export with their own types
 import { cosineSimilarity } from './utils/similarity';
+import { getEngagementScore } from './engagementScore';
 
 // Import types from webapp as the base (both apps have compatible types)
 // Wrapper files in each app will re-export with proper typing
@@ -71,7 +72,7 @@ const findMatchingTopic = (chirp: Chirp, topics: string[]): string | undefined =
   const normalizedSemanticTopics = chirp.semanticTopics
     ? chirp.semanticTopics.map((topic) => normalizeTopicValue(topic)).filter(Boolean)
     : [];
-    
+
   for (const configTopic of topics) {
     const normalizedConfig = normalizeTopicValue(configTopic);
     if (!normalizedConfig) {
@@ -82,7 +83,7 @@ const findMatchingTopic = (chirp: Chirp, topics: string[]): string | undefined =
       return configTopic;
     }
 
-      for (const semanticTopic of normalizedSemanticTopics) {
+    for (const semanticTopic of normalizedSemanticTopics) {
       if (topicsOverlap(semanticTopic, normalizedConfig)) {
         return configTopic;
       }
@@ -282,12 +283,13 @@ export const scoreChirpForViewer = (
     score -= 100; // Heavy penalty, but should be filtered out by eligibility anyway
   }
 
-  // Bookmark boost (community validation signal)
-  if (chirp.bookmarkCount && chirp.bookmarkCount > 0) {
-    const bookmarkBoost = Math.min(25, chirp.bookmarkCount * 3);
-    score += bookmarkBoost;
-    if (bookmarkBoost > 10) {
-      reasons.push('highly bookmarked');
+  // Engagement score (bookmarks + rechirps + comments)
+  const engagementScore = getEngagementScore(chirp);
+  if (engagementScore > 0) {
+    const engagementBoost = engagementScore * 30;
+    score += engagementBoost;
+    if (engagementBoost > 8) {
+      reasons.push('strong audience engagement');
     }
   }
 
@@ -300,15 +302,6 @@ export const scoreChirpForViewer = (
     }
   }
 
-  // Rechirp boost (community validation signal)
-  if (chirp.rechirpCount && chirp.rechirpCount > 0) {
-    const rechirpBoost = Math.min(20, Math.log10(chirp.rechirpCount + 1) * 8);
-    score += rechirpBoost;
-    if (rechirpBoost > 5) {
-      reasons.push('frequently shared');
-    }
-  }
-
   // Quality-weighted rechirp boost (if available)
   if (chirp.qualityWeightedRechirpScore && chirp.qualityWeightedRechirpScore > 0) {
     const qualityRechirpBoost = chirp.qualityWeightedRechirpScore * 15;
@@ -318,14 +311,10 @@ export const scoreChirpForViewer = (
     }
   }
 
-  // Active conversations boost (use quality-weighted if available)
-  if (config.boostActiveConversations) {
-    const commentMetric = chirp.qualityWeightedCommentScore
-      ? chirp.qualityWeightedCommentScore * 100 // Normalize to similar scale
-      : chirp.commentCount;
-    
+  // Active conversations boost (quality-weighted only to avoid double counting)
+  if (config.boostActiveConversations && chirp.qualityWeightedCommentScore) {
+    const commentMetric = chirp.qualityWeightedCommentScore * 100;
     if (commentMetric > 0) {
-      // Boost based on comment metric (logarithmic scale)
       const commentBoost = Math.min(20, Math.log10(commentMetric + 1) * 5);
       score += commentBoost;
       if (commentBoost > 5) {
@@ -386,6 +375,56 @@ export const scoreChirpForViewer = (
 };
 
 /**
+ * Check if a chirp has any specific affinity with the viewer
+ * (matches interests, liked topics, or followed author)
+ */
+const hasUserAffinity = (
+  chirp: Chirp,
+  viewer: User,
+  config: ForYouConfig,
+  getAuthor: (userId: string) => User | undefined
+): boolean => {
+  // Check following affinity
+  if (viewer.following.includes(chirp.authorId)) {
+    return config.followingWeight !== 'none';
+  }
+
+  // Check interest affinity
+  const viewerInterests = viewer.interests || [];
+  if (viewerInterests.length > 0 && chirp.semanticTopics && chirp.semanticTopics.length > 0) {
+    const hasInterestMatch = chirp.semanticTopics.some((topic) =>
+      viewerInterests.some((interest) => {
+        const normalizedInterest = interest.toLowerCase();
+        const normalizedTopic = topic.toLowerCase();
+        return (
+          normalizedInterest.includes(normalizedTopic) ||
+          normalizedTopic.includes(normalizedInterest)
+        );
+      })
+    );
+    if (hasInterestMatch) return true;
+  }
+
+  // Check liked topic affinity
+  if (findMatchingTopic(chirp, config.likedTopics)) {
+    return true;
+  }
+
+  // Check profile alignment (if available)
+  if (viewer.profileEmbedding && chirp.tunedAudience?.targetAudienceEmbedding) {
+    const similarity = cosineSimilarity(
+      chirp.tunedAudience.targetAudienceEmbedding,
+      viewer.profileEmbedding
+    );
+    if (similarity > getSimilarityThreshold(config)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/**
  * Generate For You feed with scoring and explanations
  */
 export const generateForYouFeed = (
@@ -399,6 +438,12 @@ export const generateForYouFeed = (
     return [];
   }
 
+  // Determine if we should apply strict filtering (Fine-Tuned Mode)
+  // If user has explicit interests or liked topics, they expect the feed to reflect that.
+  const isFineTuningActive =
+    (viewer.interests && viewer.interests.length > 0) ||
+    (config.likedTopics && config.likedTopics.length > 0);
+
   // Exclude viewer's own posts
   const otherChirps = allChirps.filter((chirp) => chirp.authorId !== viewer.id);
 
@@ -410,14 +455,23 @@ export const generateForYouFeed = (
   const attemptFeed = (days: number, ignoreMuted = false): ChirpScore[] => {
     const cutoff = Date.now() - days * MS_PER_DAY;
     const recent = otherChirps.filter((chirp) => chirp.createdAt.getTime() > cutoff);
-    const eligible = recent.filter((chirp) =>
+
+    // Filter by basic eligibility
+    let eligible = recent.filter((chirp) =>
       isChirpEligibleForViewer(
         chirp,
         viewer,
         config,
         ignoreMuted ? { ignoreMuted: true } : undefined
       )
-  );
+    );
+
+    // Apply STRICT filtering if fine-tuning is active
+    if (isFineTuningActive) {
+      eligible = eligible.filter((chirp) =>
+        hasUserAffinity(chirp, viewer, config, getAuthor)
+      );
+    }
 
     if (eligible.length === 0) {
       return [];
@@ -440,6 +494,14 @@ export const generateForYouFeed = (
     if (relaxed.length > 0) {
       return relaxed;
     }
+  }
+
+  // Fallback: If strict filtering yielded no results, do we fallback to global recent?
+  // If fine-tuning is active, the user explicitly wants specific content.
+  // Showing "unrelated" content is what we want to avoid.
+  // So if fine-tuning is active, we return EMPTY instead of fallback.
+  if (isFineTuningActive) {
+    return [];
   }
 
   const fallback = otherChirps

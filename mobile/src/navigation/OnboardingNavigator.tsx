@@ -42,7 +42,7 @@ const Stack = createNativeStackNavigator<OnboardingStackParamList>();
 const OnboardingNavigator = () => {
   const { user, setUser } = useAuthStore();
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/navigation/OnboardingNavigator.tsx:43',message:'OnboardingNavigator mounting',data:{hasUser: !!user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'nav-render'})}).catch(()=>{});
+  fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'mobile/src/navigation/OnboardingNavigator.tsx:43', message: 'OnboardingNavigator mounting', data: { hasUser: !!user }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'nav-render' }) }).catch(() => { });
   // #endregion
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({
     displayName: user?.name || user?.displayName || '',
@@ -63,15 +63,35 @@ const OnboardingNavigator = () => {
       if (!refreshed) return;
 
       const currentFollowing = refreshed.following || [];
-      if (currentFollowing.length >= minCount) {
-        return;
+
+      // Primary platform account to ensure a basic initial feed
+      const primaryBotHandles = ['kuralnews'];
+      let candidateIds: string[] = [];
+
+      for (const handle of primaryBotHandles) {
+        try {
+          const bot = await userService.getUserByHandle(handle);
+          if (bot && bot.id !== userId && !currentFollowing.includes(bot.id)) {
+            candidateIds.push(bot.id);
+          }
+        } catch (error) {
+          console.warn(`[OnboardingNavigator] Could not fetch @${handle} for auto-follow:`, error);
+        }
       }
 
-      const popular = await userService.getPopularAccounts(8);
-      const candidateIds = popular
-        .map((user) => user.id)
-        .filter((id) => id !== userId && !currentFollowing.includes(id))
-        .slice(0, minCount - currentFollowing.length);
+      // Check if we still need more follows to reach the minimum
+      const currentTotal = currentFollowing.length + candidateIds.length;
+      const neededMore = minCount - currentTotal;
+
+      if (neededMore > 0) {
+        const popular = await userService.getPopularAccounts(10);
+        const moreCandidates = popular
+          .map((user) => user.id)
+          .filter((id) => id !== userId && !currentFollowing.includes(id) && !candidateIds.includes(id))
+          .slice(0, neededMore);
+
+        candidateIds = [...candidateIds, ...moreCandidates];
+      }
 
       if (candidateIds.length === 0) {
         return;

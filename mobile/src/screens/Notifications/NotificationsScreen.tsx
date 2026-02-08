@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -42,7 +43,7 @@ const formatTimeAgo = (date: Date) => {
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
     return 'recently';
   }
-  
+
   const now = Date.now();
   const diffMs = Math.max(0, now - date.getTime());
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
@@ -158,6 +159,49 @@ const NotificationsScreen = () => {
     setIsRefreshing(false);
   };
 
+  const handleClearAll = async () => {
+    if (!currentUser?.id) return;
+
+    Alert.alert(
+      'Clear all notifications',
+      'Are you sure you want to clear all your notifications?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await notificationService.dismissAllNotifications(currentUser.id);
+              setCombinedItems([]);
+              setNotifications([]);
+              setReviewRequests([]);
+            } catch (error) {
+              console.error('[NotificationsScreen] Error clearing all notifications:', error);
+              Alert.alert('Error', 'Failed to clear notifications. Please try again.');
+            }
+          }
+        },
+      ]
+    );
+  };
+
+  const handleDismissNotification = async (id: string, isReviewRequest: boolean) => {
+    try {
+      if (isReviewRequest) {
+        // For review requests, we might just hide them locally or have a specific service method
+        // Looking at reviewRequestService, it doesn't seem to have a dismiss method yet.
+        // For now, let's just remove it from local state.
+        setCombinedItems(prev => prev.filter(item => item.id !== id));
+      } else {
+        await notificationService.dismissNotification(id);
+        setCombinedItems(prev => prev.filter(item => item.id !== id));
+      }
+    } catch (error) {
+      console.error('[NotificationsScreen] Error dismissing notification:', error);
+    }
+  };
+
   const handleNotificationPress = async (item: NotificationListItem) => {
     if (item.isReviewRequest) {
       // Navigate to post detail for review request
@@ -181,7 +225,7 @@ const NotificationsScreen = () => {
   const renderNotificationItem = (item: NotificationListItem) => {
     if (item.isReviewRequest) {
       const priorityStyle = getPriorityColor(item.priority, colors);
-      const postPreview = item.chirp.text.length > 100 
+      const postPreview = item.chirp.text.length > 100
         ? item.chirp.text.substring(0, 100) + '...'
         : item.chirp.text;
 
@@ -200,6 +244,13 @@ const NotificationsScreen = () => {
               </Text>
             </View>
             <Text style={dynamicStyles.timeAgo}>{formatTimeAgo(item.createdAt)}</Text>
+            <TouchableOpacity
+              onPress={() => handleDismissNotification(item.id, true)}
+              style={dynamicStyles.dismissButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close-outline" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
           </View>
           <View style={dynamicStyles.notificationContent}>
             <Text style={dynamicStyles.notificationTitle}>Review Request</Text>
@@ -233,10 +284,10 @@ const NotificationsScreen = () => {
             <Ionicons
               name={
                 item.type === 'comment' ? 'chatbubble-outline' :
-                item.type === 'reply' ? 'return-down-forward-outline' :
-                item.type === 'rechirp' ? 'repeat-outline' :
-                item.type === 'follow' ? 'person-add-outline' :
-                'notifications-outline'
+                  item.type === 'reply' ? 'return-down-forward-outline' :
+                    item.type === 'rechirp' ? 'repeat-outline' :
+                      item.type === 'follow' ? 'person-add-outline' :
+                        'notifications-outline'
               }
               size={24}
               color={item.read ? colors.textMuted : colors.accent}
@@ -251,6 +302,13 @@ const NotificationsScreen = () => {
             </Text>
             <Text style={dynamicStyles.timeAgo}>{formatTimeAgo(item.createdAt)}</Text>
           </View>
+          <TouchableOpacity
+            onPress={() => handleDismissNotification(item.id, false)}
+            style={dynamicStyles.dismissButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close-outline" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
           {!item.read && <View style={dynamicStyles.unreadDot} />}
         </TouchableOpacity>
       );
@@ -260,14 +318,27 @@ const NotificationsScreen = () => {
   return (
     <SafeAreaView style={dynamicStyles.container} edges={['top']}>
       <View style={dynamicStyles.header}>
-        <Text style={dynamicStyles.title}>Notifications</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('NotificationPreferences')}
-          style={dynamicStyles.settingsButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="settings-outline" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={dynamicStyles.headerLeft}>
+          <Text style={dynamicStyles.title}>Notifications</Text>
+        </View>
+        <View style={dynamicStyles.headerRight}>
+          {combinedItems.length > 0 && (
+            <TouchableOpacity
+              onPress={handleClearAll}
+              style={dynamicStyles.headerButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={[dynamicStyles.clearAllText, { color: colors.accent }]}>Clear All</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('NotificationPreferences')}
+            style={dynamicStyles.headerButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="settings-outline" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {isLoading ? (
@@ -325,8 +396,20 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
     fontWeight: '700',
     color: colors.textPrimary,
   },
-  settingsButton: {
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  headerButton: {
     padding: 4,
+  },
+  clearAllText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -424,6 +507,11 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
     backgroundColor: colors.accent,
     marginLeft: 8,
     marginTop: 4,
+  },
+  dismissButton: {
+    padding: 4,
+    marginLeft: 8,
+    justifyContent: 'center',
   },
   postPreview: {
     marginTop: 8,

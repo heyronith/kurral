@@ -1,12 +1,13 @@
 /**
  * Create Platform Accounts Script
- * 
- * Creates two platform accounts: "Kural" and "Kural News"
- * These are official platform accounts that can be used for announcements, news, etc.
- * 
- * Usage: 
+ *
+ * Creates all 10 platform/bot accounts required for RSS→topic routing and app feeds:
+ * Kural, Kural News, Kural Tech, Kural Science, Kural Business, Kural Sports,
+ * Kural Health, Kural Entertainment, Kural Design, Kural Gaming.
+ *
+ * Usage:
  *   node scripts/create-platform-accounts.js
- * 
+ *
  * Environment Variables Required:
  *   - VITE_FIREBASE_API_KEY (or FIREBASE_API_KEY)
  *   - VITE_FIREBASE_AUTH_DOMAIN (or FIREBASE_AUTH_DOMAIN)
@@ -14,18 +15,24 @@
  *   - VITE_FIREBASE_STORAGE_BUCKET (or FIREBASE_STORAGE_BUCKET)
  *   - VITE_FIREBASE_MESSAGING_SENDER_ID (or FIREBASE_MESSAGING_SENDER_ID)
  *   - VITE_FIREBASE_APP_ID (or FIREBASE_APP_ID)
- * 
- * Optional:
- *   - KURAL_PLATFORM_EMAIL (default: platform@kurral.app)
- *   - KURAL_PLATFORM_PASSWORD (auto-generated if not set)
- *   - KURAL_NEWS_EMAIL (default: news@kurral.app)
- *   - KURAL_NEWS_PASSWORD (auto-generated if not set)
+ *
+ * Optional (per-account; emails/passwords default or auto-generated):
+ *   - KURAL_PLATFORM_EMAIL, KURAL_PLATFORM_PASSWORD
+ *   - KURAL_NEWS_EMAIL, KURAL_NEWS_PASSWORD
+ *   - KURAL_TECH_EMAIL, KURAL_TECH_PASSWORD
+ *   - KURAL_SCIENCE_EMAIL, KURAL_SCIENCE_PASSWORD
+ *   - KURAL_BUSINESS_EMAIL, KURAL_BUSINESS_PASSWORD
+ *   - KURAL_SPORTS_EMAIL, KURAL_SPORTS_PASSWORD
+ *   - KURAL_HEALTH_EMAIL, KURAL_HEALTH_PASSWORD
+ *   - KURAL_ENTERTAINMENT_EMAIL, KURAL_ENTERTAINMENT_PASSWORD
+ *   - KURAL_DESIGN_EMAIL, KURAL_DESIGN_PASSWORD
+ *   - KURAL_GAMING_EMAIL, KURAL_GAMING_PASSWORD
  */
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { 
-  getFirestore, 
+import {
+  getFirestore,
   doc,
   setDoc,
   getDoc,
@@ -85,6 +92,8 @@ function generateSecurePassword(length = 32) {
 }
 
 // Platform account definitions
+// Note: Only core platform accounts are created here. Topic‑specific bot
+// accounts (tech, science, etc.) have been removed from automatic setup.
 const PLATFORM_ACCOUNTS = [
   {
     name: 'Kural',
@@ -106,66 +115,6 @@ const PLATFORM_ACCOUNTS = [
     topics: ['news', 'updates', 'information'],
     platformAccountType: 'news',
   },
-  {
-    name: 'Kural Tech',
-    handle: 'kuraltech',
-    email: process.env.KURAL_TECH_EMAIL || 'tech@kurral.app',
-    password: process.env.KURAL_TECH_PASSWORD || generateSecurePassword(),
-    bio: 'Technology news, innovations, and updates. AI, software, startups, and the future of tech.',
-    interests: ['technology', 'tech', 'ai', 'software', 'innovation', 'startups'],
-    topics: ['technology', 'tech', 'ai', 'software', 'innovation'],
-    platformAccountType: 'tech',
-  },
-  {
-    name: 'Kural Science',
-    handle: 'kuralscience',
-    email: process.env.KURAL_SCIENCE_EMAIL || 'science@kurral.app',
-    password: process.env.KURAL_SCIENCE_PASSWORD || generateSecurePassword(),
-    bio: 'Science news, discoveries, and research. Space, climate, medicine, and breakthroughs.',
-    interests: ['science', 'research', 'discovery', 'space', 'climate', 'medicine'],
-    topics: ['science', 'research', 'discovery', 'space', 'climate'],
-    platformAccountType: 'science',
-  },
-  {
-    name: 'Kural Business',
-    handle: 'kuralbusiness',
-    email: process.env.KURAL_BUSINESS_EMAIL || 'business@kurral.app',
-    password: process.env.KURAL_BUSINESS_PASSWORD || generateSecurePassword(),
-    bio: 'Business and finance news. Markets, economy, startups, and corporate updates.',
-    interests: ['business', 'finance', 'economy', 'markets', 'startups', 'corporate'],
-    topics: ['business', 'finance', 'economy', 'markets'],
-    platformAccountType: 'business',
-  },
-  {
-    name: 'Kural Sports',
-    handle: 'kuralsports',
-    email: process.env.KURAL_SPORTS_EMAIL || 'sports@kurral.app',
-    password: process.env.KURAL_SPORTS_PASSWORD || generateSecurePassword(),
-    bio: 'Sports news, scores, and updates. All major leagues and competitions.',
-    interests: ['sports', 'football', 'basketball', 'soccer', 'olympics', 'athletics'],
-    topics: ['sports', 'football', 'basketball', 'soccer', 'olympics'],
-    platformAccountType: 'sports',
-  },
-  {
-    name: 'Kural Health',
-    handle: 'kuralhealth',
-    email: process.env.KURAL_HEALTH_EMAIL || 'health@kurral.app',
-    password: process.env.KURAL_HEALTH_PASSWORD || generateSecurePassword(),
-    bio: 'Health and wellness news. Medical breakthroughs, public health, and wellness tips.',
-    interests: ['health', 'medical', 'wellness', 'medicine', 'public health', 'fitness'],
-    topics: ['health', 'medical', 'wellness', 'medicine'],
-    platformAccountType: 'health',
-  },
-  {
-    name: 'Kural Entertainment',
-    handle: 'kuralentertainment',
-    email: process.env.KURAL_ENTERTAINMENT_EMAIL || 'entertainment@kurral.app',
-    password: process.env.KURAL_ENTERTAINMENT_PASSWORD || generateSecurePassword(),
-    bio: 'Entertainment news. Movies, TV, music, celebrities, and pop culture.',
-    interests: ['entertainment', 'movies', 'tv', 'music', 'celebrity', 'pop culture'],
-    topics: ['entertainment', 'movies', 'tv', 'music'],
-    platformAccountType: 'entertainment',
-  },
 ];
 
 /**
@@ -173,14 +122,14 @@ const PLATFORM_ACCOUNTS = [
  */
 async function createPlatformAccount(accountData) {
   const { name, handle, email, password, bio, interests, topics, platformAccountType } = accountData;
-  
+
   console.log(`\n📝 Creating platform account: ${name} (@${handle})`);
   console.log(`   Email: ${email}`);
-  
+
   try {
     let userId;
     let isNewUser = false;
-    
+
     // Try to create Firebase Auth user
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -196,19 +145,25 @@ async function createPlatformAccount(accountData) {
           userId = userCredential.user.uid;
           console.log(`   ✅ Signed in to existing account (UID: ${userId})`);
         } catch (signInError) {
-          console.error(`   ❌ Failed to sign in to existing account: ${signInError.message}`);
-          console.error(`   💡 If you need to reset the password, do it manually in Firebase Console`);
-          throw new Error(`Cannot access existing account. Password may be incorrect or account may need reset.`);
+          // Auth exists but sign-in failed (wrong/missing password). A Firestore fallback
+          // (lookup by email + updateDoc) would need elevated access; with client SDK and
+          // no auth it fails with "Missing or insufficient permissions". Skip until
+          // accounts and passwords are set up; then sign-in will succeed and this path
+          // is unused.
+          const envVar = { kural: 'KURAL_PLATFORM_PASSWORD', kuralnews: 'KURAL_NEWS_PASSWORD', kuraltech: 'KURAL_TECH_PASSWORD', kuralscience: 'KURAL_SCIENCE_PASSWORD', kuralbusiness: 'KURAL_BUSINESS_PASSWORD', kuralsports: 'KURAL_SPORTS_PASSWORD', kuralhealth: 'KURAL_HEALTH_PASSWORD', kuralentertainment: 'KURAL_ENTERTAINMENT_PASSWORD', kuraldesign: 'KURAL_DESIGN_PASSWORD', kuralgaming: 'KURAL_GAMING_PASSWORD' }[handle] || `KURAL_${(handle || '').toUpperCase()}_PASSWORD`;
+          console.warn(`   ⚠️  Sign-in failed (${signInError.message}).`);
+          console.warn(`   💡 Add ${envVar} to .env and re-run, or reset password in Firebase Console → Authentication.`);
+          throw new Error(`Sign-in failed for @${handle}. Set ${envVar} in .env and re-run create:platform.`);
         }
       } else {
         throw authError;
       }
     }
-    
+
     // Check if Firestore user document exists
     const userDocRef = doc(db, 'users', userId);
     const userDocSnap = await getDoc(userDocRef);
-    
+
     const now = Timestamp.now();
     const userData = {
       name: name,
@@ -255,7 +210,7 @@ async function createPlatformAccount(accountData) {
         lastUpdated: now,
       },
     };
-    
+
     if (userDocSnap.exists()) {
       // Update existing user document
       await updateDoc(userDocRef, {
@@ -282,13 +237,13 @@ async function createPlatformAccount(accountData) {
       await setDoc(userDocRef, userData);
       console.log(`   ✅ Created Firestore user document`);
     }
-    
+
     // Verify the user document
     const verifyDoc = await getDoc(userDocRef);
     if (!verifyDoc.exists()) {
       throw new Error('Failed to verify user document creation');
     }
-    
+
     const createdUser = verifyDoc.data();
     console.log(`   ✅ Platform account ready:`);
     console.log(`      - Name: ${createdUser.name}`);
@@ -297,7 +252,7 @@ async function createPlatformAccount(accountData) {
     console.log(`      - Platform Account: ${createdUser.isPlatformAccount ? 'Yes' : 'No'}`);
     console.log(`      - Type: ${createdUser.platformAccountType || 'N/A'}`);
     console.log(`      - Onboarding: ${createdUser.onboardingCompleted ? 'Completed' : 'Not completed'}`);
-    
+
     return {
       success: true,
       userId,
@@ -306,7 +261,7 @@ async function createPlatformAccount(accountData) {
       handle: createdUser.handle,
       isNewUser,
     };
-    
+
   } catch (error) {
     console.error(`   ❌ Error creating platform account ${name}:`, error.message);
     throw error;
@@ -318,10 +273,10 @@ async function createPlatformAccount(accountData) {
  */
 async function main() {
   console.log('🚀 Creating Platform Accounts');
-  console.log('=' .repeat(60));
-  
+  console.log('='.repeat(60));
+
   const results = [];
-  
+
   for (const account of PLATFORM_ACCOUNTS) {
     try {
       const result = await createPlatformAccount(account);
@@ -335,14 +290,14 @@ async function main() {
       });
     }
   }
-  
+
   console.log('\n' + '='.repeat(60));
   console.log('📊 Summary:');
   console.log('='.repeat(60));
-  
+
   const successful = results.filter(r => r.success);
   const failed = results.filter(r => !r.success);
-  
+
   successful.forEach(result => {
     console.log(`\n✅ ${result.handle || result.account}:`);
     console.log(`   User ID: ${result.userId}`);
@@ -354,38 +309,41 @@ async function main() {
       console.log(`   Status: Existing account (password not shown)`);
     }
   });
-  
+
   if (failed.length > 0) {
     console.log(`\n❌ Failed Accounts:`);
     failed.forEach(result => {
       console.log(`   - ${result.account}: ${result.error}`);
     });
   }
-  
+
   console.log(`\n📝 Next Steps:`);
   console.log(`   1. Save the passwords securely (use a password manager)`);
   console.log(`   2. Store credentials in environment variables for automation:`);
   successful.forEach(result => {
     if (result.isNewUser) {
       const envVarMap = {
-        'kural': 'KURAL_PLATFORM_PASSWORD',
-        'kuralnews': 'KURAL_NEWS_PASSWORD',
-        'kuraltech': 'KURAL_TECH_PASSWORD',
-        'kuralscience': 'KURAL_SCIENCE_PASSWORD',
-        'kuralbusiness': 'KURAL_BUSINESS_PASSWORD',
-        'kuralsports': 'KURAL_SPORTS_PASSWORD',
-        'kuralhealth': 'KURAL_HEALTH_PASSWORD',
-        'kuralentertainment': 'KURAL_ENTERTAINMENT_PASSWORD',
+        kural: 'KURAL_PLATFORM_PASSWORD',
+        kuralnews: 'KURAL_NEWS_PASSWORD',
+        kuraltech: 'KURAL_TECH_PASSWORD',
+        kuralscience: 'KURAL_SCIENCE_PASSWORD',
+        kuralbusiness: 'KURAL_BUSINESS_PASSWORD',
+        kuralsports: 'KURAL_SPORTS_PASSWORD',
+        kuralhealth: 'KURAL_HEALTH_PASSWORD',
+        kuralentertainment: 'KURAL_ENTERTAINMENT_PASSWORD',
+        kuraldesign: 'KURAL_DESIGN_PASSWORD',
+        kuralgaming: 'KURAL_GAMING_PASSWORD',
       };
       const envVar = envVarMap[result.handle] || `KURAL_${result.handle.toUpperCase()}_PASSWORD`;
       console.log(`      ${envVar}=${result.password}`);
     }
   });
   console.log(`   3. These accounts can now be used for platform announcements`);
-  console.log(`   4. Consider setting up automated posting for news account`);
-  
+  console.log(`   4. Deploy Firestore indexes if needed: npm run firebase:deploy:indexes`);
+  console.log(`   5. If user docs exist but lack flags, run: npm run ensure:platform-flags`);
+
   console.log('\n✅ Platform account creation complete!\n');
-  
+
   process.exit(failed.length > 0 ? 1 : 0);
 }
 

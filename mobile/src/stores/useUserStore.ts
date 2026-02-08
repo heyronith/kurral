@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { User, BookmarkFolder } from '../types';
 import { userService } from '../services/userService';
+import { chirpService } from '../services/chirpService';
 import { useAuthStore } from './useAuthStore';
 
 const USER_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -189,6 +190,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           // Persist to Firestore
           try {
             await userService.updateBookmarkFolders(currentUser.id, updatedFolders);
+            await chirpService.updateBookmarkCount(chirpId, 1);
           } catch (error) {
             console.error('[useUserStore] Error bookmarking chirp to folder:', error);
             // Revert on error
@@ -225,6 +227,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       // Persist to Firestore
       try {
         await userService.updateBookmarks(currentUser.id, newBookmarks);
+        await chirpService.updateBookmarkCount(chirpId, 1);
       } catch (error) {
         console.error('[useUserStore] Error bookmarking chirp:', error);
         // Revert on error
@@ -246,6 +249,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     // Remove from folders first
     const folders = currentUser.bookmarkFolders || [];
+    const hadFolderBookmark = folders.some((folder) => folder.chirpIds.includes(chirpId));
     let updatedFolders = folders.map((folder) => ({
       ...folder,
       chirpIds: folder.chirpIds.filter((id) => id !== chirpId),
@@ -253,6 +257,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     // Also remove from legacy bookmarks array
     const bookmarks = currentUser.bookmarks || [];
+    const hadLegacyBookmark = bookmarks.includes(chirpId);
     const newBookmarks = bookmarks.filter((id) => id !== chirpId);
 
     const updatedUser = {
@@ -276,6 +281,9 @@ export const useUserStore = create<UserState>((set, get) => ({
       await userService.updateBookmarkFolders(currentUser.id, updatedFolders);
       if (newBookmarks.length !== bookmarks.length) {
         await userService.updateBookmarks(currentUser.id, newBookmarks);
+      }
+      if (hadFolderBookmark || hadLegacyBookmark) {
+        await chirpService.updateBookmarkCount(chirpId, -1);
       }
     } catch (error) {
       console.error('[useUserStore] Error unbookmarking chirp:', error);

@@ -80,6 +80,7 @@ export type KurralScoreComponents = {
   qualityHistory: number;
   violationHistory: number;
   engagementQuality: number;
+  audienceValue: number;
   consistency: number;
   communityTrust: number;
 };

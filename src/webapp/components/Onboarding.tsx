@@ -27,7 +27,7 @@ const Onboarding = () => {
   const { currentUser, setCurrentUser, followUser, isFollowing } = useUserStore();
   const { trendingTopics, isLoadingTrending, loadTrendingTopics } = useTopicStore();
   const navigate = useNavigate();
-  
+
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(1);
   const [profileForm, setProfileForm] = useState({
     displayName: currentUser?.name || '',
@@ -180,8 +180,8 @@ const Onboarding = () => {
         }
         setSemanticInterests((prev) => [...prev, normalized]);
         if (!value) {
-        setUnifiedInterestInput('');
-      }
+          setUnifiedInterestInput('');
+        }
       }
     } catch (error) {
       console.error('[Onboarding] Error adding interest:', error);
@@ -293,15 +293,35 @@ const Onboarding = () => {
   const ensureMinimumFollows = async (userId: string, minCount: number = 3) => {
     const refreshed = await userService.getUser(userId);
     if (!refreshed) return null;
-    if ((refreshed.following?.length || 0) >= minCount) {
-      return refreshed;
+
+    // Primary platform account to ensure a basic initial feed
+    const primaryBotHandles = ['kuralnews'];
+    let candidateIds: string[] = [];
+
+    for (const handle of primaryBotHandles) {
+      try {
+        const bot = await userService.getUserByHandle(handle);
+        if (bot && bot.id !== userId && !(refreshed.following || []).includes(bot.id)) {
+          candidateIds.push(bot.id);
+        }
+      } catch (error) {
+        console.warn(`[Onboarding] Could not fetch @${handle} for auto-follow:`, error);
+      }
     }
 
-    const popular = await userService.getPopularAccounts(8);
-    const candidateIds = popular
-      .map((user) => user.id)
-      .filter((id) => id !== userId && !(refreshed.following || []).includes(id))
-      .slice(0, minCount - (refreshed.following?.length || 0));
+    // Only skip popularity-based follow if they already have enough follows
+    const currentFollowingCount = (refreshed.following?.length || 0);
+    const neededMore = minCount - currentFollowingCount - candidateIds.length;
+
+    if (neededMore > 0) {
+      const popular = await userService.getPopularAccounts(10);
+      const moreCandidates = popular
+        .map((user) => user.id)
+        .filter((id) => id !== userId && !(refreshed.following || []).includes(id) && !candidateIds.includes(id))
+        .slice(0, neededMore);
+
+      candidateIds = [...candidateIds, ...moreCandidates];
+    }
 
     if (candidateIds.length === 0) {
       return refreshed;
@@ -386,10 +406,10 @@ const Onboarding = () => {
   };
 
   if (!currentUser) {
-  return (
+    return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-textMuted">Loading...</div>
-            </div>
+      </div>
     );
   }
 
@@ -437,10 +457,10 @@ const Onboarding = () => {
                 {userIdStatus === 'checking'
                   ? 'Checking availability...'
                   : userIdStatus === 'available'
-                  ? 'Handle available'
-                  : userIdStatus === 'taken'
-                  ? 'Handle already taken'
-                  : 'Letters, numbers, and underscores only'}
+                    ? 'Handle available'
+                    : userIdStatus === 'taken'
+                      ? 'Handle already taken'
+                      : 'Letters, numbers, and underscores only'}
               </p>
             </div>
           </div>
@@ -509,7 +529,7 @@ const Onboarding = () => {
             <label className="block text-xs font-medium text-textLabel mb-2">
               Interests <span className="text-red-500">*</span>
             </label>
-            
+
             {/* Input field with button */}
             <div className="flex gap-2">
               <input
@@ -541,7 +561,7 @@ const Onboarding = () => {
                 {interestLoading ? '...' : looksLikeStatement(unifiedInterestInput) ? 'Extract' : 'Add'}
               </button>
             </div>
-            
+
             {interestError && (
               <p className="text-xs text-red-500 dark:text-red-400 mt-1">{interestError}</p>
             )}
@@ -652,11 +672,10 @@ const Onboarding = () => {
                       <button
                         type="button"
                         onClick={() => followSuggestion(person.id)}
-                        className={`ml-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
-                          following
-                            ? 'bg-backgroundHover text-textMuted border border-border'
-                            : 'bg-gradient-to-r from-primary to-accent text-white hover:from-primaryHover hover:to-accentHover'
-                        }`}
+                        className={`ml-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 whitespace-nowrap ${following
+                          ? 'bg-backgroundHover text-textMuted border border-border'
+                          : 'bg-gradient-to-r from-primary to-accent text-white hover:from-primaryHover hover:to-accentHover'
+                          }`}
                       >
                         {following ? 'Following' : 'Follow'}
                       </button>
@@ -667,7 +686,7 @@ const Onboarding = () => {
               })}
             </div>
           )}
-              </div>
+        </div>
       );
     }
 
@@ -688,7 +707,7 @@ const Onboarding = () => {
             <strong>Interests:</strong> {semanticInterests.join(', ') || 'None yet'}
           </li>
         </ul>
-                </div>
+      </div>
     );
   };
 
@@ -710,11 +729,10 @@ const Onboarding = () => {
               {STEP_OVERVIEW.map((item) => (
                 <div
                   key={item.step}
-                  className={`rounded-2xl border px-4 py-3 transition ${
-                    currentStep === item.step
-                      ? 'border-white/70 bg-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
-                      : 'border-white/20 bg-white/5'
-                  }`}
+                  className={`rounded-2xl border px-4 py-3 transition ${currentStep === item.step
+                    ? 'border-white/70 bg-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
+                    : 'border-white/20 bg-white/5'
+                    }`}
                 >
                   <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.4em] text-white/60">
                     <span>Step {item.step}</span>

@@ -34,7 +34,7 @@ const getGreeting = (): string => {
 const HomeScreen = () => {
   // #region agent log
   useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/screens/Home/HomeScreen.tsx:34',message:'HomeScreen mounted',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'home-render'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'mobile/src/screens/Home/HomeScreen.tsx:34', message: 'HomeScreen mounted', data: {}, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'home-render' }) }).catch(() => { });
   }, []);
   // #endregion
   const navigation = useNavigation<NavigationProp>();
@@ -68,7 +68,7 @@ const HomeScreen = () => {
       try {
         const lastViewedStr = await AsyncStorage.getItem(LAST_VIEWED_KEY);
         const lastViewed = lastViewedStr ? parseInt(lastViewedStr, 10) : null;
-        
+
         if (!lastViewed) {
           // First time viewing, set current time and show 0
           await AsyncStorage.setItem(LAST_VIEWED_KEY, Date.now().toString());
@@ -81,7 +81,7 @@ const HomeScreen = () => {
         const newCount = activeFeedChirps.filter(
           (chirp) => chirp.createdAt.getTime() > lastViewed
         ).length;
-        
+
         setNewKuralsCount(newCount);
       } catch (error) {
         console.error('Error calculating new Kurals:', error);
@@ -121,13 +121,13 @@ const HomeScreen = () => {
 
     const followingIds = user.following || [];
     const stopLatest = startLatestListener(followingIds, user.id);
-    const stopForYou = startForYouListener(user.id, forYouConfig);
+    const stopForYou = startForYouListener(user, forYouConfig);
 
     return () => {
       stopLatest?.();
       stopForYou?.();
     };
-  }, [startLatestListener, startForYouListener, user?.id, user?.following, forYouConfig]);
+  }, [startLatestListener, startForYouListener, user, forYouConfig]);
 
   const firstName = user?.name?.split(' ')[0] || 'there';
   const userInitials = user?.name
@@ -142,135 +142,135 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={dynamicStyles.container}>
       <View style={{ flex: 1 }}>
-      <View style={dynamicStyles.headerContainer}>
-      <View style={dynamicStyles.header}>
-        <View style={dynamicStyles.headerLeft}>
-            <View style={dynamicStyles.greetingRow}>
-              <Text style={dynamicStyles.greetingText}>
-                <Text style={dynamicStyles.greetingTime}>{getGreeting()}</Text>
-                <Text style={dynamicStyles.greetingName}>, {firstName}</Text>
-          </Text>
-              {newKuralsCount > 0 && (
-                <View style={dynamicStyles.badge}>
-                  <Text style={dynamicStyles.badgeText}>{newKuralsCount}</Text>
+        <View style={dynamicStyles.headerContainer}>
+          <View style={dynamicStyles.header}>
+            <View style={dynamicStyles.headerLeft}>
+              <View style={dynamicStyles.greetingRow}>
+                <Text style={dynamicStyles.greetingText}>
+                  <Text style={dynamicStyles.greetingTime}>{getGreeting()}</Text>
+                  <Text style={dynamicStyles.greetingName}>, {firstName}</Text>
+                </Text>
+                {newKuralsCount > 0 && (
+                  <View style={dynamicStyles.badge}>
+                    <Text style={dynamicStyles.badgeText}>{newKuralsCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={dynamicStyles.subhead}>
+                {newKuralsCount > 0
+                  ? `${newKuralsCount} new Kural${newKuralsCount !== 1 ? 's' : ''} waiting`
+                  : "Catch up on what's happening"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                dynamicStyles.profileButton,
+                user?.profilePictureUrl && dynamicStyles.profileButtonWithImage,
+              ]}
+              onPress={() => navigation.navigate('Profile')}
+              activeOpacity={0.7}
+            >
+              {user?.profilePictureUrl ? (
+                <Image
+                  source={{ uri: user.profilePictureUrl }}
+                  style={dynamicStyles.profileImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={dynamicStyles.profilePlaceholder}>
+                  <Text style={dynamicStyles.profileInitials}>{userInitials}</Text>
                 </View>
               )}
-            </View>
-          <Text style={dynamicStyles.subhead}>
-            {newKuralsCount > 0
-                ? `${newKuralsCount} new Kural${newKuralsCount !== 1 ? 's' : ''} waiting`
-              : "Catch up on what's happening"}
-          </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity
-            style={[
-              dynamicStyles.profileButton,
-              user?.profilePictureUrl && dynamicStyles.profileButtonWithImage,
-            ]}
-            onPress={() => navigation.navigate('Profile')}
-          activeOpacity={0.7}
-        >
-            {user?.profilePictureUrl ? (
-              <Image
-                source={{ uri: user.profilePictureUrl }}
-                style={dynamicStyles.profileImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={dynamicStyles.profilePlaceholder}>
-                <Text style={dynamicStyles.profileInitials}>{userInitials}</Text>
-              </View>
-            )}
-        </TouchableOpacity>
-        </View>
-      </View>
 
-      <View style={dynamicStyles.feedSwitch}>
-        <TouchableOpacity
-          style={[
-            dynamicStyles.switchButton,
-            dynamicStyles.switchButtonSpacing,
-            activeFeed === 'latest' && dynamicStyles.switchButtonActive,
-          ]}
-          onPress={() => setActiveFeed('latest')}
-        >
-          <Text
+        <View style={dynamicStyles.feedSwitch}>
+          <TouchableOpacity
             style={[
-              dynamicStyles.switchText,
-              activeFeed === 'latest' && dynamicStyles.switchTextActive,
+              dynamicStyles.switchButton,
+              dynamicStyles.switchButtonSpacing,
+              activeFeed === 'latest' && dynamicStyles.switchButtonActive,
             ]}
+            onPress={() => setActiveFeed('latest')}
           >
-            Following
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            dynamicStyles.switchButton,
-            dynamicStyles.switchButtonSpacing,
-            activeFeed === 'forYou' && dynamicStyles.switchButtonActive,
-          ]}
-          onPress={() => setActiveFeed('forYou')}
-        >
-          <View style={dynamicStyles.switchButtonContent}>
             <Text
               style={[
                 dynamicStyles.switchText,
-                activeFeed === 'forYou' && dynamicStyles.switchTextActive,
+                activeFeed === 'latest' && dynamicStyles.switchTextActive,
               ]}
             >
-              Kurals
+              Following
             </Text>
-            {activeFeed === 'forYou' && (
-              <TouchableOpacity
-                onPress={(e) => {
-                  e.stopPropagation();
-                  navigation.navigate('ForYouControls');
-                }}
-                style={dynamicStyles.gearButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              dynamicStyles.switchButton,
+              dynamicStyles.switchButtonSpacing,
+              activeFeed === 'forYou' && dynamicStyles.switchButtonActive,
+            ]}
+            onPress={() => setActiveFeed('forYou')}
+          >
+            <View style={dynamicStyles.switchButtonContent}>
+              <Text
+                style={[
+                  dynamicStyles.switchText,
+                  activeFeed === 'forYou' && dynamicStyles.switchTextActive,
+                ]}
               >
-                <Ionicons name="settings-outline" size={16} color="#fff" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Bookmarks')}
-          style={dynamicStyles.bookmarkButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons 
-            name="bookmark-outline" 
-            size={20} 
-            color={activeFeed === 'forYou' ? colors.accent : colors.textMuted} 
-          />
-        </TouchableOpacity>
-      </View>
+                Kurals
+              </Text>
+              {activeFeed === 'forYou' && (
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    navigation.navigate('ForYouControls');
+                  }}
+                  style={dynamicStyles.gearButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="settings-outline" size={16} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Bookmarks')}
+            style={dynamicStyles.bookmarkButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name="bookmark-outline"
+              size={20}
+              color={activeFeed === 'forYou' ? colors.accent : colors.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
 
-      {activeFeed === 'latest' ? (
-        <LatestFeed
-          chirps={latest}
-          loading={latestLoading}
-          onRefresh={() => {
-            if (user?.id) {
-              const followingIds = user.following || [];
-              refreshLatest(followingIds, user.id);
-            }
-          }}
-        />
-      ) : (
-        <ForYouFeed
-          chirps={forYou}
-          loading={forYouLoading}
-          onRefresh={() => {
-            if (user?.id) {
-              refreshForYou(user.id, forYouConfig);
-            }
-          }}
-          currentUser={user}
-          forYouConfig={forYouConfig}
-        />
-      )}
+        {activeFeed === 'latest' ? (
+          <LatestFeed
+            chirps={latest}
+            loading={latestLoading}
+            onRefresh={() => {
+              if (user?.id) {
+                const followingIds = user.following || [];
+                refreshLatest(followingIds, user.id);
+              }
+            }}
+          />
+        ) : (
+          <ForYouFeed
+            chirps={forYou}
+            loading={forYouLoading}
+            onRefresh={() => {
+              if (user) {
+                refreshForYou(user, forYouConfig);
+              }
+            }}
+            currentUser={user}
+            forYouConfig={forYouConfig}
+          />
+        )}
       </View>
       <ComposeFab />
     </SafeAreaView>

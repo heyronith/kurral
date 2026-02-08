@@ -38,7 +38,7 @@ export const getColors = (theme: ThemeMode) => colors[theme];
  */
 export const useColors = () => {
   // This will be implemented with the theme store
-  // For now, return light as default
-  return colors.light;
+  // Defaulting to dark
+  return colors.dark;
 };
 

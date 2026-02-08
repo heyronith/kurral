@@ -1,15 +1,17 @@
 import * as admin from 'firebase-admin';
 import type { DiscussionQuality, FactCheck, ValueScore } from '../types';
 import type { PolicyDecision } from './policyEngine';
-import { userService } from './firestoreService';
+import { chirpService, userService } from './firestoreService';
+import { getEngagementScore as getAudienceEngagementScore } from './engagementScore';
 
 const db = admin.firestore();
 const { Timestamp } = admin.firestore;
 
 const SCORE_WEIGHTS = {
-  quality: 0.4,
+  quality: 0.35,
   violations: 0.25,
-  engagement: 0.15,
+  engagement: 0.1,
+  audienceValue: 0.1,
   consistency: 0.1,
   trust: 0.1,
 };
@@ -65,7 +67,7 @@ const getViolationPenalty = (policyDecision?: PolicyDecision, factChecks?: FactC
   return Math.max(0, Math.min(1, penalty));
 };
 
-const getEngagementScore = (discussion?: DiscussionQuality): number => {
+const getDiscussionEngagementScore = (discussion?: DiscussionQuality): number => {
   if (!discussion) {
     return 0.4;
   }
@@ -78,6 +80,16 @@ const getEngagementScore = (discussion?: DiscussionQuality): number => {
     4;
 
   return Math.max(0, Math.min(1, avg));
+};
+
+const getAudienceValueScore = async (userId: string): Promise<number> => {
+  const recentChirps = await chirpService.getRecentChirpsByAuthor(userId, 30, 50);
+  if (recentChirps.length === 0) {
+    return 0.4;
+  }
+
+  const total = recentChirps.reduce((sum, chirp) => sum + getAudienceEngagementScore(chirp), 0);
+  return Math.max(0, Math.min(1, total / recentChirps.length));
 };
 
 const getConsistencyScore = (totalValue: number): number => {
@@ -125,8 +137,10 @@ export async function updateKurralScore(context: KurralScoreContext): Promise<vo
 
   const engagementScore =
     context.discussionQuality !== undefined
-      ? getEngagementScore(context.discussionQuality)
+      ? getDiscussionEngagementScore(context.discussionQuality)
       : (previousComponents?.engagementQuality ?? 40) / 100;
+
+  const audienceValueScore = await getAudienceValueScore(context.userId);
 
   const consistencyScore = getConsistencyScore(totalRollingValue);
 
@@ -135,6 +149,7 @@ export async function updateKurralScore(context: KurralScoreContext): Promise<vo
   const positivePoints =
     qualityScore * SCORE_WEIGHTS.quality +
     engagementScore * SCORE_WEIGHTS.engagement +
+    audienceValueScore * SCORE_WEIGHTS.audienceValue +
     consistencyScore * SCORE_WEIGHTS.consistency +
     trustScore * SCORE_WEIGHTS.trust;
 
@@ -150,6 +165,7 @@ export async function updateKurralScore(context: KurralScoreContext): Promise<vo
     qualityHistory: Math.round(qualityScore * 100),
     violationHistory: Math.round(violationPenalty * 100),
     engagementQuality: Math.round(engagementScore * 100),
+    audienceValue: Math.round(audienceValueScore * 100),
     consistency: Math.round(consistencyScore * 100),
     communityTrust: Math.round(trustScore * 100),
   };

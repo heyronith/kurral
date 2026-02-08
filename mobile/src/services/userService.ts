@@ -485,7 +485,8 @@ export const userService = {
 
       // Step 7: Delete all images from Storage
       if (imageUrls.length > 0) {
-        const { deleteImage } = await import('./storageService');
+        const { storageService } = await import('./storageService');
+        const { deleteImage } = storageService;
         // Process images in batches of 10
         const imageBatchSize = 10;
         for (let i = 0; i < imageUrls.length; i += imageBatchSize) {
@@ -579,7 +580,7 @@ export const userService = {
         orderBy('createdAt', 'desc'),
         limit(100)
       );
-      
+
       const snapshot = await getDocs(q);
       const allUsers = snapshot.docs
         .map((docSnap) => {
@@ -593,19 +594,19 @@ export const userService = {
         .filter((user) => user.id !== excludeUserId && user.interests && user.interests.length > 0);
 
       const normalizedUserInterests = userInterests.map((i) => i.toLowerCase());
-      
+
       const usersWithSimilarity = allUsers.map((user) => {
         const normalizedOtherInterests = (user.interests || []).map((i) => i.toLowerCase());
-        
+
         const exactMatches: string[] = [];
         const partialMatches: string[] = [];
-        
+
         normalizedUserInterests.forEach((interest) => {
           const exactMatch = normalizedOtherInterests.find((otherInterest) => interest === otherInterest);
           if (exactMatch) {
             exactMatches.push(exactMatch);
           } else {
-            const partialMatch = normalizedOtherInterests.find((otherInterest) => 
+            const partialMatch = normalizedOtherInterests.find((otherInterest) =>
               interest.includes(otherInterest) || otherInterest.includes(interest)
             );
             if (partialMatch) {
@@ -667,17 +668,17 @@ export const userService = {
         limit(150)
       );
       const chirpsSnapshot = await getDocs(recentChirpsQuery);
-      
+
       const authorStats = new Map<string, { count: number; lastPosted: Date }>();
-      
+
       chirpsSnapshot.docs.forEach((docSnap) => {
         const data = docSnap.data();
         const authorId = data.authorId;
         if (!authorId) return;
-        
+
         const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
         const existing = authorStats.get(authorId);
-        
+
         if (!existing) {
           authorStats.set(authorId, { count: 1, lastPosted: createdAt });
         } else {
@@ -687,7 +688,7 @@ export const userService = {
           }
         }
       });
-      
+
       const sortedAuthorIds = Array.from(authorStats.entries())
         .sort(([, a], [, b]) => {
           if (b.count !== a.count) {
@@ -697,15 +698,15 @@ export const userService = {
         })
         .map(([authorId]) => authorId)
         .slice(0, limitCount);
-      
+
       if (sortedAuthorIds.length === 0) {
         return [];
       }
-      
+
       const userSnapshots = await Promise.all(
         sortedAuthorIds.map((authorId) => getDoc(doc(db, USERS_COLLECTION, authorId)))
       );
-      
+
       return userSnapshots
         .filter((snap) => snap.exists())
         .map((snap) => {
@@ -726,17 +727,17 @@ export const userService = {
     if (accountIds.length === 0) {
       return this.getUser(userId);
     }
-    
+
     try {
       const userSnap = await getDoc(doc(db, USERS_COLLECTION, userId));
       if (!userSnap.exists()) {
         return null;
       }
-      
+
       const currentUserData = userSnap.data() as any;
       const currentFollowing = currentUserData.following || [];
       const currentAutoFollowed = currentUserData.autoFollowedAccounts || [];
-      
+
       const toFollow = Array.from(
         new Set(
           accountIds.filter(
@@ -744,7 +745,7 @@ export const userService = {
           )
         )
       );
-      
+
       if (toFollow.length === 0) {
         return {
           ...currentUserData,
@@ -752,15 +753,15 @@ export const userService = {
           createdAt: currentUserData.createdAt?.toDate ? currentUserData.createdAt.toDate() : new Date(),
         } as User;
       }
-      
+
       const newFollowing = Array.from(new Set([...currentFollowing, ...toFollow]));
       const newAutoFollowed = Array.from(new Set([...currentAutoFollowed, ...toFollow]));
-      
+
       await updateDoc(doc(db, USERS_COLLECTION, userId), {
         following: newFollowing,
         autoFollowedAccounts: newAutoFollowed,
       });
-      
+
       const refreshed = await getDoc(doc(db, USERS_COLLECTION, userId));
       if (!refreshed.exists()) {
         return {
@@ -769,7 +770,7 @@ export const userService = {
           createdAt: currentUserData.createdAt?.toDate ? currentUserData.createdAt.toDate() : new Date(),
         } as User;
       }
-      
+
       const refreshedData = refreshed.data() as any;
       return {
         ...refreshedData,
@@ -779,6 +780,21 @@ export const userService = {
     } catch (error) {
       console.error('[userService] Error auto-following accounts:', error);
       return null;
+    }
+  },
+
+  async registerPushToken(userId: string, token: string, deviceName?: string): Promise<void> {
+    try {
+      const tokenRef = doc(db, 'users', userId, 'pushTokens', token);
+      await setDoc(tokenRef, {
+        token,
+        deviceName: deviceName || 'unknown',
+        lastUpdated: Timestamp.now(),
+        platform: 'ios', // Since we are on react-native, we can refine this later
+      });
+    } catch (error) {
+      console.error('[userService] Failed to register push token:', error);
+      throw error;
     }
   },
 };

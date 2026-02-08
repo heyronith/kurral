@@ -14,6 +14,7 @@ interface DashboardMetrics {
     qualityHistory: number;
     violationHistory: number;
     engagementQuality: number;
+    audienceValue: number;
     consistency: number;
     communityTrust: number;
   };
@@ -237,6 +238,7 @@ const DashboardPage = () => {
           qualityHistory: 0,
           violationHistory: 0,
           engagementQuality: 0,
+          audienceValue: 0,
           consistency: 0,
           communityTrust: 0,
         };

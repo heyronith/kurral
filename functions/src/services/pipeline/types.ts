@@ -126,6 +126,8 @@ export type PipelineOptions = {
   maxRetries?: number;
   timeoutMs?: number;
   skipValueScoring?: boolean;
+  /** When true, skip pre-check, claim extraction, and fact-check; run value scoring only (e.g. for automated/bot posts). */
+  skipFactCheck?: boolean;
 };
 
 // ============================================================================

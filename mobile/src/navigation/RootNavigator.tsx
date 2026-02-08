@@ -7,17 +7,13 @@ import OnboardingNavigator from './OnboardingNavigator';
 import { authService } from '../services/authService';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useTheme } from '../hooks/useTheme';
+import { pushNotificationService } from '../services/pushNotificationService';
+import { linking } from './linking';
 
 const RootNavigator = () => {
   const { user, setUser, isHydrated, setHydrated } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const { colors } = useTheme();
-
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/navigation/RootNavigator.tsx:16',message:'RootNavigator state',data:{loading, isHydrated, hasUser: !!user, onboardingCompleted: user?.onboardingCompleted},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'nav-state'})}).catch(()=>{});
-  }, [loading, isHydrated, user]);
-  // #endregion
 
   useEffect(() => {
     const unsubscribe = authService.subscribe((u) => {
@@ -27,6 +23,21 @@ const RootNavigator = () => {
     setHydrated(true);
     return unsubscribe;
   }, [setUser, setHydrated]);
+
+  // Handle Push Notifications registration when user is logged in
+  useEffect(() => {
+    if (user?.id) {
+      pushNotificationService.registerForPushNotificationsAsync(user.id);
+
+      const cleanup = pushNotificationService.setupListeners((data) => {
+        console.log('[RootNavigator] Notification tapped with data:', data);
+        // Deep linking configuration in NavigationContainer will handle navigation
+        // If data contains a URL or postId we can navigate manually if needed
+      });
+
+      return cleanup;
+    }
+  }, [user?.id]);
 
   if (loading || !isHydrated) {
     return (
@@ -46,20 +57,14 @@ const RootNavigator = () => {
   // If user exists but onboarding not completed, route to onboarding navigator
   if (user && user.onboardingCompleted === false) {
     return (
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <OnboardingNavigator />
       </NavigationContainer>
     );
   }
 
   return (
-    <NavigationContainer
-      onReady={() => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/79478aa2-e9cd-47a0-9d85-d37e8b5e454c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile/src/navigation/RootNavigator.tsx:56',message:'NavigationContainer ready',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'nav-ready'})}).catch(()=>{});
-        // #endregion
-      }}
-    >
+    <NavigationContainer linking={linking}>
       {user ? <AppNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );

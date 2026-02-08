@@ -74,7 +74,7 @@ export const notificationService = {
     try {
       // Call Cloud Function which handles all validation, preferences, rate limiting, and aggregation
       const result = await createNotificationFunction(notificationData);
-      
+
       // If notification was skipped (disabled, muted, quiet hours, etc.), throw a special error
       if (result.data.skipped || !result.data.success) {
         const reason = result.data.reason || 'unknown';
@@ -122,7 +122,7 @@ export const notificationService = {
         console.log(`Notification skipped: ${error.message}`);
         throw error;
       }
-      
+
       console.error('Error creating notification:', error);
       throw error;
     }
@@ -140,29 +140,29 @@ export const notificationService = {
     } = {}
   ): Promise<Notification[]> {
     const { read = null, type, limitCount = 50 } = options;
-    
+
     try {
       // Build constraints with all filters first, then ordering/limit
       const constraints: any[] = [where('userId', '==', userId)];
-      
+
       if (read !== null) {
         constraints.push(where('read', '==', read));
       }
-      
+
       if (type) {
         constraints.push(where('type', '==', type));
       }
-      
+
       // Always filter out dismissed
       constraints.push(where('dismissed', '==', false));
 
       // Order must come after filters for Firestore
       constraints.push(orderBy('createdAt', 'desc'));
       constraints.push(limit(limitCount));
-      
+
       const q = query(collection(db, 'notifications'), ...constraints);
       const snapshot = await getDocs(q);
-      
+
       return snapshot.docs.map(notificationFromFirestore);
     } catch (error: any) {
       // Handle missing index gracefully
@@ -178,14 +178,14 @@ export const notificationService = {
         );
         const snapshot = await getDocs(q);
         let notifications = snapshot.docs.map(notificationFromFirestore);
-        
+
         if (read !== null) {
           notifications = notifications.filter(n => n.read === read);
         }
         if (type) {
           notifications = notifications.filter(n => n.type === type);
         }
-        
+
         return notifications.slice(0, limitCount);
       }
       console.error('Error fetching notifications:', error);
@@ -238,16 +238,16 @@ export const notificationService = {
         where('dismissed', '==', false)
       );
       const snapshot = await getDocs(q);
-      
+
       if (snapshot.empty) return;
-      
+
       const batch = writeBatch(db);
       snapshot.docs.forEach((docSnap) => {
         batch.update(doc(db, 'notifications', docSnap.id), {
           read: true,
         });
       });
-      
+
       await batch.commit();
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
@@ -267,21 +267,21 @@ export const notificationService = {
     } = {}
   ): Unsubscribe {
     const { read = false, limitCount = 50 } = options;
-    
+
     const constraints: any[] = [
       where('userId', '==', userId),
       where('dismissed', '==', false),
     ];
-    
+
     if (read !== null) {
       constraints.push(where('read', '==', read));
     }
-    
+
     constraints.push(orderBy('createdAt', 'desc'));
     constraints.push(limit(limitCount));
-    
+
     const q = query(collection(db, 'notifications'), ...constraints);
-    
+
     return onSnapshot(
       q,
       (snapshot) => {
@@ -293,6 +293,48 @@ export const notificationService = {
         callback([]);
       }
     );
+  },
+
+  /**
+   * Dismiss a specific notification
+   */
+  async dismissNotification(notificationId: string): Promise<void> {
+    try {
+      await updateDoc(doc(db, 'notifications', notificationId), {
+        dismissed: true,
+      });
+    } catch (error) {
+      console.error('Error dismissing notification:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Dismiss all notifications for a user
+   */
+  async dismissAllNotifications(userId: string): Promise<void> {
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId),
+        where('dismissed', '==', false)
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) return;
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((docSnap) => {
+        batch.update(doc(db, 'notifications', docSnap.id), {
+          dismissed: true,
+        });
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error dismissing all notifications:', error);
+      throw error;
+    }
   },
 };
 

@@ -14,6 +14,7 @@ import { useTheme } from '../hooks/useTheme';
 import ReviewContextModal from './ReviewContextModal';
 import { reviewContextService } from '../services/reviewContextService';
 import { useUserStore } from '../stores/useUserStore';
+import { useAuthStore } from '../stores/useAuthStore';
 
 interface FactCheckStatusModalProps {
   visible: boolean;
@@ -30,7 +31,7 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
   const [reviewContexts, setReviewContexts] = useState<PostReviewContext[]>([]);
   const [loadingContexts, setLoadingContexts] = useState(false);
   const [showReviewContextModal, setShowReviewContextModal] = useState(false);
-  const { currentUser } = useUserStore();
+  const { user: currentUser } = useAuthStore();
   const dynamicStyles = getStyles(colors);
 
   useEffect(() => {
@@ -154,8 +155,8 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView 
-            style={dynamicStyles.content} 
+          <ScrollView
+            style={dynamicStyles.content}
             showsVerticalScrollIndicator={true}
             contentContainerStyle={{ paddingBottom: 40 }}
           >
@@ -164,16 +165,16 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
               <View style={[
                 dynamicStyles.decisionSummary,
                 {
-                  backgroundColor: chirp.factCheckStatus === 'blocked' 
-                    ? 'rgba(239, 68, 68, 0.1)' 
+                  backgroundColor: chirp.factCheckStatus === 'blocked'
+                    ? 'rgba(239, 68, 68, 0.1)'
                     : chirp.factCheckStatus === 'needs_review'
-                    ? 'rgba(245, 158, 11, 0.1)'
-                    : 'rgba(16, 185, 129, 0.1)',
+                      ? 'rgba(245, 158, 11, 0.1)'
+                      : 'rgba(16, 185, 129, 0.1)',
                   borderColor: chirp.factCheckStatus === 'blocked'
                     ? 'rgba(239, 68, 68, 0.3)'
                     : chirp.factCheckStatus === 'needs_review'
-                    ? 'rgba(245, 158, 11, 0.3)'
-                    : 'rgba(16, 185, 129, 0.3)',
+                      ? 'rgba(245, 158, 11, 0.3)'
+                      : 'rgba(16, 185, 129, 0.3)',
                 }
               ]}>
                 <Text style={dynamicStyles.decisionSummaryTitle}>Why {statusInfo.label}?</Text>
@@ -201,11 +202,11 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                   </View>
                 ) : (
                   <Text style={dynamicStyles.decisionSummaryText}>
-                    {chirp.factCheckStatus === 'blocked' 
+                    {chirp.factCheckStatus === 'blocked'
                       ? 'This post contains false or misleading claims that were verified as incorrect.'
                       : chirp.factCheckStatus === 'needs_review'
-                      ? 'This post requires additional review by human experts.'
-                      : 'This post has been verified and contains accurate information.'}
+                        ? 'This post requires additional review by human experts.'
+                        : 'This post has been verified and contains accurate information.'}
                   </Text>
                 )}
               </View>
@@ -220,11 +221,11 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                 isArray: Array.isArray(chirp.claims),
                 claims: chirp.claims,
               });
-              
+
               if (!hasClaims) {
                 return null;
               }
-              
+
               return (
                 <View style={dynamicStyles.section}>
                   <Text style={dynamicStyles.sectionTitle}>Detailed Evidence</Text>
@@ -247,142 +248,142 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                     }
                     return (
                       <View key={claim.id || claimIdx} style={dynamicStyles.claimCard}>
-                      {/* Claim Header */}
-                      <View style={dynamicStyles.claimHeader}>
-                        <Text style={dynamicStyles.claimTextBold}>"{claim.text}"</Text>
-                        <View style={dynamicStyles.claimMeta}>
-                          <View style={dynamicStyles.claimBadge}>
-                            <Text style={dynamicStyles.claimBadgeText}>{claim.type}</Text>
-                          </View>
-                          <View style={dynamicStyles.claimBadge}>
-                            <Text style={dynamicStyles.claimBadgeText}>{claim.domain}</Text>
-                          </View>
-                          <View style={dynamicStyles.claimBadge}>
-                            <Text style={dynamicStyles.claimBadgeText}>Risk: {claim.riskLevel}</Text>
+                        {/* Claim Header */}
+                        <View style={dynamicStyles.claimHeader}>
+                          <Text style={dynamicStyles.claimTextBold}>"{claim.text}"</Text>
+                          <View style={dynamicStyles.claimMeta}>
+                            <View style={dynamicStyles.claimBadge}>
+                              <Text style={dynamicStyles.claimBadgeText}>{claim.type}</Text>
+                            </View>
+                            <View style={dynamicStyles.claimBadge}>
+                              <Text style={dynamicStyles.claimBadgeText}>{claim.domain}</Text>
+                            </View>
+                            <View style={dynamicStyles.claimBadge}>
+                              <Text style={dynamicStyles.claimBadgeText}>Risk: {claim.riskLevel}</Text>
+                            </View>
                           </View>
                         </View>
-                      </View>
 
-                      {/* Fact Check Result */}
-                      {factCheck ? (
-                        <View style={dynamicStyles.factCheckSection}>
-                          <View style={dynamicStyles.verdictRow}>
-                            <View
-                              style={[
-                                dynamicStyles.verdictBadgeLarge,
-                                {
-                                  backgroundColor:
-                                    factCheck.verdict === 'true'
-                                      ? 'rgba(16, 185, 129, 0.2)'
-                                      : factCheck.verdict === 'false'
-                                      ? 'rgba(239, 68, 68, 0.2)'
-                                      : factCheck.verdict === 'mixed'
-                                      ? 'rgba(245, 158, 11, 0.2)'
-                                      : 'rgba(107, 114, 128, 0.1)',
-                                  borderColor:
-                                    factCheck.verdict === 'true'
-                                      ? 'rgba(16, 185, 129, 0.4)'
-                                      : factCheck.verdict === 'false'
-                                      ? 'rgba(239, 68, 68, 0.4)'
-                                      : factCheck.verdict === 'mixed'
-                                      ? 'rgba(245, 158, 11, 0.4)'
-                                      : 'rgba(107, 114, 128, 0.2)',
-                                },
-                              ]}
-                            >
-                              <Text
+                        {/* Fact Check Result */}
+                        {factCheck ? (
+                          <View style={dynamicStyles.factCheckSection}>
+                            <View style={dynamicStyles.verdictRow}>
+                              <View
                                 style={[
-                                  dynamicStyles.verdictTextLarge,
+                                  dynamicStyles.verdictBadgeLarge,
                                   {
-                                    color:
+                                    backgroundColor:
                                       factCheck.verdict === 'true'
-                                        ? '#10B981'
+                                        ? 'rgba(16, 185, 129, 0.2)'
                                         : factCheck.verdict === 'false'
-                                        ? '#EF4444'
-                                        : factCheck.verdict === 'mixed'
-                                        ? '#F59E0B'
-                                        : colors.textMuted,
+                                          ? 'rgba(239, 68, 68, 0.2)'
+                                          : factCheck.verdict === 'mixed'
+                                            ? 'rgba(245, 158, 11, 0.2)'
+                                            : 'rgba(107, 114, 128, 0.1)',
+                                    borderColor:
+                                      factCheck.verdict === 'true'
+                                        ? 'rgba(16, 185, 129, 0.4)'
+                                        : factCheck.verdict === 'false'
+                                          ? 'rgba(239, 68, 68, 0.4)'
+                                          : factCheck.verdict === 'mixed'
+                                            ? 'rgba(245, 158, 11, 0.4)'
+                                            : 'rgba(107, 114, 128, 0.2)',
                                   },
                                 ]}
                               >
-                                {factCheck.verdict.toUpperCase()}
-                              </Text>
-                            </View>
-                            <View style={dynamicStyles.confidenceInfo}>
-                              <Text style={dynamicStyles.confidenceLabel}>Confidence</Text>
-                              <Text style={dynamicStyles.confidenceValue}>
-                                {(factCheck.confidence * 100).toFixed(0)}%
-                              </Text>
-                              {factCheck.checkedAt && (
-                                <Text style={dynamicStyles.checkedDate}>
-                                  Checked {new Date(factCheck.checkedAt).toLocaleDateString()}
-                                </Text>
-                              )}
-                            </View>
-                          </View>
-
-                          {/* Evidence Section - Prominent */}
-                          {factCheck.evidence && factCheck.evidence.length > 0 ? (
-                            <View style={dynamicStyles.evidenceSection}>
-                              <View style={dynamicStyles.evidenceHeader}>
-                                <Text style={dynamicStyles.evidenceIcon}>📚</Text>
-                                <Text style={dynamicStyles.evidenceTitle}>
-                                  Evidence Sources ({factCheck.evidence.length})
+                                <Text
+                                  style={[
+                                    dynamicStyles.verdictTextLarge,
+                                    {
+                                      color:
+                                        factCheck.verdict === 'true'
+                                          ? '#10B981'
+                                          : factCheck.verdict === 'false'
+                                            ? '#EF4444'
+                                            : factCheck.verdict === 'mixed'
+                                              ? '#F59E0B'
+                                              : colors.textMuted,
+                                    },
+                                  ]}
+                                >
+                                  {factCheck.verdict.toUpperCase()}
                                 </Text>
                               </View>
-                              {factCheck.evidence.map((evidence, idx) => (
-                                <View key={idx} style={dynamicStyles.evidenceCardProminent}>
-                                  <View style={dynamicStyles.evidenceCardHeader}>
-                                    <Text style={dynamicStyles.evidenceSourceBold}>{evidence.source}</Text>
-                                    {evidence.quality && (
-                                      <Text style={dynamicStyles.evidenceQuality}>
-                                        Quality: {(evidence.quality * 100).toFixed(0)}%
-                                      </Text>
+                              <View style={dynamicStyles.confidenceInfo}>
+                                <Text style={dynamicStyles.confidenceLabel}>Confidence</Text>
+                                <Text style={dynamicStyles.confidenceValue}>
+                                  {(factCheck.confidence * 100).toFixed(0)}%
+                                </Text>
+                                {factCheck.checkedAt && (
+                                  <Text style={dynamicStyles.checkedDate}>
+                                    Checked {new Date(factCheck.checkedAt).toLocaleDateString()}
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+
+                            {/* Evidence Section - Prominent */}
+                            {factCheck.evidence && factCheck.evidence.length > 0 ? (
+                              <View style={dynamicStyles.evidenceSection}>
+                                <View style={dynamicStyles.evidenceHeader}>
+                                  <Text style={dynamicStyles.evidenceIcon}>📚</Text>
+                                  <Text style={dynamicStyles.evidenceTitle}>
+                                    Evidence Sources ({factCheck.evidence.length})
+                                  </Text>
+                                </View>
+                                {factCheck.evidence.map((evidence, idx) => (
+                                  <View key={idx} style={dynamicStyles.evidenceCardProminent}>
+                                    <View style={dynamicStyles.evidenceCardHeader}>
+                                      <Text style={dynamicStyles.evidenceSourceBold}>{evidence.source}</Text>
+                                      {evidence.quality && (
+                                        <Text style={dynamicStyles.evidenceQuality}>
+                                          Quality: {(evidence.quality * 100).toFixed(0)}%
+                                        </Text>
+                                      )}
+                                    </View>
+                                    <Text style={dynamicStyles.evidenceSnippetBold}>"{evidence.snippet}"</Text>
+                                    {evidence.url && (
+                                      <TouchableOpacity
+                                        onPress={() => handleOpenURL(evidence.url!)}
+                                        style={dynamicStyles.evidenceLinkProminent}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Text style={dynamicStyles.evidenceLinkIcon}>🔗</Text>
+                                        <Text style={dynamicStyles.evidenceLinkTextBold}>View Full Source</Text>
+                                      </TouchableOpacity>
                                     )}
                                   </View>
-                                  <Text style={dynamicStyles.evidenceSnippetBold}>"{evidence.snippet}"</Text>
-                                  {evidence.url && (
-                                    <TouchableOpacity
-                                      onPress={() => handleOpenURL(evidence.url!)}
-                                      style={dynamicStyles.evidenceLinkProminent}
-                                      activeOpacity={0.7}
-                                    >
-                                      <Text style={dynamicStyles.evidenceLinkIcon}>🔗</Text>
-                                      <Text style={dynamicStyles.evidenceLinkTextBold}>View Full Source</Text>
-                                    </TouchableOpacity>
-                                  )}
-                                </View>
-                              ))}
-                            </View>
-                          ) : (
-                            <View style={dynamicStyles.noEvidenceCard}>
-                              <Text style={dynamicStyles.noEvidenceText}>
-                                No evidence sources were found for this claim.
-                              </Text>
-                            </View>
-                          )}
-
-                          {/* Caveats */}
-                          {factCheck.caveats && factCheck.caveats.length > 0 && (
-                            <View style={dynamicStyles.caveatsCard}>
-                              <Text style={dynamicStyles.caveatsTitle}>⚠️ Important Notes:</Text>
-                              {factCheck.caveats.map((caveat, idx) => (
-                                <Text key={idx} style={dynamicStyles.caveatsText}>
-                                  • {caveat}
+                                ))}
+                              </View>
+                            ) : (
+                              <View style={dynamicStyles.noEvidenceCard}>
+                                <Text style={dynamicStyles.noEvidenceText}>
+                                  No evidence sources were found for this claim.
                                 </Text>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      ) : (
-                        <View style={dynamicStyles.noFactCheckCard}>
-                          <Text style={dynamicStyles.noFactCheckText}>
-                            This claim has not been fact-checked yet.
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  );
+                              </View>
+                            )}
+
+                            {/* Caveats */}
+                            {factCheck.caveats && factCheck.caveats.length > 0 && (
+                              <View style={dynamicStyles.caveatsCard}>
+                                <Text style={dynamicStyles.caveatsTitle}>⚠️ Important Notes:</Text>
+                                {factCheck.caveats.map((caveat, idx) => (
+                                  <Text key={idx} style={dynamicStyles.caveatsText}>
+                                    • {caveat}
+                                  </Text>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        ) : (
+                          <View style={dynamicStyles.noFactCheckCard}>
+                            <Text style={dynamicStyles.noFactCheckText}>
+                              This claim has not been fact-checked yet.
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    );
                   })}
                 </View>
               );
@@ -396,9 +397,9 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                       {chirp.factCheckingStatus === 'in_progress' || chirp.factCheckingStatus === 'pending'
                         ? 'Fact-checking is still in progress. Evidence will appear here once processing is complete.'
                         : 'Evidence details are not available yet. This post has been marked as ' +
-                          (chirp.factCheckStatus === 'blocked' ? 'blocked' : 
-                           chirp.factCheckStatus === 'needs_review' ? 'needing review' : 'verified') +
-                          ' but the detailed claims and evidence have not been loaded.'}
+                        (chirp.factCheckStatus === 'blocked' ? 'blocked' :
+                          chirp.factCheckStatus === 'needs_review' ? 'needing review' : 'verified') +
+                        ' but the detailed claims and evidence have not been loaded.'}
                     </Text>
                   </View>
                 </View>
@@ -516,7 +517,7 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
               </View>
             )}
 
-            {/* Add Context Button - for needs_review posts */}
+            {/* Add Context Button - for needs_review posts (Non-authors) */}
             {chirp.factCheckStatus === 'needs_review' && currentUser && currentUser.id !== chirp.authorId && (
               <View style={dynamicStyles.section}>
                 <TouchableOpacity
@@ -527,6 +528,36 @@ const FactCheckStatusModal: React.FC<FactCheckStatusModalProps> = ({
                   activeOpacity={0.8}
                 >
                   <Text style={dynamicStyles.addContextButtonText}>Add Context for Review</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Appeal Button - for blocked posts (Author only) */}
+            {chirp.factCheckStatus === 'blocked' && currentUser && currentUser.id === chirp.authorId && (
+              <View style={dynamicStyles.section}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowReviewContextModal(true);
+                  }}
+                  style={dynamicStyles.appealButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={dynamicStyles.appealButtonText}>Appeal Decision</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Appeal Button - for blocked posts (Author only) */}
+            {chirp.factCheckStatus === 'blocked' && currentUser && currentUser.id === chirp.authorId && (
+              <View style={dynamicStyles.section}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowReviewContextModal(true);
+                  }}
+                  style={dynamicStyles.appealButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={dynamicStyles.appealButtonText}>Appeal Decision</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1192,6 +1223,20 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
     fontSize: 13,
     color: colors.textMuted,
     lineHeight: 18,
+  },
+  appealButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    alignItems: 'center',
+  },
+  appealButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#EF4444',
   },
 });
 

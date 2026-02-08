@@ -219,6 +219,23 @@ export const chirpService = {
       .slice(0, limitCount);
   },
 
+  async getRecentChirpsByAuthor(
+    authorId: string,
+    days: number = 30,
+    limitCount: number = 50
+  ): Promise<Chirp[]> {
+    const cutoff = Timestamp.fromDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
+    const snapshot = await db
+      .collection('chirps')
+      .where('authorId', '==', authorId)
+      .where('createdAt', '>=', cutoff)
+      .orderBy('createdAt', 'desc')
+      .limit(limitCount)
+      .get();
+
+    return snapshot.docs.map((doc) => deserializeChirp(doc.id, doc.data()));
+  },
+
   async updateChirpInsights(
     chirpId: string,
     insights: {

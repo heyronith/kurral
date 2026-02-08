@@ -25,6 +25,7 @@ interface DashboardMetrics {
     qualityHistory: number;
     violationHistory: number;
     engagementQuality: number;
+    audienceValue: number;
     consistency: number;
     communityTrust: number;
   };
@@ -126,6 +127,7 @@ const DashboardScreen = () => {
                 qualityHistory: 50,
                 violationHistory: 0,
                 engagementQuality: 40,
+                    audienceValue: 40,
                 consistency: Math.min(100, Math.floor(totalRollingValue / 5)),
                 communityTrust: 100,
               },
@@ -238,6 +240,7 @@ const DashboardScreen = () => {
           qualityHistory: 0,
           violationHistory: 0,
           engagementQuality: 0,
+          audienceValue: 0,
           consistency: 0,
           communityTrust: 0,
         };
